@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { onAuthStateChanged, signInAnonymously, GoogleAuthProvider, getRedirectResult, signInWithRedirect } from "firebase/auth";
+import { onAuthStateChanged, signInAnonymously, GoogleAuthProvider, getRedirectResult, signInWithPopup } from "firebase/auth";
 import { getDoc, doc } from "firebase/firestore";
 import { auth, db, appId } from "./api/firebase";
 
@@ -11,8 +11,6 @@ import AppLayout from './screens/AppLayout';
 function App() {
   const [authState, setAuthState] = useState({ user: null, loading: true, hasData: false });
   const [appState, setAppState] = useState('loading'); // loading, auth, wizard, app
-  
-  // NEW: State to ensure we wait for any redirect to finish
   const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
 
   useEffect(() => {
@@ -21,8 +19,6 @@ function App() {
         console.error("Error processing redirect result:", error);
       })
       .finally(() => {
-        // This 'finally' block runs after the redirect is processed.
-        // Now we are safe to listen for auth changes.
         setIsProcessingRedirect(false);
         
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -52,7 +48,9 @@ function App() {
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithRedirect(auth, provider);
+      // THIS IS THE FIX: Switched from signInWithRedirect to signInWithPopup
+      await signInWithPopup(auth, provider);
+      // After popup closes, onAuthStateChanged will handle the rest.
     } catch (error) {
       console.error("Google sign-in failed:", error);
     }
@@ -64,7 +62,6 @@ function App() {
   }
 
   const renderContent = () => {
-    // If we are processing the redirect, show a loading screen
     if (isProcessingRedirect) {
         return <LoadingScreen />;
     }
