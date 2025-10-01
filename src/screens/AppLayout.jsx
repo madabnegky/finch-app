@@ -25,10 +25,11 @@ import PlaidLink from '../components/plaid/PlaidLink';
 import AddAccountChoiceModal from '../components/modals/AddAccountChoiceModal';
 import AddAccountModal from '../components/modals/AddAccountModal';
 import PlaidLinkModal from '../components/modals/PlaidLinkModal';
-import LoadingScreen from '../components/core/LoadingScreen'; // Import LoadingScreen
+import LoadingScreen from '../components/core/LoadingScreen';
 
 // --- SUB-COMPONENTS (Unchanged) ---
 const UserProfile = ({ user, onLogout }) => {
+    // ... (code is unchanged)
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
     useEffect(() => { const handleClickOutside = (event) => { if (dropdownRef.current && !dropdownRef.current.contains(event.target)) { setIsOpen(false); } }; document.addEventListener("mousedown", handleClickOutside); return () => document.removeEventListener("mousedown", handleClickOutside); }, [dropdownRef]);
@@ -43,6 +44,7 @@ const UserProfile = ({ user, onLogout }) => {
     );
 };
 const AuthConflictModal = ({ isOpen, onCancel, onConfirm }) => {
+    // ... (code is unchanged)
     if (!isOpen) return null;
     return (
         <Modal isOpen={isOpen} onClose={onCancel} title="Account Exists">
@@ -58,10 +60,10 @@ const AuthConflictModal = ({ isOpen, onCancel, onConfirm }) => {
 
 // --- MAIN AppLayout COMPONENT ---
 const AppLayout = ({ user }) => {
+    // All state, effects, handlers, and hooks are unchanged
     const [currentPage, setCurrentPage] = useState('dashboard');
     const [data, setData] = useState({ accounts: [], transactions: [], loading: true });
     const [budgets, setBudgets] = useState({ loading: true, data: {} });
-    // ... all other state variables are the same
     const [isTransactionModalOpen, setTransactionModalOpen] = useState(false);
     const [isTransferModalOpen, setTransferModalOpen] = useState(false);
     const [isAccountModalOpen, setAccountModalOpen] = useState(false);
@@ -79,68 +81,26 @@ const AppLayout = ({ user }) => {
     const [isPlaidLinkOpen, setIsPlaidLinkOpen] = useState(false);
     const [accountToLink, setAccountToLink] = useState(null);
 
-    // REWRITTEN AND SIMPLIFIED DATA FETCHING LOGIC
     useEffect(() => {
+        // ... (data fetching logic is unchanged)
         if (!user) return;
-        console.log("AppLayout: User detected, setting up Firestore listeners...");
-
-        let accountsLoaded = false;
-        let transactionsLoaded = false;
-        let budgetsLoaded = false;
-
-        const checkIfAllLoaded = () => {
-            if(accountsLoaded && transactionsLoaded && budgetsLoaded) {
-                console.log("AppLayout: All initial data loaded.");
-                setData(prev => ({ ...prev, loading: false }));
-            }
-        }
-
+        let accountsLoaded = false, transactionsLoaded = false, budgetsLoaded = false;
+        const checkIfAllLoaded = () => { if(accountsLoaded && transactionsLoaded && budgetsLoaded) setData(prev => ({ ...prev, loading: false })); }
         const accountsRef = collection(db, `artifacts/${appId}/users/${user.uid}/accounts`);
         const transactionsRef = collection(db, `artifacts/${appId}/users/${user.uid}/transactions`);
         const now = new Date();
         const budgetId = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
         const budgetRef = doc(db, `artifacts/${appId}/users/${user.uid}/budgets`, budgetId);
-        
-        const unsubAccounts = onSnapshot(accountsRef, (snapshot) => {
-            const accountsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            console.log(`AppLayout: Fetched ${accountsData.length} accounts.`);
-            setData(prev => ({...prev, accounts: accountsData }));
-            accountsLoaded = true;
-            checkIfAllLoaded();
-        }, (error) => { console.error("Error fetching accounts:", error); });
-
-        const unsubTransactions = onSnapshot(transactionsRef, (snapshot) => {
-            const transactionsData = snapshot.docs.map(doc => {
-                const docData = doc.data();
-                const recurringDetails = docData.recurringDetails ? { ...docData.recurringDetails, nextDate: docData.recurringDetails.nextDate?.toDate(), endDate: docData.recurringDetails.endDate?.toDate(), excludedDates: docData.recurringDetails.excludedDates?.map(ts => ts.toDate()) || [], } : null;
-                return { id: doc.id, ...docData, date: docData.date?.toDate(), createdAt: docData.createdAt?.toDate(), recurringDetails, };
-            });
-            console.log(`AppLayout: Fetched ${transactionsData.length} transactions.`);
-            setData(prev => ({...prev, transactions: transactionsData }));
-            transactionsLoaded = true;
-            checkIfAllLoaded();
-        }, (error) => { console.error("Error fetching transactions:", error); });
-        
-        const unsubBudgets = onSnapshot(budgetRef, (doc) => {
-            console.log("AppLayout: Fetched budgets.");
-            setBudgets({ data: doc.exists() ? doc.data() : {} });
-            budgetsLoaded = true;
-            checkIfAllLoaded();
-        }, (error) => { console.error("Error fetching budgets:", error); });
-        
-        return () => {
-            console.log("AppLayout: Cleaning up Firestore listeners.");
-            unsubAccounts();
-            unsubTransactions();
-            unsubBudgets();
-        };
+        const unsubAccounts = onSnapshot(accountsRef, (snapshot) => { const accountsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); setData(prev => ({...prev, accounts: accountsData })); accountsLoaded = true; checkIfAllLoaded(); }, (error) => { console.error("Error fetching accounts:", error); });
+        const unsubTransactions = onSnapshot(transactionsRef, (snapshot) => { const transactionsData = snapshot.docs.map(doc => { const docData = doc.data(); const recurringDetails = docData.recurringDetails ? { ...docData.recurringDetails, nextDate: docData.recurringDetails.nextDate?.toDate(), endDate: docData.recurringDetails.endDate?.toDate(), excludedDates: docData.recurringDetails.excludedDates?.map(ts => ts.toDate()) || [], } : null; return { id: doc.id, ...docData, date: docData.date?.toDate(), createdAt: docData.createdAt?.toDate(), recurringDetails, }; }); setData(prev => ({...prev, transactions: transactionsData })); transactionsLoaded = true; checkIfAllLoaded(); }, (error) => { console.error("Error fetching transactions:", error); });
+        const unsubBudgets = onSnapshot(budgetRef, (doc) => { setBudgets({ data: doc.exists() ? doc.data() : {} }); budgetsLoaded = true; checkIfAllLoaded(); }, (error) => { console.error("Error fetching budgets:", error); });
+        return () => { unsubAccounts(); unsubTransactions(); unsubBudgets(); };
     }, [user]);
 
-    // All handler functions remain the same
-    const handleLogout = async () => { /* ... */ };
-    const handleLinkAccount = async () => { /* ... */ };
-    const handleConflictSignIn = async () => { /* ... */ };
-    // ... include all your other handle... functions here, they don't need to change.
+    const handleLogout = async () => { await signOutUser(); };
+    const handleLinkAccount = async () => { if (!auth.currentUser || !auth.currentUser.isAnonymous) return; const provider = new GoogleAuthProvider(); try { auth.tenantId = null; await linkWithPopup(auth.currentUser, provider); } catch (error) { if (error.code === 'auth/credential-already-in-use') { setAuthConflictProvider(provider); } else { console.error("Error linking with popup:", error); } } };
+    const handleConflictSignIn = async () => { if (!authConflictProvider) return; try { await signOutUser(); await signInWithPopup(auth, authConflictProvider); setAuthConflictProvider(null); } catch (signInError) { console.error("Error during sign-in to existing account:", signInError); } };
+    // ... all other handler functions are also unchanged
     const handleOpenAddModal = () => { setEditingTransaction(null); setTransactionModalOpen(true); };
     const handleOpenTransferModal = (initialData = null) => { setPrefilledTransfer(initialData); setTransferModalOpen(true); };
     const handleOpenEditModal = (transaction) => { if (transaction.type === 'transfer') { const transferPair = data.transactions.filter(t => t.transferId === transaction.transferId); setEditingTransfer(transferPair); setTransferModalOpen(true); } else { setEditingTransaction(transaction); setTransactionModalOpen(true); } };
@@ -149,69 +109,29 @@ const AppLayout = ({ user }) => {
     const handleCloseModal = () => { setTransactionModalOpen(false); setEditingTransaction(null); setTransferModalOpen(false); setEditingTransfer(null); setPrefilledTransfer(null); setAccountModalOpen(false); setEditingAccount(null); };
     const handleRunSimulation = (simTransaction) => { setSimulatedTransaction({ ...simTransaction, amount: -Math.abs(parseFloat(simTransaction.amount)), type: 'expense', isRecurring: false, id: `sim-${Date.now()}` }); };
     const handleClearSimulation = () => { setSimulatedTransaction(null); };
-    const handleSaveNewAccount = async (accountData) => { if (!accountData.name) { return; } try { const accountsRef = collection(db, `artifacts/${appId}/users/${user.uid}/accounts`); await addDoc(accountsRef, { ...accountData, createdAt: serverTimestamp(), }); setAddAccountModalOpen(false); } catch (error) { console.error("Error adding new account: ", error); } };
-    const handleSaveTransfer = async (transfer) => { const { fromAccountId, toAccountId, amount, date, description, transferId } = transfer; const transferAmount = parseFloat(amount); if (!fromAccountId || !toAccountId || !transferAmount || !date) { console.error("Missing transfer details"); return; } const batch = writeBatch(db); const transactionsRef = collection(db, `artifacts/${appId}/users/${user.uid}/transactions`); if (transferId) { const q = query(transactionsRef, where("transferId", "==", transferId)); const querySnapshot = await getDocs(q); querySnapshot.forEach((doc) => { const docData = doc.data(); if (docData.amount < 0) { batch.update(doc.ref, { accountId: fromAccountId, amount: -transferAmount, date: parseDateString(date), description: `Transfer to ${data.accounts.find(a => a.id === toAccountId)?.name}`, notes: description, }); } else { batch.update(doc.ref, { accountId: toAccountId, amount: transferAmount, date: parseDateString(date), description: `Transfer from ${data.accounts.find(a => a.id === fromAccountId)?.name}`, notes: description, }); } }); } else { const newTransferId = crypto.randomUUID(); const withdrawalRef = doc(transactionsRef); batch.set(withdrawalRef, { accountId: fromAccountId, amount: -transferAmount, date: parseDateString(date), description: `Transfer to ${data.accounts.find(a => a.id === toAccountId)?.name}`, notes: description, type: 'transfer', isRecurring: false, transferId: newTransferId, createdAt: serverTimestamp(), }); const depositRef = doc(transactionsRef); batch.set(depositRef, { accountId: toAccountId, amount: transferAmount, date: parseDateString(date), description: `Transfer from ${data.accounts.find(a => a.id === fromAccountId)?.name}`, notes: description, type: 'transfer', isRecurring: false, transferId: newTransferId, createdAt: serverTimestamp(), }); } try { await batch.commit(); handleCloseModal(); } catch (error) { console.error("Error saving transfer:", error); } };
+    const handleSaveNewAccount = async (accountData) => { if (!accountData.name) return; try { const accountsRef = collection(db, `artifacts/${appId}/users/${user.uid}/accounts`); await addDoc(accountsRef, { ...accountData, createdAt: serverTimestamp(), }); setAddAccountModalOpen(false); } catch (error) { console.error("Error adding new account: ", error); } };
+    const handleSaveTransfer = async (transfer) => { const { fromAccountId, toAccountId, amount, date, description, transferId } = transfer; const transferAmount = parseFloat(amount); if (!fromAccountId || !toAccountId || !transferAmount || !date) return; const batch = writeBatch(db); const transactionsRef = collection(db, `artifacts/${appId}/users/${user.uid}/transactions`); if (transferId) { const q = query(transactionsRef, where("transferId", "==", transferId)); const querySnapshot = await getDocs(q); querySnapshot.forEach((doc) => { const docData = doc.data(); if (docData.amount < 0) { batch.update(doc.ref, { accountId: fromAccountId, amount: -transferAmount, date: parseDateString(date), description: `Transfer to ${data.accounts.find(a => a.id === toAccountId)?.name}`, notes: description, }); } else { batch.update(doc.ref, { accountId: toAccountId, amount: transferAmount, date: parseDateString(date), description: `Transfer from ${data.accounts.find(a => a.id === fromAccountId)?.name}`, notes: description, }); } }); } else { const newTransferId = crypto.randomUUID(); const withdrawalRef = doc(transactionsRef); batch.set(withdrawalRef, { accountId: fromAccountId, amount: -transferAmount, date: parseDateString(date), description: `Transfer to ${data.accounts.find(a => a.id === toAccountId)?.name}`, notes: description, type: 'transfer', isRecurring: false, transferId: newTransferId, createdAt: serverTimestamp(), }); const depositRef = doc(transactionsRef); batch.set(depositRef, { accountId: toAccountId, amount: transferAmount, date: parseDateString(date), description: `Transfer from ${data.accounts.find(a => a.id === fromAccountId)?.name}`, notes: description, type: 'transfer', isRecurring: false, transferId: newTransferId, createdAt: serverTimestamp(), }); } try { await batch.commit(); handleCloseModal(); } catch (error) { console.error("Error saving transfer:", error); } };
     const handleSaveAccount = async (account) => { const { id, ...accountData } = account; const accountRef = doc(db, `artifacts/${appId}/users/${user.uid}/accounts`, id); try { await updateDoc(accountRef, accountData); handleCloseModal(); } catch (error) { console.error("Error updating account:", error); } };
     const handleDeleteConfirm = async () => { if (!deletingTransaction) return; try { if (deletingTransaction.type === 'transfer') { const batch = writeBatch(db); const q = query(collection(db, `artifacts/${appId}/users/${user.uid}/transactions`), where("transferId", "==", deletingTransaction.transferId)); const querySnapshot = await getDocs(q); querySnapshot.forEach((doc) => { batch.delete(doc.ref); }); await batch.commit(); } else if (deletingTransaction.isInstance) { const parentRef = doc(db, `artifacts/${appId}/users/${user.uid}/transactions`, deletingTransaction.parentId); await updateDoc(parentRef, { 'recurringDetails.excludedDates': arrayUnion(deletingTransaction.date) }); } else { const transactionRef = doc(db, `artifacts/${appId}/users/${user.uid}/transactions`, deletingTransaction.id); await deleteDoc(transactionRef); } setDeletingTransaction(null); } catch (error) { console.error("Error deleting transaction: ", error); } };
     const handleOnDragEnd = (result) => { if (!result.destination) return; const items = Array.from(orderedAccounts); const [reorderedItem] = items.splice(result.source.index, 1); items.splice(result.destination.index, 0, reorderedItem); setOrderedAccounts(items); };
     const handleOpenAddAccountChoice = () => { setAddAccountChoiceModalOpen(true); };
     const handleChooseManual = () => { setAddAccountChoiceModalOpen(false); setAddAccountModalOpen(true); };
     const handleChoosePlaid = () => { setAddAccountChoiceModalOpen(false); setIsPlaidLinkOpen(true); };
-
-    // All hooks remain the same
+    
     const transactionsWithSimulation = useMemo(() => { if (simulatedTransaction) { return [...data.transactions, simulatedTransaction]; } return data.transactions; }, [data.transactions, simulatedTransaction]);
     const projections = useProjectedBalances(data.accounts, transactionsWithSimulation);
     const calendarProjections = useProjectedBalances(data.accounts, transactionsWithSimulation, calendarAccountId);
-    
-    // CORRECTED: This logic now correctly calculates summaries
-    const accountSummaries = useMemo(() => {
-        if (!projections || projections.length === 0) {
-            return data.accounts.map(account => ({
-                ...account,
-                currentBalance: account.startingBalance,
-                availableToSpend: account.startingBalance - (account.cushion || 0),
-                warning: null
-            }));
-        }
-        
-        const endOfTodayBalances = projections[0]?.balances || {};
-        
-        return data.accounts.map(account => {
-            const currentBalance = endOfTodayBalances[account.id] ?? account.startingBalance;
-            const roundedCushion = Math.round((account.cushion || 0) * 100) / 100;
-            const sixtyDayProjection = projections.slice(0, 61);
-            
-            const lowestBalanceIn60Days = Math.min(...sixtyDayProjection.map(p => p.balances[account.id] ?? Infinity));
-            const availableToSpend = lowestBalanceIn60Days - roundedCushion;
-            
-            let warning = null;
-            if (lowestBalanceIn60Days < 0) {
-                warning = { type: 'error', message: "Your balance is projected to go negative in the next 60 days." };
-            } else if (lowestBalanceIn60Days < roundedCushion) {
-                warning = { type: 'warning', message: "Heads up: Your balance may dip into your cushion soon." };
-            }
-            
-            return {
-                ...account,
-                cushion: roundedCushion,
-                currentBalance: Math.round(currentBalance * 100) / 100,
-                availableToSpend: Math.round(availableToSpend * 100) / 100,
-                warning
-            };
-        });
-    }, [data.accounts, projections]);
-
+    const accountSummaries = useMemo(() => { if (!projections || projections.length === 0) { return data.accounts.map(account => ({ ...account, currentBalance: account.startingBalance, availableToSpend: account.startingBalance - (account.cushion || 0), warning: null })); } const endOfTodayBalances = projections[0]?.balances || {}; return data.accounts.map(account => { const currentBalance = endOfTodayBalances[account.id] ?? account.startingBalance; const roundedCushion = Math.round((account.cushion || 0) * 100) / 100; const sixtyDayProjection = projections.slice(0, 61); const lowestBalanceIn60Days = Math.min(...sixtyDayProjection.map(p => p.balances[account.id] ?? Infinity)); const availableToSpend = lowestBalanceIn60Days - roundedCushion; let warning = null; if (lowestBalanceIn60Days < 0) { warning = { type: 'error', message: "Your balance is projected to go negative in the next 60 days." }; } else if (lowestBalanceIn60Days < roundedCushion) { warning = { type: 'warning', message: "Heads up: Your balance may dip into your cushion soon." }; } return { ...account, cushion: roundedCushion, currentBalance: Math.round(currentBalance * 100) / 100, availableToSpend: Math.round(availableToSpend * 100) / 100, warning }; }); }, [data.accounts, projections]);
     useEffect(() => { setOrderedAccounts(accountSummaries); }, [accountSummaries]);
     const displayTransactions = useTransactionInstances(data.transactions);
     const pageTitles = { dashboard: 'Dashboard', calendar: 'Calendar', transactions: 'Transactions', budgets: 'Budgets', reports: 'Reports' };
     
-    // UPDATED RENDER LOGIC
     if (data.loading) {
         return <LoadingScreen />;
     }
 
     const renderPage = () => {
-        // This function is now simpler as the main loading check is outside
+        // ... (this function is unchanged)
         switch (currentPage) {
             case 'dashboard': return <DashboardPage orderedAccounts={orderedAccounts} onOpenEditAccount={handleOpenEditAccountModal} onOpenAddAccount={handleOpenAddAccountChoice} onLinkAccount={setAccountToLink} transactions={displayTransactions} accounts={data.accounts} onEditTransaction={handleOpenEditModal} onDeleteTransaction={handleOpenDeleteModal} projections={projections} />;
             case 'calendar': return <CalendarPage projections={calendarProjections} accounts={data.accounts} selectedAccountId={calendarAccountId} setSelectedAccountId={setCalendarAccountId} />;
@@ -222,33 +142,47 @@ const AppLayout = ({ user }) => {
         }
     };
     
+    // --- LAYOUT CHANGES ARE HERE ---
     return (
         <div className="bg-finch-gray-50 min-h-screen">
+            {/* 1. New sticky container wraps the header and navigation */}
+            <div className="sticky top-0 z-40 bg-finch-gray-50/95 backdrop-blur-sm border-b border-finch-gray-200">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    {user.isAnonymous && (
+                        <div className="pt-4">
+                            <SaveProgressBanner onSave={handleLinkAccount} />
+                        </div>
+                    )}
+                    <header className="flex justify-between items-center py-4">
+                        <div className="flex items-center gap-3">
+                            <FinchLogo className="w-10 h-10" />
+                            <div><h1 className="text-2xl font-bold text-finch-gray-800">{pageTitles[currentPage]}</h1></div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setSimulatedTransaction('new')} className="bg-white text-finch-gray-700 font-bold py-2 px-4 rounded-lg shadow-sm border border-finch-gray-300 hover:bg-finch-gray-50 flex items-center gap-2 transition-all text-sm"><IconSparkles /> What If?</button>
+                            <button onClick={() => handleOpenTransferModal()} className="bg-white text-finch-gray-700 font-bold py-2 px-4 rounded-lg shadow-sm border border-finch-gray-300 hover:bg-finch-gray-50 flex items-center gap-2 transition-all text-sm disabled:opacity-50" disabled={data.accounts.length < 2}><IconRepeat /> Transfer</button>
+                            <button onClick={handleOpenAddModal} className="bg-finch-orange-500 text-white font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-finch-orange-600 flex items-center gap-2 transition-all text-sm"><IconPlus /> New Transaction</button>
+                            <div className="h-6 w-px bg-finch-gray-200 mx-1"></div>
+                            <UserProfile user={user} onLogout={handleLogout} />
+                        </div>
+                    </header>
+                    <div className="pb-4">
+                        <Navigation currentPage={currentPage} setCurrentPage={setCurrentPage} />
+                    </div>
+                </div>
+            </div>
+
+            {/* 2. Main content container */}
             <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-                {user.isAnonymous && (<SaveProgressBanner onSave={handleLinkAccount} />)}
-                <header className="bg-white border border-finch-gray-200 rounded-xl shadow-sm p-4 flex justify-between items-center mb-6">
-                    <div className="flex items-center gap-3">
-                        <FinchLogo className="w-10 h-10" />
-                        <div><h1 className="text-2xl font-bold text-finch-gray-800">{pageTitles[currentPage]}</h1></div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => setSimulatedTransaction('new')} className="bg-white text-finch-gray-700 font-bold py-2 px-4 rounded-lg shadow-sm border border-finch-gray-300 hover:bg-finch-gray-50 flex items-center gap-2 transition-all text-sm"><IconSparkles /> What If?</button>
-                        <button onClick={() => handleOpenTransferModal()} className="bg-white text-finch-gray-700 font-bold py-2 px-4 rounded-lg shadow-sm border border-finch-gray-300 hover:bg-finch-gray-50 flex items-center gap-2 transition-all text-sm disabled:opacity-50" disabled={data.accounts.length < 2}><IconRepeat /> Transfer</button>
-                        <button onClick={handleOpenAddModal} className="bg-finch-orange-500 text-white font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-finch-orange-600 flex items-center gap-2 transition-all text-sm"><IconPlus /> New Transaction</button>
-                        <div className="h-6 w-px bg-finch-gray-200 mx-1"></div>
-                        <UserProfile user={user} onLogout={handleLogout} />
-                    </div>
-                </header>
                 {simulatedTransaction && typeof simulatedTransaction === 'object' && (<SimulationBanner transaction={simulatedTransaction} onClear={handleClearSimulation} />)}
-                <Navigation currentPage={currentPage} setCurrentPage={setCurrentPage} />
                 <DragDropContext onDragEnd={handleOnDragEnd}>
-                    <main className="mt-6">
+                    <main> {/* The top margin is no longer needed here */}
                         {renderPage()}
                     </main>
                 </DragDropContext>
             </div>
             
-            {/* All modals remain the same */}
+            {/* All modals remain unchanged */}
             {isTransactionModalOpen && (<TransactionModal isOpen={isTransactionModalOpen} onClose={handleCloseModal} accounts={data.accounts} userId={user.uid} transactionToEdit={editingTransaction} />)}
             {isTransferModalOpen && (<TransferModal isOpen={isTransferModalOpen} onClose={handleCloseModal} accounts={data.accounts} onSave={handleSaveTransfer} transferToEdit={editingTransfer} initialData={prefilledTransfer} />)}
             {isAccountModalOpen && (<EditAccountModal isOpen={isAccountModalOpen} onClose={handleCloseModal} account={editingAccount} onSave={handleSaveAccount} />)}
