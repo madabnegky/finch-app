@@ -1,10 +1,11 @@
 import React from 'react';
 import TransactionList from '../components/transactions/TransactionList';
 
-const TransactionsPage = ({ transactions, accounts, onEdit, onDelete }) => (
+// This page now receives the display-ready transactions directly
+const TransactionsPage = ({ displayTransactions, accounts, onEdit, onDelete }) => (
     <div className="p-6 bg-white rounded-xl shadow-md border border-slate-200">
         <TransactionList
-            transactions={transactions}
+            transactions={displayTransactions}
             accounts={accounts}
             onEdit={onEdit}
             onDelete={onDelete}

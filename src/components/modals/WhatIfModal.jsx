@@ -23,37 +23,37 @@ const WhatIfModal = ({ isOpen, onClose, onSimulate, accounts }) => {
     return (
         <Modal isOpen={isOpen} onClose={onClose} title='"What If?" Scenario' footer={footer}>
              <form id="what-if-form" onSubmit={handleSubmit} className="space-y-4">
-                <p className="text-sm text-slate-600">See how a potential purchase could impact your future balance. This won't be saved as a real transaction.</p>
+                <p className="text-sm text-finch-gray-600">See how a potential purchase could impact your future balance. This won't be saved as a real transaction.</p>
                 <div>
-                    <label className="block text-sm font-medium text-slate-700">Purchase Description</label>
+                    <label className="block text-sm font-medium text-finch-gray-700">Purchase Description</label>
                     <input
                         type="text"
                         value={description}
                         onChange={e => setDescription(e.target.value)}
                         placeholder="e.g., New TV"
-                        className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        className="mt-1 block w-full form-input rounded-md border-finch-gray-300 shadow-sm focus:border-finch-teal-500 focus:ring-finch-teal-500"
                         required
                     />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700">Amount</label>
+                        <label className="block text-sm font-medium text-finch-gray-700">Amount</label>
                         <input
                             type="number"
                             step="0.01"
                             value={amount}
                             onChange={e => setAmount(e.target.value)}
                             placeholder="500.00"
-                            className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            className="mt-1 block w-full form-input rounded-md border-finch-gray-300 shadow-sm focus:border-finch-teal-500 focus:ring-finch-teal-500"
                             required
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700">Account</label>
+                        <label className="block text-sm font-medium text-finch-gray-700">Account</label>
                         <select 
                             value={accountId} 
                             onChange={e => setAccountId(e.target.value)} 
-                            className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            className="mt-1 block w-full form-select rounded-md border-finch-gray-300 shadow-sm focus:border-finch-teal-500 focus:ring-finch-teal-500"
                             required
                         >
                             {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
@@ -61,12 +61,12 @@ const WhatIfModal = ({ isOpen, onClose, onSimulate, accounts }) => {
                     </div>
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-slate-700">Purchase Date</label>
+                    <label className="block text-sm font-medium text-finch-gray-700">Purchase Date</label>
                     <input
                         type="date"
                         value={date}
                         onChange={e => setDate(e.target.value)}
-                        className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        className="mt-1 block w-full form-input rounded-md border-finch-gray-300 shadow-sm focus:border-finch-teal-500 focus:ring-finch-teal-500"
                         required
                     />
                 </div>

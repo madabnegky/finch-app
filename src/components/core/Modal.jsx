@@ -6,10 +6,11 @@ const Modal = ({ isOpen, onClose, title, children, footer }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
-      <div className="bg-white rounded-xl shadow-md border border-slate-200 w-full max-w-lg">
-        <div className="p-6 border-b flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">
+      {/* Updated to use our new finch-gray colors */}
+      <div className="bg-white rounded-xl shadow-md border border-finch-gray-200 w-full max-w-lg">
+        <div className="p-6 border-b border-finch-gray-200 flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-finch-gray-900">{title}</h2>
+          <button type="button" onClick={onClose} className="text-finch-gray-400 hover:text-finch-gray-700">
             <IconX />
           </button>
         </div>
@@ -19,7 +20,7 @@ const Modal = ({ isOpen, onClose, title, children, footer }) => {
         </div>
         
         {footer && (
-          <div className="p-6 bg-slate-50 rounded-b-xl flex justify-end">
+          <div className="p-6 bg-finch-gray-50 rounded-b-xl flex justify-end">
             {footer}
           </div>
         )}

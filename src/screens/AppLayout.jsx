@@ -5,6 +5,7 @@ import { parseDateString, toDateInputString } from '../utils/date';
 import { auth, db, appId, signOutUser } from '../api/firebase';
 import { DragDropContext } from 'react-beautiful-dnd';
 import useProjectedBalances from '../hooks/useProjectedBalances';
+import useTransactionInstances from '../hooks/useTransactionInstances';
 import DashboardPage from './DashboardPage';
 import CalendarPage from './CalendarPage';
 import TransactionsPage from './TransactionsPage';
@@ -17,11 +18,11 @@ import TransactionModal from '../components/modals/TransactionModal';
 import TransferModal from '../components/modals/TransferModal';
 import EditAccountModal from '../components/modals/EditAccountModal';
 import ConfirmDeleteModal from '../components/modals/ConfirmDeleteModal';
-// We are moving WhatIfModal inside this file to fix it
-// import WhatIfModal from '../components/modals/WhatIfModal'; 
+import WhatIfModal from '../components/modals/WhatIfModal';
+import Modal from '../components/core/Modal';
 import { FinchLogo, IconSparkles, IconRepeat, IconPlus, IconChevronDown, IconAlertTriangle, IconX } from '../components/core/Icon';
 
-// --- SUB-COMPONENTS DEFINED WITHIN AppLayout ---
+// --- SUB-COMPONENTS FULLY DEFINED ---
 
 const UserProfile = ({ user, onLogout }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -29,57 +30,74 @@ const UserProfile = ({ user, onLogout }) => {
     useEffect(() => { const handleClickOutside = (event) => { if (dropdownRef.current && !dropdownRef.current.contains(event.target)) { setIsOpen(false); } }; document.addEventListener("mousedown", handleClickOutside); return () => document.removeEventListener("mousedown", handleClickOutside); }, [dropdownRef]);
     return (
         <div className="relative" ref={dropdownRef}>
-            <button onClick={() => setIsOpen(!isOpen)} className="flex items-center gap-2 rounded-full hover:bg-slate-100 p-1 transition-colors">
-                {user.photoURL ? (<img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full" />) : (<span className="w-8 h-8 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold">{user.email ? user.email.charAt(0).toUpperCase() : '?'}</span>)}
+            <button onClick={() => setIsOpen(!isOpen)} className="flex items-center gap-2 rounded-full hover:bg-finch-gray-100 p-1 transition-colors">
+                {user.photoURL ? (<img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full" />) : (<span className="w-8 h-8 rounded-full bg-finch-teal-500 text-white flex items-center justify-center font-bold">{user.email ? user.email.charAt(0).toUpperCase() : '?'}</span>)}
                 <IconChevronDown />
             </button>
-            {isOpen && (<div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border z-30"><div className="p-3 border-b"><p className="font-semibold truncate">{user.displayName || 'Guest'}</p><p className="text-sm text-slate-500 truncate">{user.email || 'No email provided'}</p></div><div className="p-2"><button onClick={onLogout} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-red-600 rounded-md">Log Out</button></div></div>)}
+            {isOpen && (<div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border z-30"><div className="p-3 border-b"><p className="font-semibold truncate">{user.displayName || 'Guest'}</p><p className="text-sm text-finch-gray-500 truncate">{user.email || 'No email provided'}</p></div><div className="p-2"><button onClick={onLogout} className="w-full text-left px-3 py-2 text-sm text-finch-gray-700 hover:bg-finch-gray-100 hover:text-red-600 rounded-md">Log Out</button></div></div>)}
         </div>
     );
 };
 
-const AuthConflictModal = ({ isOpen, onCancel, onConfirm }) => { /* ... Unchanged ... */ };
-const AddAccountModal = ({ isOpen, onClose, onSave }) => { /* ... Unchanged ... */ };
-
-// THIS IS THE CORRECTED WhatIfModal
-const WhatIfModal = ({ isOpen, onClose, onSimulate, accounts }) => {
-    const [description, setDescription] = useState('');
-    const [amount, setAmount] = useState('');
-    const [date, setDate] = useState(toDateInputString(new Date()));
-    const [accountId, setAccountId] = useState(accounts[0]?.id || '');
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        onSimulate({ description, amount, date: parseDateString(date), accountId });
-        // The modal will close automatically because the parent's state changes.
-        // We no longer call onClose() here. This was the bug.
-    };
-    
+const AuthConflictModal = ({ isOpen, onCancel, onConfirm }) => {
     if (!isOpen) return null;
+    return (
+        <Modal isOpen={isOpen} onClose={onCancel} title="Account Exists">
+            <p className="text-sm text-finch-gray-600">You already have an account with this email. Would you like to sign in to that account? Your current guest data will not be saved.</p>
+            <div className="flex justify-end gap-4 pt-4">
+                <button onClick={onCancel} className="bg-white hover:bg-finch-gray-100 text-finch-gray-700 font-semibold py-2 px-4 border border-finch-gray-300 rounded-lg shadow-sm">Cancel</button>
+                <button onClick={onConfirm} className="bg-finch-teal-700 text-white font-semibold py-2 px-4 rounded-lg shadow-sm">Sign In</button>
+            </div>
+        </Modal>
+    );
+};
+
+const AddAccountModal = ({ isOpen, onClose, onSave }) => {
+    const [name, setName] = useState('');
+    const [type, setType] = useState('Checking');
+    const [startingBalance, setStartingBalance] = useState('');
+
+    const handleSave = (e) => {
+        e.preventDefault();
+        onSave({
+            name,
+            type,
+            startingBalance: parseFloat(startingBalance) || 0,
+            cushion: 0,
+        });
+        setName('');
+        setType('Checking');
+        setStartingBalance('');
+    };
+
+    const footer = (
+        <button type="submit" form="add-account-form" className="bg-finch-teal-700 text-white font-bold py-2 px-6 rounded-lg shadow-sm hover:bg-finch-teal-800">
+            Add Account
+        </button>
+    );
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
-            <div className="bg-white rounded-xl shadow-md border border-slate-200 w-full max-w-lg">
-                <form onSubmit={handleSubmit}>
-                    <div className="p-6 border-b flex justify-between items-center">
-                        <h2 className="text-2xl font-bold">"What If?" Scenario</h2>
-                        <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700"><IconX /></button>
+        <Modal isOpen={isOpen} onClose={onClose} title="Add New Account" footer={footer}>
+            <form id="add-account-form" onSubmit={handleSave} className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-finch-gray-700">Account Name</label>
+                    <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Chase Freedom" className="mt-1 block w-full form-input rounded-md border-finch-gray-300 shadow-sm focus:border-finch-teal-500 focus:ring-finch-teal-500" required />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-finch-gray-700">Account Type</label>
+                        <select value={type} onChange={e => setType(e.target.value)} className="mt-1 block w-full form-select rounded-md border-finch-gray-300 shadow-sm focus:border-finch-teal-500 focus:ring-finch-teal-500">
+                            <option>Checking</option>
+                            <option>Savings</option>
+                        </select>
                     </div>
-                    <div className="p-6 space-y-4">
-                        <p className="text-sm text-slate-600">See how a potential purchase could impact your future balance. This won't be saved as a real transaction.</p>
-                        <div><label className="block text-sm font-medium text-slate-700">Purchase Description</label><input type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g., New TV" className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required/></div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div><label className="block text-sm font-medium text-slate-700">Amount</label><input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="500.00" className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required/></div>
-                            <div><label className="block text-sm font-medium text-slate-700">Account</label><select value={accountId} onChange={e => setAccountId(e.target.value)} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>{accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}</select></div>
-                        </div>
-                        <div><label className="block text-sm font-medium text-slate-700">Purchase Date</label><input type="date" value={date} onChange={e => setDate(e.target.value)} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required/></div>
+                    <div>
+                        <label className="block text-sm font-medium text-finch-gray-700">Current Balance</label>
+                        <input type="number" step="0.01" value={startingBalance} onChange={e => setStartingBalance(e.target.value)} placeholder="1000.00" className="mt-1 block w-full form-input rounded-md border-finch-gray-300 shadow-sm focus:border-finch-teal-500 focus:ring-finch-teal-500" required />
                     </div>
-                    <div className="p-6 bg-slate-50 rounded-b-xl flex justify-end">
-                        <button type="submit" className="bg-purple-600 text-white font-bold py-2 px-6 rounded-lg shadow-sm hover:bg-purple-700">Run Simulation</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+                </div>
+            </form>
+        </Modal>
     );
 };
 
@@ -87,7 +105,6 @@ const WhatIfModal = ({ isOpen, onClose, onSimulate, accounts }) => {
 // --- MAIN AppLayout COMPONENT ---
 
 const AppLayout = ({ user }) => {
-    // All state and handlers are the same, but are included in full here for completeness
     const [currentUser, setCurrentUser] = useState(user);
     useEffect(() => { const unsubscribe = auth.onAuthStateChanged(user => { if (user) { setCurrentUser(user); } }); return () => unsubscribe(); }, []);
     const [currentPage, setCurrentPage] = useState('dashboard');
@@ -109,7 +126,7 @@ const AppLayout = ({ user }) => {
     const handleLogout = async () => { try { await signOutUser(); } catch (error) { console.error("Error signing out:", error); } };
     const handleLinkAccount = async () => { if (!auth.currentUser || !auth.currentUser.isAnonymous) return; const provider = new GoogleAuthProvider(); try { auth.tenantId = null; const result = await linkWithPopup(auth.currentUser, provider); setCurrentUser(result.user); } catch (error) { if (error.code === 'auth/credential-already-in-use') { setAuthConflictProvider(provider); } else { console.error("Error linking with popup:", error); } } };
     const handleConflictSignIn = async () => { if (!authConflictProvider) return; try { await signOutUser(); await signInWithPopup(auth, authConflictProvider); setAuthConflictProvider(null); } catch (signInError) { console.error("Error during sign-in to existing account:", signInError); setAuthConflictProvider(null); } };
-    const handleOpenAddModal = () => { setTransactionModalOpen(true); };
+    const handleOpenAddModal = () => { setEditingTransaction(null); setTransactionModalOpen(true); };
     const handleOpenAddAccountModal = () => { setAddAccountModalOpen(true); };
     const handleOpenTransferModal = (initialData = null) => { setPrefilledTransfer(initialData); setTransferModalOpen(true); };
     const handleOpenEditModal = (transaction) => { if (transaction.type === 'transfer') { const transferPair = data.transactions.filter(t => t.transferId === transaction.transferId); setEditingTransfer(transferPair); setTransferModalOpen(true); } else { setEditingTransaction(transaction); setTransactionModalOpen(true); } };
@@ -129,28 +146,35 @@ const AppLayout = ({ user }) => {
     const calendarProjections = useProjectedBalances(data.accounts, transactionsWithSimulation, calendarAccountId);
     const accountSummaries = useMemo(() => { if (data.loading || !projections || projections.length === 0) return []; const endOfTodayBalances = projections[0]?.balances || {}; return data.accounts.map(account => { const currentBalance = endOfTodayBalances[account.id] ?? account.startingBalance; const roundedCushion = Math.round((account.cushion || 0) * 100) / 100; const sixtyDayProjection = projections.slice(0, 61); const lowestBalanceIn60Days = Math.min(...sixtyDayProjection.map(p => p.balances[account.id] ?? Infinity)); const availableToSpend = lowestBalanceIn60Days - roundedCushion; const roundedCurrentBalance = Math.round(currentBalance * 100) / 100; let warning = null; if (lowestBalanceIn60Days < 0) { warning = { type: 'error', message: "Your balance is projected to go negative in the next 60 days." }; } else if (lowestBalanceIn60Days < roundedCushion) { warning = { type: 'warning', message: "Heads up: Your balance may dip into your cushion soon." }; } return { ...account, cushion: roundedCushion, currentBalance: roundedCurrentBalance, availableToSpend: Math.round(availableToSpend * 100) / 100, warning }; }); }, [data.accounts, data.loading, projections]);
     useEffect(() => { setOrderedAccounts(accountSummaries); }, [accountSummaries]);
+    const displayTransactions = useTransactionInstances(data.transactions);
     const pageTitles = { dashboard: 'Dashboard', calendar: 'Calendar', transactions: 'Transactions', budgets: 'Budgets', reports: 'Reports' };
-    const renderPage = () => { if (!currentUser || data.loading || budgets.loading) { return <div className="flex justify-center items-center h-96"><p>Loading data...</p></div>; } switch (currentPage) { case 'dashboard': return <DashboardPage orderedAccounts={orderedAccounts} onOpenEditAccount={handleOpenEditAccountModal} onOpenAddAccount={handleOpenAddAccountModal} />; case 'calendar': return <CalendarPage projections={calendarProjections} accounts={data.accounts} selectedAccountId={calendarAccountId} setSelectedAccountId={setCalendarAccountId} />; case 'transactions': return <TransactionsPage transactions={data.transactions} accounts={data.accounts} onEdit={handleOpenEditModal} onDelete={handleOpenDeleteModal} />; case 'budgets': return <BudgetPage transactions={data.transactions} budgets={budgets.data} userId={currentUser.uid} />; case 'reports': return <ReportsPage transactions={data.transactions} />; default: return <DashboardPage orderedAccounts={orderedAccounts} onOpenEditAccount={handleOpenEditAccountModal} onOpenAddAccount={handleOpenAddAccountModal}/>; } };
-    const welcomeName = currentUser?.displayName || null;
-    if (!currentUser) { return <div className="flex justify-center items-center h-screen"><p>Loading user...</p></div>; }
+    
+    const renderPage = () => {
+        if (!currentUser || data.loading || budgets.loading) { return <div className="flex justify-center items-center h-96"><p>Loading data...</p></div>; }
+        switch (currentPage) {
+            case 'dashboard': return <DashboardPage orderedAccounts={orderedAccounts} onOpenEditAccount={handleOpenEditAccountModal} onOpenAddAccount={handleOpenAddAccountModal} transactions={displayTransactions} accounts={data.accounts} onEditTransaction={handleOpenEditModal} onDeleteTransaction={handleOpenDeleteModal}/>;
+            case 'calendar': return <CalendarPage projections={calendarProjections} accounts={data.accounts} selectedAccountId={calendarAccountId} setSelectedAccountId={setCalendarAccountId} />;
+            case 'transactions': return <TransactionsPage displayTransactions={displayTransactions} accounts={data.accounts} onEdit={handleOpenEditModal} onDelete={handleOpenDeleteModal} />;
+            case 'budgets': return <BudgetPage transactions={data.transactions} budgets={budgets.data} userId={currentUser.uid} />;
+            case 'reports': return <ReportsPage transactions={data.transactions} />;
+            default: return <DashboardPage orderedAccounts={orderedAccounts} />;
+        }
+    };
     
     return (
-        <>
+        <div className="bg-finch-gray-50 min-h-screen">
             <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
                 {currentUser.isAnonymous && (<SaveProgressBanner onSave={handleLinkAccount} />)}
-                <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-                    <div className="flex items-center gap-4">
-                        <FinchLogo className="w-14 h-14" />
-                        <div>
-                            <h1 className="text-4xl font-bold text-slate-800">{pageTitles[currentPage]}</h1>
-                            <p className="text-slate-500">{welcomeName ? `Welcome back, ${welcomeName}!` : 'Your financial overview.'}</p>
-                        </div>
+                <header className="bg-white border border-finch-gray-200 rounded-xl shadow-sm p-4 flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-3">
+                        <FinchLogo className="w-10 h-10" />
+                        <div><h1 className="text-2xl font-bold text-finch-gray-800">{pageTitles[currentPage]}</h1></div>
                     </div>
-                    <div className="flex items-center gap-2 mt-4 sm:mt-0">
-                        <button onClick={() => setSimulatedTransaction('new')} className="bg-white text-slate-700 font-bold py-3 px-5 rounded-lg shadow-sm border border-slate-300 hover:bg-slate-50 flex items-center gap-2 transition-all"><IconSparkles /> What If?</button>
-                        <button onClick={() => handleOpenTransferModal()} className="bg-white text-slate-700 font-bold py-3 px-5 rounded-lg shadow-sm border border-slate-300 hover:bg-slate-50 flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed" disabled={data.accounts.length < 2}><IconRepeat /> Transfer</button>
-                        <button onClick={handleOpenAddModal} className="bg-indigo-600 text-white font-bold py-3 px-5 rounded-lg shadow-sm hover:bg-indigo-700 flex items-center gap-2 transition-all transform hover:scale-105"><IconPlus /> Add Transaction</button>
-                        <div className="h-8 w-px bg-slate-200 mx-2"></div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => setSimulatedTransaction('new')} className="bg-white text-finch-gray-700 font-bold py-2 px-4 rounded-lg shadow-sm border border-finch-gray-300 hover:bg-finch-gray-50 flex items-center gap-2 transition-all text-sm"><IconSparkles /> What If?</button>
+                        <button onClick={() => handleOpenTransferModal()} className="bg-white text-finch-gray-700 font-bold py-2 px-4 rounded-lg shadow-sm border border-finch-gray-300 hover:bg-finch-gray-50 flex items-center gap-2 transition-all text-sm disabled:opacity-50" disabled={data.accounts.length < 2}><IconRepeat /> Transfer</button>
+                        <button onClick={handleOpenAddModal} className="bg-finch-orange-500 text-white font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-finch-orange-600 flex items-center gap-2 transition-all text-sm"><IconPlus /> New Transaction</button>
+                        <div className="h-6 w-px bg-finch-gray-200 mx-1"></div>
                         <UserProfile user={currentUser} onLogout={handleLogout} />
                     </div>
                 </header>
@@ -169,7 +193,7 @@ const AppLayout = ({ user }) => {
             {simulatedTransaction === 'new' && (<WhatIfModal isOpen={simulatedTransaction === 'new'} onClose={() => setSimulatedTransaction(null)} onSimulate={handleRunSimulation} accounts={data.accounts} />)}
             <AuthConflictModal isOpen={!!authConflictProvider} onCancel={() => setAuthConflictProvider(null)} onConfirm={handleConflictSignIn}/>
             <AddAccountModal isOpen={isAddAccountModalOpen} onClose={() => setAddAccountModalOpen(false)} onSave={handleSaveNewAccount} />
-        </>
+        </div>
     );
 };
 
