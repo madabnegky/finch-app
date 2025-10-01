@@ -12,9 +12,11 @@
   "dependencies": {
     "@tailwindcss/forms": "^0.5.10",
     "firebase": "^10.12.2",
+    "plaid": "^38.1.0",
     "react": "^18.2.0",
     "react-beautiful-dnd": "^13.1.1",
     "react-dom": "^18.2.0",
+    "react-plaid-link": "^4.1.1",
     "recharts": "^2.15.4"
   },
   "devDependencies": {

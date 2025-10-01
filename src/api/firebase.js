@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signOut } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 
 // The firebaseConfig object remains the same
 const firebaseConfig = {
@@ -16,10 +17,17 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const functions = getFunctions(app);
+
+// NEW: This block tells our app to use the local emulator when in development mode.
+if (import.meta.env.DEV) {
+  console.log("Connecting to local Firebase emulators");
+  connectFunctionsEmulator(functions, "localhost", 5001);
+}
 
 const appId = import.meta.env.VITE_APP_ID || 'default-finch-app';
 
-// NEW: Function to handle user sign-out
+// Function to handle user sign-out
 export const signOutUser = () => {
   return signOut(auth);
 };

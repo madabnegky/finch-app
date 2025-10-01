@@ -21,6 +21,10 @@ import ConfirmDeleteModal from '../components/modals/ConfirmDeleteModal';
 import WhatIfModal from '../components/modals/WhatIfModal';
 import Modal from '../components/core/Modal';
 import { FinchLogo, IconSparkles, IconRepeat, IconPlus, IconChevronDown, IconAlertTriangle, IconX } from '../components/core/Icon';
+import PlaidLink from '../components/plaid/PlaidLink';
+import AddAccountChoiceModal from '../components/modals/AddAccountChoiceModal';
+import AddAccountModal from '../components/modals/AddAccountModal';
+
 
 // --- SUB-COMPONENTS FULLY DEFINED ---
 
@@ -52,55 +56,6 @@ const AuthConflictModal = ({ isOpen, onCancel, onConfirm }) => {
     );
 };
 
-const AddAccountModal = ({ isOpen, onClose, onSave }) => {
-    const [name, setName] = useState('');
-    const [type, setType] = useState('Checking');
-    const [startingBalance, setStartingBalance] = useState('');
-
-    const handleSave = (e) => {
-        e.preventDefault();
-        onSave({
-            name,
-            type,
-            startingBalance: parseFloat(startingBalance) || 0,
-            cushion: 0,
-        });
-        setName('');
-        setType('Checking');
-        setStartingBalance('');
-    };
-
-    const footer = (
-        <button type="submit" form="add-account-form" className="bg-finch-teal-700 text-white font-bold py-2 px-6 rounded-lg shadow-sm hover:bg-finch-teal-800">
-            Add Account
-        </button>
-    );
-
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Add New Account" footer={footer}>
-            <form id="add-account-form" onSubmit={handleSave} className="space-y-4">
-                <div>
-                    <label className="block text-sm font-medium text-finch-gray-700">Account Name</label>
-                    <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Chase Freedom" className="mt-1 block w-full form-input rounded-md border-finch-gray-300 shadow-sm focus:border-finch-teal-500 focus:ring-finch-teal-500" required />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-finch-gray-700">Account Type</label>
-                        <select value={type} onChange={e => setType(e.target.value)} className="mt-1 block w-full form-select rounded-md border-finch-gray-300 shadow-sm focus:border-finch-teal-500 focus:ring-finch-teal-500">
-                            <option>Checking</option>
-                            <option>Savings</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-finch-gray-700">Current Balance</label>
-                        <input type="number" step="0.01" value={startingBalance} onChange={e => setStartingBalance(e.target.value)} placeholder="1000.00" className="mt-1 block w-full form-input rounded-md border-finch-gray-300 shadow-sm focus:border-finch-teal-500 focus:ring-finch-teal-500" required />
-                    </div>
-                </div>
-            </form>
-        </Modal>
-    );
-};
-
 
 // --- MAIN AppLayout COMPONENT ---
 
@@ -123,11 +78,12 @@ const AppLayout = ({ user }) => {
     const [simulatedTransaction, setSimulatedTransaction] = useState(null);
     const [authConflictProvider, setAuthConflictProvider] = useState(null);
     const [orderedAccounts, setOrderedAccounts] = useState([]);
+    const [isAddAccountChoiceModalOpen, setAddAccountChoiceModalOpen] = useState(false);
+    const [isPlaidLinkOpen, setIsPlaidLinkOpen] = useState(false);
     const handleLogout = async () => { try { await signOutUser(); } catch (error) { console.error("Error signing out:", error); } };
     const handleLinkAccount = async () => { if (!auth.currentUser || !auth.currentUser.isAnonymous) return; const provider = new GoogleAuthProvider(); try { auth.tenantId = null; const result = await linkWithPopup(auth.currentUser, provider); setCurrentUser(result.user); } catch (error) { if (error.code === 'auth/credential-already-in-use') { setAuthConflictProvider(provider); } else { console.error("Error linking with popup:", error); } } };
     const handleConflictSignIn = async () => { if (!authConflictProvider) return; try { await signOutUser(); await signInWithPopup(auth, authConflictProvider); setAuthConflictProvider(null); } catch (signInError) { console.error("Error during sign-in to existing account:", signInError); setAuthConflictProvider(null); } };
     const handleOpenAddModal = () => { setEditingTransaction(null); setTransactionModalOpen(true); };
-    const handleOpenAddAccountModal = () => { setAddAccountModalOpen(true); };
     const handleOpenTransferModal = (initialData = null) => { setPrefilledTransfer(initialData); setTransferModalOpen(true); };
     const handleOpenEditModal = (transaction) => { if (transaction.type === 'transfer') { const transferPair = data.transactions.filter(t => t.transferId === transaction.transferId); setEditingTransfer(transferPair); setTransferModalOpen(true); } else { setEditingTransaction(transaction); setTransactionModalOpen(true); } };
     const handleOpenEditAccountModal = (account) => { setEditingAccount(account); setAccountModalOpen(true); };
@@ -140,6 +96,21 @@ const AppLayout = ({ user }) => {
     const handleSaveAccount = async (account) => { const { id, ...accountData } = account; const accountRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/accounts`, id); try { await updateDoc(accountRef, accountData); handleCloseModal(); } catch (error) { console.error("Error updating account:", error); } };
     const handleDeleteConfirm = async () => { if (!deletingTransaction) return; try { if (deletingTransaction.type === 'transfer') { const batch = writeBatch(db); const q = query(collection(db, `artifacts/${appId}/users/${currentUser.uid}/transactions`), where("transferId", "==", deletingTransaction.transferId)); const querySnapshot = await getDocs(q); querySnapshot.forEach((doc) => { batch.delete(doc.ref); }); await batch.commit(); } else if (deletingTransaction.isInstance) { const parentRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/transactions`, deletingTransaction.parentId); await updateDoc(parentRef, { 'recurringDetails.excludedDates': arrayUnion(deletingTransaction.date) }); } else { const transactionRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/transactions`, deletingTransaction.id); await deleteDoc(transactionRef); } setDeletingTransaction(null); } catch (error) { console.error("Error deleting transaction: ", error); } };
     const handleOnDragEnd = (result) => { if (!result.destination) return; const items = Array.from(orderedAccounts); const [reorderedItem] = items.splice(result.source.index, 1); items.splice(result.destination.index, 0, reorderedItem); setOrderedAccounts(items); };
+    
+    const handleOpenAddAccountChoice = () => {
+        setAddAccountChoiceModalOpen(true);
+    };
+    
+    const handleChooseManual = () => {
+        setAddAccountChoiceModalOpen(false);
+        setAddAccountModalOpen(true); 
+    };
+    
+    const handleChoosePlaid = () => {
+        setAddAccountChoiceModalOpen(false);
+        setIsPlaidLinkOpen(true);
+    };
+
     useEffect(() => { if (!currentUser) return; setData(d => ({ ...d, loading: true })); const accountsRef = collection(db, `artifacts/${appId}/users/${currentUser.uid}/accounts`); const transactionsRef = collection(db, `artifacts/${appId}/users/${currentUser.uid}/transactions`); const now = new Date(); const budgetId = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`; const budgetRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/budgets`, budgetId); const unsubAccounts = onSnapshot(accountsRef, (snapshot) => { const accountsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); setData(prevData => ({ ...prevData, accounts: accountsData, loading: false })); }); const unsubTransactions = onSnapshot(transactionsRef, (snapshot) => { const transactionsData = snapshot.docs.map(doc => { const docData = doc.data(); const recurringDetails = docData.recurringDetails ? { ...docData.recurringDetails, nextDate: docData.recurringDetails.nextDate?.toDate(), endDate: docData.recurringDetails.endDate?.toDate(), excludedDates: docData.recurringDetails.excludedDates?.map(ts => ts.toDate()) || [], } : null; return { id: doc.id, ...docData, date: docData.date?.toDate(), createdAt: docData.createdAt?.toDate(), recurringDetails, }; }); setData(prevData => ({ ...prevData, transactions: transactionsData, loading: false })); }); const unsubBudgets = onSnapshot(budgetRef, (doc) => { if (doc.exists()) { setBudgets({ loading: false, data: doc.data() }); } else { setBudgets({ loading: false, data: {} }); } }); return () => { unsubAccounts(); unsubTransactions(); unsubBudgets(); }; }, [currentUser]);
     const transactionsWithSimulation = useMemo(() => { if (simulatedTransaction) { return [...data.transactions, simulatedTransaction]; } return data.transactions; }, [data.transactions, simulatedTransaction]);
     const projections = useProjectedBalances(data.accounts, transactionsWithSimulation);
@@ -152,7 +123,7 @@ const AppLayout = ({ user }) => {
     const renderPage = () => {
         if (!currentUser || data.loading || budgets.loading) { return <div className="flex justify-center items-center h-96"><p>Loading data...</p></div>; }
         switch (currentPage) {
-            case 'dashboard': return <DashboardPage orderedAccounts={orderedAccounts} onOpenEditAccount={handleOpenEditAccountModal} onOpenAddAccount={handleOpenAddAccountModal} transactions={displayTransactions} accounts={data.accounts} onEditTransaction={handleOpenEditModal} onDeleteTransaction={handleOpenDeleteModal}/>;
+            case 'dashboard': return <DashboardPage orderedAccounts={orderedAccounts} onOpenEditAccount={handleOpenEditAccountModal} onOpenAddAccount={handleOpenAddAccountChoice} transactions={displayTransactions} accounts={data.accounts} onEditTransaction={handleOpenEditModal} onDeleteTransaction={handleOpenDeleteModal}/>;
             case 'calendar': return <CalendarPage projections={calendarProjections} accounts={data.accounts} selectedAccountId={calendarAccountId} setSelectedAccountId={setCalendarAccountId} />;
             case 'transactions': return <TransactionsPage displayTransactions={displayTransactions} accounts={data.accounts} onEdit={handleOpenEditModal} onDelete={handleOpenDeleteModal} />;
             case 'budgets': return <BudgetPage transactions={data.transactions} budgets={budgets.data} userId={currentUser.uid} />;
@@ -192,6 +163,21 @@ const AppLayout = ({ user }) => {
             {deletingTransaction && (<ConfirmDeleteModal isOpen={!!deletingTransaction} onClose={() => setDeletingTransaction(null)} onConfirm={handleDeleteConfirm} transaction={deletingTransaction} />)}
             {simulatedTransaction === 'new' && (<WhatIfModal isOpen={simulatedTransaction === 'new'} onClose={() => setSimulatedTransaction(null)} onSimulate={handleRunSimulation} accounts={data.accounts} />)}
             <AuthConflictModal isOpen={!!authConflictProvider} onCancel={() => setAuthConflictProvider(null)} onConfirm={handleConflictSignIn}/>
+            
+            <AddAccountChoiceModal 
+                isOpen={isAddAccountChoiceModalOpen}
+                onClose={() => setAddAccountChoiceModalOpen(false)}
+                onPlaid={handleChoosePlaid}
+                onManual={handleChooseManual}
+            />
+            
+            {isPlaidLinkOpen && (
+                <PlaidLink 
+                    onLinkSuccess={() => setIsPlaidLinkOpen(false)} 
+                    buttonText="This will not be visible" 
+                />
+            )}
+
             <AddAccountModal isOpen={isAddAccountModalOpen} onClose={() => setAddAccountModalOpen(false)} onSave={handleSaveNewAccount} />
         </div>
     );

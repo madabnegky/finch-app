@@ -1,0 +1,7 @@
+{
+  "plaid": {
+    "env": "sandbox",
+    "secret": "c8b717487641dc67d10964ba2b6c53",
+    "client_id": "6319438623d389001313cf76"
+  }
+}
