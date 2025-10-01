@@ -11,7 +11,6 @@ const WhatIfModal = ({ isOpen, onClose, onSimulate, accounts }) => {
     const handleSubmit = (e) => {
         e.preventDefault();
         onSimulate({ description, amount, date: parseDateString(date), accountId });
-        onClose();
     };
     
     const footer = (
