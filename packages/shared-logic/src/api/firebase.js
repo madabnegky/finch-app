@@ -1,0 +1,46 @@
+import { initializeApp } from "firebase/app";
+import { getAuth, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInAnonymously, connectAuthEmulator } from "firebase/auth";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
+
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: "finch-app-v2", // Corrected to match your project config
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const functions = getFunctions(app);
+
+const appId = import.meta.env.VITE_APP_ID || 'default-finch-app';
+
+if (import.meta.env.DEV) {
+    console.log("Development mode: Connecting to Firebase Emulators.");
+    try {
+        // Using the URL you provided
+        const authEmulatorUrl = 'https://improved-succotash-wrgxv99rjw5w3v964-9099.app.github.dev/';
+        
+        // This extracts the base hostname (e.g., "improved-succotash...") from the full URL
+        const host = new URL(authEmulatorUrl).hostname;
+
+        connectAuthEmulator(auth, authEmulatorUrl, { disableCors: true });
+        connectFirestoreEmulator(db, host, 8080);
+        connectFunctionsEmulator(functions, host, 5001);
+
+        console.log(`Successfully configured emulators to use host: ${host}`);
+    } catch (error) {
+        console.error("Error connecting to Firebase Emulators:", error);
+    }
+}
+
+export const signOutUser = () => signOut(auth);
+export const createUser = (email, password) => createUserWithEmailAndPassword(auth, email, password);
+export const signInUser = (email, password) => signInWithEmailAndPassword(auth, email, password);
+
+export { app, auth, db, functions, appId, signInAnonymously };

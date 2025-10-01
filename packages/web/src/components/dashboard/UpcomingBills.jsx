@@ -1,0 +1,64 @@
+import React, { useMemo } from 'react';
+import { formatCurrency } from '@finch/shared-logic/utils/currency'; // Changed import
+import { IconCalendarDays } from '../core/Icon';
+
+const UpcomingBills = ({ transactions }) => {
+    const upcomingBills = useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        return transactions
+            .filter(t => t.isRecurring && t.type === 'expense' && t.recurringDetails?.nextDate)
+            .map(t => ({
+                ...t,
+                nextDate: new Date(t.recurringDetails.nextDate)
+            }))
+            .filter(t => t.nextDate >= today)
+            .sort((a, b) => a.nextDate - b.nextDate)
+            .slice(0, 4);
+    }, [transactions]);
+
+    const formatDate = (date) => {
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const aWeekFromNow = new Date(today);
+        aWeekFromNow.setDate(aWeekFromNow.getDate() + 7);
+
+        if (date.toDateString() === today.toDateString()) return "Today";
+        if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+        if (date > today && date <= aWeekFromNow) {
+            return date.toLocaleDateString('en-US', { weekday: 'long' });
+        }
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    return (
+        <div className="p-6 bg-white rounded-xl shadow-sm border border-finch-gray-200 h-full">
+            <h3 className="text-xl font-bold text-finch-gray-800 mb-4 flex items-center gap-2">
+                <IconCalendarDays /> Upcoming Bills
+            </h3>
+            {upcomingBills.length > 0 ? (
+                <ul className="space-y-3">
+                    {upcomingBills.map(bill => (
+                        <li key={bill.id} className="flex items-center justify-between p-3 bg-finch-gray-50 rounded-lg">
+                            <div>
+                                <p className="font-semibold text-finch-gray-800">{bill.description}</p>
+                                <p className="text-sm text-finch-gray-500">{formatDate(bill.nextDate)}</p>
+                            </div>
+                            <p className="font-bold text-lg text-finch-gray-800">
+                                {formatCurrency(Math.abs(bill.amount))}
+                            </p>
+                        </li>
+                    ))}
+                </ul>
+            ) : (
+                <div className="text-center py-10 text-finch-gray-500">
+                    <p>No upcoming recurring bills found.</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default UpcomingBills;
