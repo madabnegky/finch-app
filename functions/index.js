@@ -199,3 +199,107 @@ exports.identifyRecurringTransactions = functions.https.onCall(async (data, cont
         throw new functions.https.HttpsError("internal", "Could not identify recurring transactions.");
     }
 });
+
+/**
+ * Exchanges a public token for an access token and fetches the associated accounts
+ * without saving anything to the database. This is used for the account matching UI.
+ */
+exports.getAccountsFromPublicToken = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "The function must be called while authenticated.");
+    }
+    const { public_token } = data;
+
+    try {
+        const tokenResponse = await plaidClient.itemPublicTokenExchange({ public_token });
+        const { access_token } = tokenResponse.data;
+
+        const accountsResponse = await plaidClient.accountsGet({ access_token });
+        return { accounts: accountsResponse.data.accounts };
+
+    } catch (error) {
+        console.error("Error fetching accounts from public token:", error.response ? error.response.data : error);
+        throw new functions.https.HttpsError("internal", "Could not fetch accounts.");
+    }
+});
+
+
+/**
+ * Links a Plaid item to an existing manual account in Firestore.
+ */
+exports.linkManualAccountToPlaid = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "The function must be called while authenticated.");
+    }
+
+    const { public_token, manualAccountId, selectedPlaidAccountId } = data;
+    const userId = context.auth.uid;
+
+    try {
+        // 1. Exchange public token for access token and item ID
+        const tokenResponse = await plaidClient.itemPublicTokenExchange({ public_token });
+        const { access_token, item_id } = tokenResponse.data;
+
+        // 2. Save the new Plaid item
+        await db.collection("plaid_items").doc(item_id).set({
+            userId,
+            accessToken: access_token,
+            cursor: null,
+            createdAt: FieldValue.serverTimestamp(),
+        });
+
+        // 3. Get all accounts for the item to find the selected one's details
+        const accountsResponse = await plaidClient.accountsGet({ access_token });
+        const accountToLink = accountsResponse.data.accounts.find(a => a.account_id === selectedPlaidAccountId);
+        
+        if (!accountToLink) {
+            throw new functions.https.HttpsError("not-found", "The selected account was not found.");
+        }
+
+        // 4. Update the existing manual account document
+        const manualAccountRef = db.doc(`artifacts/${appId}/users/${userId}/accounts/${manualAccountId}`);
+        await manualAccountRef.update({
+            plaidItemId: item_id,
+            plaidAccountId: selectedPlaidAccountId,
+            name: accountToLink.name, // Update to the official name
+            startingBalance: accountToLink.balances.current, // Update to the current balance
+            type: accountToLink.subtype, // Update to the correct subtype
+        });
+
+        // 5. Trigger an initial transaction sync for the new item
+        // Note: You might want to abstract this logic if you reuse it elsewhere.
+        let added = [];
+        let hasMore = true;
+        let cursor = null;
+        while (hasMore) {
+            const request = { access_token, cursor };
+            const response = await plaidClient.transactionsSync(request);
+            const responseData = response.data;
+            added = added.concat(responseData.added);
+            hasMore = responseData.has_more;
+            cursor = responseData.next_cursor;
+        }
+        await db.collection("plaid_items").doc(item_id).update({ cursor: cursor });
+        const batch = db.batch();
+        added.forEach((transaction) => {
+            const transRef = db.collection(`artifacts/${appId}/users/${userId}/transactions`).doc(transaction.transaction_id);
+            const isExpense = transaction.amount > 0;
+            batch.set(transRef, {
+                accountId: transaction.account_id,
+                description: transaction.name,
+                amount: isExpense ? -transaction.amount : transaction.amount,
+                date: Timestamp.fromDate(new Date(transaction.date)),
+                category: mapPlaidCategoryToFinancierCategory(transaction.category),
+                type: isExpense ? 'expense' : 'income', isRecurring: false,
+                createdAt: FieldValue.serverTimestamp(),
+            });
+        });
+        await batch.commit();
+
+        return { success: true, accountId: manualAccountId };
+
+    } catch (error) {
+        console.error("Error linking manual account:", error.response ? error.response.data : error);
+        throw new functions.https.HttpsError("internal", "Could not link account.");
+    }
+});

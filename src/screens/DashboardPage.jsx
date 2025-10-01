@@ -1,9 +1,12 @@
 import React, { useMemo } from 'react';
 import { formatCurrency } from '../utils/currency';
-import { IconAlertTriangle, IconCreditCard, IconBank, IconPencil, IconPlus } from '../components/core/Icon';
+import { IconAlertTriangle, IconCreditCard, IconBank, IconPencil, IconPlus, IconLink } from '../components/core/Icon';
 import { Droppable, Draggable } from 'react-beautiful-dnd';
 import TransactionList from '../components/transactions/TransactionList';
+import UpcomingBills from '../components/dashboard/UpcomingBills'; // Import new component
+import CashFlowChart from '../components/dashboard/CashFlowChart'; // Import new component
 
+// The AddAccountCard and AccountCard components remain unchanged
 const AddAccountCard = ({ onClick }) => {
     return (
         <button
@@ -15,12 +18,11 @@ const AddAccountCard = ({ onClick }) => {
         </button>
     );
 };
-
-const AccountCard = ({ account, onOpenEditAccount }) => {
+const AccountCard = ({ account, onOpenEditAccount, onLinkAccount }) => {
     const cardBorderColor = account.warning?.type === 'error' ? 'border-red-500'
         : account.warning?.type === 'warning' ? 'border-amber-500'
         : 'border-finch-gray-200';
-
+    const isManual = !account.plaidAccountId;
     return (
         <div className={`bg-white rounded-xl shadow-sm p-6 border transition-all duration-300 relative group ${cardBorderColor}`}>
             <button onClick={() => onOpenEditAccount(account)} className="absolute top-4 right-4 text-finch-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-finch-teal-600">
@@ -29,7 +31,10 @@ const AccountCard = ({ account, onOpenEditAccount }) => {
             <div className="flex justify-between items-start">
                 <div>
                     <h3 className="font-bold text-xl text-finch-gray-800">{account.name}</h3>
-                    <p className="text-sm text-finch-gray-500">{account.type}</p>
+                    <div className="flex items-center gap-2">
+                        <p className="text-sm text-finch-gray-500">{account.type}</p>
+                        {isManual && <span className="text-xs font-semibold text-sky-600 bg-sky-100 px-2 py-0.5 rounded-full">MANUAL</span>}
+                    </div>
                 </div>
                 <div className="text-finch-gray-400">
                     {account.type === 'Checking' ? <IconCreditCard /> : <IconBank />}
@@ -51,6 +56,13 @@ const AccountCard = ({ account, onOpenEditAccount }) => {
                     <p className="font-semibold text-finch-gray-800 mt-1">{formatCurrency(account.cushion)}</p>
                 </div>
             </div>
+            {isManual && (
+                <div className="mt-4 border-t border-finch-gray-200 pt-4">
+                    <button onClick={() => onLinkAccount(account)} className="w-full bg-indigo-50 text-indigo-700 font-semibold py-2 px-4 rounded-lg hover:bg-indigo-100 flex items-center justify-center gap-2 transition-colors text-sm">
+                        <IconLink className="w-4 h-4" /> Link to Bank
+                    </button>
+                </div>
+            )}
             {account.warning && (
                 <div className={`mt-4 p-3 rounded-lg flex items-start gap-3 text-sm ${account.warning.type === 'error' ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>
                     <IconAlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -61,15 +73,17 @@ const AccountCard = ({ account, onOpenEditAccount }) => {
     );
 };
 
-// THE FIX IS HERE: Add default empty arrays to ALL array props
+// UPDATED: This component now renders the new widgets
 const DashboardPage = ({ 
     orderedAccounts = [], 
     onOpenEditAccount, 
     onOpenAddAccount,
+    onLinkAccount,
     transactions = [],
     accounts = [],
     onEditTransaction,
-    onDeleteTransaction 
+    onDeleteTransaction,
+    projections = [] // NEW PROP
 }) => {
     
     const recentTransactions = useMemo(() => {
@@ -78,8 +92,15 @@ const DashboardPage = ({
 
     return (
         <section className="space-y-8">
-            {/* Accounts Section */}
+            {/* NEW: Section for charts and upcoming bills */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <CashFlowChart projections={projections} />
+                <UpcomingBills transactions={transactions} />
+            </div>
+
+            {/* Existing Accounts Section */}
             <div>
+                 <h2 className="text-2xl font-bold text-finch-gray-800 mb-4">Your Accounts</h2>
                 <Droppable droppableId="accounts">
                     {(provided) => (
                         <div
@@ -87,12 +108,15 @@ const DashboardPage = ({
                             ref={provided.innerRef}
                             {...provided.droppableProps}
                         >
-                            {/* This .map is now safe */}
                             {orderedAccounts.map((account, index) => (
                                 <Draggable key={account.id} draggableId={account.id} index={index}>
                                     {(provided) => (
                                         <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-                                            <AccountCard account={account} onOpenEditAccount={onOpenEditAccount} />
+                                            <AccountCard 
+                                                account={account} 
+                                                onOpenEditAccount={onOpenEditAccount} 
+                                                onLinkAccount={onLinkAccount}
+                                            />
                                         </div>
                                     )}
                                 </Draggable>
@@ -106,7 +130,7 @@ const DashboardPage = ({
                 </div>
             </div>
 
-            {/* Recent Transactions Section */}
+            {/* Existing Recent Transactions Section */}
             <div className="p-6 bg-white rounded-xl shadow-sm border border-finch-gray-200">
                 <h3 className="text-xl font-bold text-finch-gray-800 mb-4">Recent Transactions</h3>
                 <TransactionList 
