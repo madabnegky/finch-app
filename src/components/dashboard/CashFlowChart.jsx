@@ -5,10 +5,11 @@ import { formatCurrency } from '../../utils/currency';
 const CashFlowChart = ({ projections }) => {
     const chartData = useMemo(() => {
         if (!projections || projections.length === 0) return [];
+        // THE FIX: Removed the .reverse() call from this line
         return projections.slice(0, 15).map(p => ({
             date: new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
             balance: p.totalBalance,
-        })).reverse(); // Reverse to show past to future
+        }));
     }, [projections]);
 
     const CustomTooltip = ({ active, payload, label }) => {

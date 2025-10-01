@@ -3,10 +3,10 @@ import { formatCurrency } from '../utils/currency';
 import { IconAlertTriangle, IconCreditCard, IconBank, IconPencil, IconPlus, IconLink } from '../components/core/Icon';
 import { Droppable, Draggable } from 'react-beautiful-dnd';
 import TransactionList from '../components/transactions/TransactionList';
-import UpcomingBills from '../components/dashboard/UpcomingBills'; // Import new component
-import CashFlowChart from '../components/dashboard/CashFlowChart'; // Import new component
+import UpcomingBills from '../components/dashboard/UpcomingBills';
+import CashFlowChart from '../components/dashboard/CashFlowChart';
 
-// The AddAccountCard and AccountCard components remain unchanged
+// The AccountCard and AddAccountCard components are unchanged
 const AddAccountCard = ({ onClick }) => {
     return (
         <button
@@ -18,11 +18,14 @@ const AddAccountCard = ({ onClick }) => {
         </button>
     );
 };
+
 const AccountCard = ({ account, onOpenEditAccount, onLinkAccount }) => {
     const cardBorderColor = account.warning?.type === 'error' ? 'border-red-500'
         : account.warning?.type === 'warning' ? 'border-amber-500'
         : 'border-finch-gray-200';
+
     const isManual = !account.plaidAccountId;
+
     return (
         <div className={`bg-white rounded-xl shadow-sm p-6 border transition-all duration-300 relative group ${cardBorderColor}`}>
             <button onClick={() => onOpenEditAccount(account)} className="absolute top-4 right-4 text-finch-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-finch-teal-600">
@@ -73,7 +76,8 @@ const AccountCard = ({ account, onOpenEditAccount, onLinkAccount }) => {
     );
 };
 
-// UPDATED: This component now renders the new widgets
+
+// THE DASHBOARD LAYOUT IS UPDATED HERE
 const DashboardPage = ({ 
     orderedAccounts = [], 
     onOpenEditAccount, 
@@ -83,62 +87,64 @@ const DashboardPage = ({
     accounts = [],
     onEditTransaction,
     onDeleteTransaction,
-    projections = [] // NEW PROP
+    projections = []
 }) => {
     
     const recentTransactions = useMemo(() => {
-        return transactions.slice(0, 5);
+        // Filter out recurring templates, only show actual instances or one-time transactions
+        return transactions.filter(t => !t.isRecurring || t.isInstance).slice(0, 5);
     }, [transactions]);
 
     return (
-        <section className="space-y-8">
-            {/* NEW: Section for charts and upcoming bills */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <CashFlowChart projections={projections} />
-                <UpcomingBills transactions={transactions} />
-            </div>
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            {/* Main Content Area (Left) */}
+            <div className="lg:col-span-2 space-y-8">
+                <div>
+                    <h2 className="text-2xl font-bold text-finch-gray-800 mb-4">Your Accounts</h2>
+                    <Droppable droppableId="accounts">
+                        {(provided) => (
+                            <div
+                                className="grid grid-cols-1 md:grid-cols-2 gap-6"
+                                ref={provided.innerRef}
+                                {...provided.droppableProps}
+                            >
+                                {orderedAccounts.map((account, index) => (
+                                    <Draggable key={account.id} draggableId={account.id} index={index}>
+                                        {(provided) => (
+                                            <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
+                                                <AccountCard 
+                                                    account={account} 
+                                                    onOpenEditAccount={onOpenEditAccount} 
+                                                    onLinkAccount={onLinkAccount}
+                                                />
+                                            </div>
+                                        )}
+                                    </Draggable>
+                                ))}
+                                {provided.placeholder}
+                            </div>
+                        )}
+                    </Droppable>
+                    <div className="pt-6 mt-6 border-t border-finch-gray-200">
+                        <AddAccountCard onClick={onOpenAddAccount} />
+                    </div>
+                </div>
 
-            {/* Existing Accounts Section */}
-            <div>
-                 <h2 className="text-2xl font-bold text-finch-gray-800 mb-4">Your Accounts</h2>
-                <Droppable droppableId="accounts">
-                    {(provided) => (
-                        <div
-                            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
-                        >
-                            {orderedAccounts.map((account, index) => (
-                                <Draggable key={account.id} draggableId={account.id} index={index}>
-                                    {(provided) => (
-                                        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-                                            <AccountCard 
-                                                account={account} 
-                                                onOpenEditAccount={onOpenEditAccount} 
-                                                onLinkAccount={onLinkAccount}
-                                            />
-                                        </div>
-                                    )}
-                                </Draggable>
-                            ))}
-                            {provided.placeholder}
-                        </div>
-                    )}
-                </Droppable>
-                <div className="pt-6 mt-6 border-t border-finch-gray-200">
-                    <AddAccountCard onClick={onOpenAddAccount} />
+                <div className="p-6 bg-white rounded-xl shadow-sm border border-finch-gray-200">
+                    <h3 className="text-xl font-bold text-finch-gray-800 mb-4">Recent Transactions</h3>
+                    <TransactionList 
+                        transactions={recentTransactions}
+                        accounts={accounts}
+                        onEdit={onEditTransaction}
+                        onDelete={onDeleteTransaction}
+                    />
                 </div>
             </div>
 
-            {/* Existing Recent Transactions Section */}
-            <div className="p-6 bg-white rounded-xl shadow-sm border border-finch-gray-200">
-                <h3 className="text-xl font-bold text-finch-gray-800 mb-4">Recent Transactions</h3>
-                <TransactionList 
-                    transactions={recentTransactions}
-                    accounts={accounts}
-                    onEdit={onEditTransaction}
-                    onDelete={onDeleteTransaction}
-                />
+            {/* Sidebar (Right) */}
+            <div className="lg:col-span-1 space-y-8">
+                <CashFlowChart projections={projections} />
+                <UpcomingBills transactions={transactions} />
             </div>
         </section>
     );
