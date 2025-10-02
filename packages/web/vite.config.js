@@ -1,23 +1,23 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import svgr from 'vite-plugin-svgr';
 import path from 'path';
+// Import the SVGR plugin
+import svgr from 'vite-plugin-svgr';
 
-// https://vitejs.dev/config/
 export default defineConfig({
+  // svgr() must be here to handle the "?react" import suffix.
   plugins: [
     react(),
-    svgr({
-      // svgr options: https://react-svgr.com/docs/options/
-      svgrOptions: {
-        // ...
-      },
-    }),
+    svgr(),
   ],
+
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      // Alias for the shared logic
       '@shared': path.resolve(__dirname, '../shared-logic/src'),
+
+      // Alias for the 'web/src' directory. This handles the "@/..." import.
+      '@': path.resolve(__dirname, './src'),
     },
   },
 });
