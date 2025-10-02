@@ -20,17 +20,19 @@ const functions = getFunctions(app);
 
 const appId = import.meta.env.VITE_APP_ID || 'default-finch-app';
 
+// This block is run in development mode only
 if (import.meta.env.DEV) {
-    console.log("Development mode: Connecting to Firebase Emulators.");
+    console.log("Development mode: Connecting to Firebase Emulators on localhost.");
     try {
-        const authEmulatorUrl = 'https://improved-succotash-wrgxv99rjw5w3v964-9099.app.github.dev/';
-        const host = new URL(authEmulatorUrl).hostname;
+        // --- THIS IS THE FIX ---
+        // We now connect to the emulators using their direct localhost address and port.
+        // This is the standard and most reliable method.
 
-        connectAuthEmulator(auth, authEmulatorUrl, { disableCors: true });
-        connectFirestoreEmulator(db, host, 8080);
-        connectFunctionsEmulator(functions, host, 5001);
+        connectAuthEmulator(auth, 'http://127.0.0.1:9099');
+        connectFirestoreEmulator(db, '127.0.0.1', 8080);
+        connectFunctionsEmulator(functions, '127.0.0.1', 5001);
 
-        console.log(`Successfully configured emulators to use host: ${host}`);
+        console.log(`Successfully configured emulators to use localhost.`);
     } catch (error) {
         console.error("Error connecting to Firebase Emulators:", error);
     }

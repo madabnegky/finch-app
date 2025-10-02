@@ -1,123 +1,153 @@
 import React, { useState } from 'react';
-import { FinchLogo, GoogleIcon } from '../core/Icon';
-import { createUser, signInUser } from '@finch/shared-logic/api/firebase'; // Changed import
+import { useAuth } from '@shared/hooks/useAuth';
+import Button from '@/components/core/Button';
+import Input from '@/components/core/Input';
+import { GoogleIcon } from '@/components/core/Icon';
+import { FinchLogo } from '@/components/core/Icon';
 
-const AuthScreen = ({ onGoogleSignIn, onAnonymousSignIn, onBack }) => {
-    const [isSignUp, setIsSignUp] = useState(true);
+function AuthScreen({ initialScreen = 'signIn' }) {
+    const [screen, setScreen] = useState(initialScreen);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const { signIn, signUp, signInGuest } = useAuth();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         try {
-            if (isSignUp) {
-                await createUser(email, password);
+            if (screen === 'signIn') {
+                await signIn(email, password);
             } else {
-                await signInUser(email, password);
+                await signUp(email, password);
             }
-            // onAuthStateChanged will handle the rest
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleGuestSignIn = async () => {
+        try {
+            await signInGuest();
         } catch (err) {
             setError(err.message);
         }
     };
 
     return (
-        <div className="flex items-center justify-center min-h-screen p-4 bg-slate-100">
-            <div className="w-full max-w-sm mx-auto">
-                <div className="text-center mb-8">
-                    {/* NEW: Back to Home link */}
-                    <button onClick={onBack} className="text-sm text-slate-500 hover:text-indigo-600 mb-4">
-                        &larr; Back to Home
-                    </button>
-                    <FinchLogo className="w-16 h-16 mx-auto mb-2" />
-                    <h1 className="text-3xl font-bold text-slate-900">
-                        {isSignUp ? 'Create your Account' : 'Welcome Back'}
-                    </h1>
-                    <p className="mt-2 text-slate-600">
-                        {isSignUp ? 'Start your journey to financial clarity.' : 'Sign in to continue.'}
-                    </p>
+        <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+            <div className="sm:mx-auto sm:w-full sm:max-w-md">
+                <div className="flex justify-center">
+                    <FinchLogo className="h-12 w-auto text-blue-600" />
                 </div>
+                <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                    {screen === 'signIn' ? 'Sign in to your account' : 'Create a new account'}
+                </h2>
+            </div>
 
-                <div className="bg-white p-8 rounded-xl shadow-md border border-slate-200">
-                    <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+                <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+                    <form className="space-y-6" onSubmit={handleSubmit}>
                         <div>
-                            <label className="block text-sm font-medium text-finch-gray-700">Email Address</label>
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={e => setEmail(e.target.value)}
-                                className="mt-1 block w-full form-input rounded-md border-finch-gray-300 shadow-sm focus:border-finch-teal-500 focus:ring-finch-teal-500"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-finch-gray-700">Password</label>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={e => setPassword(e.target.value)}
-                                className="mt-1 block w-full form-input rounded-md border-finch-gray-300 shadow-sm focus:border-finch-teal-500 focus:ring-finch-teal-500"
-                                required
-                            />
-                        </div>
-                        {error && <p className="text-sm text-red-600">{error}</p>}
-                        <div>
-                            <button
-                                type="submit"
-                                className="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-indigo-700 transition-colors duration-200"
+                            <label
+                                htmlFor="email"
+                                className="block text-sm font-medium text-gray-700"
                             >
-                                {isSignUp ? 'Create Account' : 'Sign In'}
-                            </button>
+                                Email address
+                            </label>
+                            <div className="mt-1">
+                                <Input
+                                    id="email"
+                                    name="email"
+                                    type="email"
+                                    autoComplete="email"
+                                    required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="password"
+                                className="block text-sm font-medium text-gray-700"
+                            >
+                                Password
+                            </label>
+                            <div className="mt-1">
+                                <Input
+                                    id="password"
+                                    name="password"
+                                    type="password"
+                                    autoComplete="current-password"
+                                    required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        {error && (
+                            <div className="text-red-500 text-sm">{error}</div>
+                        )}
+
+                        <div>
+                            <Button type="submit" variant="primary" className="w-full">
+                                {screen === 'signIn' ? 'Sign in' : 'Create Account'}
+                            </Button>
                         </div>
                     </form>
 
-                    <div className="relative my-6">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-slate-300" />
+                    <div className="mt-6">
+                        <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t border-gray-300" />
+                            </div>
+                            <div className="relative flex justify-center text-sm">
+                                <span className="px-2 bg-white text-gray-500">
+                                    Or continue with
+                                </span>
+                            </div>
                         </div>
-                        <div className="relative flex justify-center text-sm">
-                            <span className="px-2 bg-white text-slate-500">Or</span>
-                        </div>
-                    </div>
 
-                    <div className="space-y-3">
-                        <button
-                            onClick={onGoogleSignIn}
-                            className="w-full flex items-center justify-center gap-3 bg-white border border-slate-300 text-slate-700 font-semibold py-3 px-4 rounded-lg shadow-sm hover:bg-slate-50 transition-colors duration-200"
-                        >
-                            <GoogleIcon />
-                            Continue with Google
-                        </button>
-                        <button
-                            onClick={onAnonymousSignIn}
-                            className="w-full bg-slate-800 text-white font-semibold py-3 px-4 rounded-lg shadow-sm hover:bg-slate-700 transition-colors duration-200"
-                        >
-                            Continue as Guest
-                        </button>
+                        <div className="mt-6 grid grid-cols-2 gap-3">
+                            <div>
+                                <Button
+                                    variant="secondary"
+                                    className="w-full inline-flex justify-center"
+                                    onClick={handleGuestSignIn}
+                                >
+                                    <span className="sr-only">Sign in as Guest</span>
+                                    Guest
+                                </Button>
+                            </div>
+                            <div>
+                                <Button
+                                    variant="secondary"
+                                    className="w-full inline-flex justify-center"
+                                >
+                                    <span className="sr-only">Sign in with Google</span>
+                                    <GoogleIcon className="w-5 h-5" />
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 text-center">
+                            <button
+                                onClick={() => setScreen(screen === 'signIn' ? 'signUp' : 'signIn')}
+                                className="font-medium text-blue-600 hover:text-blue-500"
+                            >
+                                {screen === 'signIn'
+                                    ? "Don't have an account? Sign Up"
+                                    : 'Already have an account? Sign In'}
+                            </button>
+                        </div>
                     </div>
-                </div>
-                <div className="mt-6 text-center text-sm">
-                    {isSignUp ? (
-                        <p className="text-slate-600">
-                            Already have an account?{' '}
-                            <button onClick={() => setIsSignUp(false)} className="font-semibold text-indigo-600 hover:text-indigo-500">
-                                Sign In
-                            </button>
-                        </p>
-                    ) : (
-                        <p className="text-slate-600">
-                            Don't have an account?{' '}
-                            <button onClick={() => setIsSignUp(true)} className="font-semibold text-indigo-600 hover:text-indigo-500">
-                                Create one
-                            </button>
-                        </p>
-                    )}
                 </div>
             </div>
         </div>
     );
-};
+}
 
 export default AuthScreen;

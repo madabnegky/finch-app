@@ -1,48 +1,80 @@
-import React from 'react';
-import { FinchLogo } from '../components/core/Icon';
-import AnimatedPreview from '../components/auth/AnimatedPreview';
+import React, { useState } from 'react';
+import Button from '@/components/core/Button';
+import { FinchLogo } from '@/components/core/Icon';
+import AuthScreen from '@/components/auth/AuthScreen';
+import AnimatedPreview from '@/components/auth/AnimatedPreview';
+import { useAuth } from '@shared/hooks/useAuth';
 
-const LandingPage = ({ onSignIn, onCreateAccount, onAnonymousSignIn }) => {
+function LandingPage() {
+    const { signInGuest } = useAuth();
+    const [showAuthScreen, setShowAuthScreen] = useState(false);
+    const [initialScreen, setInitialScreen] = useState('signIn');
+
+    const handleAuthClick = (screen) => {
+        setInitialScreen(screen);
+        setShowAuthScreen(true);
+    };
+
+    const handleGuestSignIn = async () => {
+        try {
+            await signInGuest();
+        } catch (error) {
+            console.error("Guest sign-in failed", error);
+        }
+    };
+
+    if (showAuthScreen) {
+        return <AuthScreen initialScreen={initialScreen} />;
+    }
+
     return (
-        <div className="min-h-screen bg-slate-50">
-            <header className="absolute top-0 left-0 right-0 p-6">
-                <div className="max-w-7xl mx-auto flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                        <FinchLogo className="w-8 h-8" />
-                        <h1 className="text-2xl font-bold text-slate-800">finch</h1>
+        <div className="flex flex-col md:flex-row h-screen bg-gray-50">
+            <div className="w-full md:w-1/2 flex flex-col justify-center items-center p-8">
+                <div className="max-w-md w-full">
+                    <div className="flex items-center mb-6">
+                        <FinchLogo className="h-10 w-10 text-blue-600 mr-3" />
+                        <h1 className="text-4xl font-bold text-gray-800">Finch</h1>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <button onClick={onSignIn} className="font-semibold text-slate-600 hover:text-indigo-600">Sign In</button>
-                        <button onClick={onCreateAccount} className="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-indigo-700">Create Account</button>
-                    </div>
-                </div>
-            </header>
-
-            <main className="pt-32 pb-16">
-                <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center px-6">
-                    <div className="text-center lg:text-left">
-                        <h1 className="text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight">
-                            Finally, see your <span className="text-indigo-600">true</span> cash flow.
-                        </h1>
-                        <p className="mt-6 text-lg text-slate-600 max-w-2xl mx-auto lg:mx-0">
-                            Finch automatically detects your bills and income to show you what's safe to spend, so you can make financial decisions with confidence.
-                        </p>
-                        <div className="mt-8 flex items-center justify-center lg:justify-start">
-                            <button 
-                                onClick={onAnonymousSignIn}
-                                className="bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-indigo-700 text-lg"
+                    <h2 className="text-2xl font-semibold text-gray-700 mb-4">
+                        A clear view of your cash flow.
+                    </h2>
+                    <p className="text-gray-600 mb-8">
+                        Finch helps you understand your spending and see what's ahead.
+                        Connect your bank accounts for an automated, secure, and
+                        up-to-date picture of your finances.
+                    </p>
+                    <div className="space-y-4">
+                        <Button
+                            variant="primary"
+                            className="w-full"
+                            onClick={handleGuestSignIn}
+                        >
+                            Give it a Try
+                        </Button>
+                        <div className="flex space-x-4">
+                           <Button
+                                variant="secondary"
+                                className="w-full"
+                                onClick={() => handleAuthClick('signUp')}
                             >
-                                Give it a try &rarr;
-                            </button>
+                                Create Account
+                            </Button>
+                             <Button
+                                variant="secondary"
+                                className="w-full"
+                                onClick={() => handleAuthClick('signIn')}
+                            >
+                                Sign In
+                            </Button>
                         </div>
                     </div>
-                    <div>
-                        <AnimatedPreview />
-                    </div>
                 </div>
-            </main>
+            </div>
+            <div className="hidden md:block w-1/2 bg-blue-600 p-8">
+                <AnimatedPreview />
+            </div>
         </div>
     );
-};
+}
 
 export default LandingPage;
