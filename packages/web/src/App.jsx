@@ -1,109 +1,69 @@
-import React, { useState, useEffect } from 'react';
-import { onAuthStateChanged, signInAnonymously, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { getDoc, doc } from "firebase/firestore";
-import { auth, db, appId, signOutUser } from "@finch/shared-logic/api/firebase"; // Changed import
-
-import LoadingScreen from './components/core/LoadingScreen';
-import AuthScreen from './components/auth/AuthScreen';
-import SetupWizard from './screens/SetupWizard';
-import AppLayout from './screens/AppLayout';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from '@shared/hooks/useAuth';
 import LandingPage from './screens/LandingPage';
+import AppLayout from './screens/AppLayout';
+import DashboardPage from './screens/DashboardPage';
+import TransactionsPage from './screens/TransactionsPage';
+import BudgetPage from './screens/BudgetPage';
+import ReportsPage from './screens/ReportsPage';
+import CalendarPage from './screens/CalendarPage';
+import SetupWizard from './screens/SetupWizard';
+import LoadingScreen from './components/core/LoadingScreen';
+import SettingsPage from './screens/SettingsPage';
 
-function App() {
-  const [appState, setAppState] = useState('loading'); // loading, landing, auth, wizard, app
-  const [user, setUser] = useState(null);
+function PrivateRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  return user ? children : <Navigate to="/" />;
+}
 
-  useEffect(() => {
-    // This is the single source of truth for authentication state.
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        console.log("Auth state changed: User is logged in.", currentUser.uid);
-        setUser(currentUser); // Set the user object immediately
+function AppRoutes() {
+  const { user, loading } = useAuth();
 
-        // Now, check if they have completed the setup wizard.
-        const userDocRef = doc(db, `artifacts/${appId}/users`, currentUser.uid);
-        try {
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists() && userDoc.data().setupComplete) {
-            console.log("User has completed setup. Navigating to app.");
-            setAppState('app');
-          } else {
-            console.log("User has NOT completed setup. Navigating to wizard.");
-            setAppState('wizard');
-          }
-        } catch (error) {
-            console.error("Error fetching user document:", error);
-            // If we can't fetch the doc, send them back to the start.
-            setAppState('landing');
-        }
-      } else {
-        console.log("Auth state changed: User is logged out.");
-        setUser(null);
-        setAppState('landing');
-      }
-    });
-
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, []); // This effect runs only once on startup
-
-  const handleAnonymousSignIn = async () => {
-    try {
-      await signInAnonymously(auth);
-      // onAuthStateChanged will handle navigating to the wizard
-    } catch (error) {
-      console.error("Anonymous sign-in failed:", error);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-      // onAuthStateChanged will handle navigation
-    } catch (error) {
-      console.error("Google sign-in failed:", error);
-    }
-  };
-  
-  const handleSetupComplete = () => {
-      // The onAuthStateChanged listener will automatically navigate to 'app'
-      // but we can force a state update if needed.
-      setAppState('app');
+  if (loading) {
+    return <LoadingScreen />;
   }
 
-  const handleGoToAuth = () => setAppState('auth');
-  const handleGoToLanding = () => setAppState('landing');
-
-  const handleBackFromWizard = async () => {
-    await signOutUser();
-    // onAuthStateChanged will automatically set appState to 'landing'
-  };
-
-  const renderContent = () => {
-    if (appState === 'loading') {
-      return <LoadingScreen />;
-    }
-    
-    switch (appState) {
-      case 'landing':
-        return <LandingPage onSignIn={handleGoToAuth} onCreateAccount={handleGoToAuth} onAnonymousSignIn={handleAnonymousSignIn} />;
-      case 'auth':
-        return <AuthScreen onGoogleSignIn={handleGoogleSignIn} onAnonymousSignIn={handleAnonymousSignIn} onBack={handleGoToLanding} />;
-      case 'wizard':
-        return <SetupWizard user={user} onComplete={handleSetupComplete} onBack={handleBackFromWizard} />;
-      case 'app':
-        return <AppLayout user={user} />;
-      default:
-        // Fallback to the landing page if state is unknown
-        return <LandingPage onSignIn={handleGoToAuth} onCreateAccount={handleGoToAuth} onAnonymousSignIn={handleAnonymousSignIn}/>;
-    }
-  };
-  
   return (
-    <div className="bg-slate-50 font-sans text-slate-800 min-h-screen">
-      {renderContent()}
-    </div>
+    <Routes>
+      <Route path="/" element={user ? <Navigate to="/dashboard" /> : <LandingPage />} />
+      <Route
+        path="/dashboard/*"
+        element={
+          <PrivateRoute>
+            <AppLayout>
+              <Routes>
+                <Route index element={<DashboardPage />} />
+                <Route path="transactions" element={<TransactionsPage />} />
+                <Route path="budget" element={<BudgetPage />} />
+                <Route path="reports" element={<ReportsPage />} />
+                <Route path="calendar" element={<CalendarPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+              </Routes>
+            </AppLayout>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/setup"
+        element={
+          <PrivateRoute>
+            <SetupWizard />
+          </PrivateRoute>
+        }
+      />
+    </Routes>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </Router>
   );
 }
 

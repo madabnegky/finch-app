@@ -1,11 +1,13 @@
 {
-  "name": "finch-app-monorepo",
+  "name": "finch-app",
   "private": true,
+  "devDependencies": {
+    "lerna": "^8.1.2"
+  },
+  "scripts": {
+    "start": "lerna run start --parallel"
+  },
   "workspaces": [
     "packages/*"
-  ],
-  "scripts": {
-    "web": "npm run dev --workspace=web",
-    "functions": "npm run serve --workspace=functions"
-  }
+  ]
 }

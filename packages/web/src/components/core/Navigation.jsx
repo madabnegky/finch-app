@@ -1,45 +1,88 @@
 import React from 'react';
-import { 
-    IconLayoutDashboard, 
-    IconCalendarDays, 
-    IconListTree, 
-    IconTarget, 
-    IconBarChart 
-} from './Icon';
+import { NavLink } from 'react-router-dom';
+import Icon from './Icon'; // Change this line back to a default import
 
-const Navigation = ({ currentPage, setCurrentPage }) => {
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
-    { id: 'calendar', label: 'Calendar', icon: IconCalendarDays },
-    { id: 'transactions', label: 'Transactions', icon: IconListTree },
-    { id: 'budgets', label: 'Budgets', icon: IconTarget },
-    { id: 'reports', label: 'Reports', icon: IconBarChart },
-  ];
-
+const Navigation = () => {
   return (
-    // Updated container styles for a cleaner, more integrated look
-    <nav className="bg-white/60 backdrop-blur-sm rounded-xl shadow-sm border border-finch-gray-200 p-1">
-      <ul className="flex justify-around items-center">
-        {navItems.map(item => {
-          const isActive = currentPage === item.id;
-          return (
-            <li key={item.id} className="flex-1">
-              <button
-                onClick={() => setCurrentPage(item.id)}
-                // NEW STYLES: This logic creates the "pill" effect
-                className={`w-full flex flex-col sm:flex-row items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-colors duration-200 ${
-                  isActive 
-                    ? 'bg-finch-teal-50 text-finch-teal-700 font-bold' 
-                    : 'text-finch-gray-500 hover:bg-finch-gray-100 hover:text-finch-gray-800'
-                }`}
-              >
-                <item.icon />
-                <span>{item.label}</span>
-              </button>
-            </li>
-          )
-        })}
-      </ul>
+    <nav className="flex-1 px-2 space-y-1">
+      <NavLink
+        to="/dashboard"
+        className={({ isActive }) =>
+          `flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+            isActive
+              ? 'bg-gray-200 text-gray-900'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`
+        }
+      >
+        <Icon name="home" className="mr-3" />
+        Dashboard
+      </NavLink>
+      <NavLink
+        to="/transactions"
+        className={({ isActive }) =>
+          `flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+            isActive
+              ? 'bg-gray-200 text-gray-900'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`
+        }
+      >
+        <Icon name="switch-horizontal" className="mr-3" />
+        Transactions
+      </NavLink>
+      <NavLink
+        to="/budget"
+        className={({ isActive }) =>
+          `flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+            isActive
+              ? 'bg-gray-200 text-gray-900'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`
+        }
+      >
+        <Icon name="chart-pie" className="mr-3" />
+        Budget
+      </NavLink>
+      <NavLink
+        to="/reports"
+        className={({ isActive }) =>
+          `flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+            isActive
+              ? 'bg-gray-200 text-gray-900'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`
+        }
+      >
+        <Icon name="chart-bar" className="mr-3" />
+        Reports
+      </NavLink>
+      <NavLink
+        to="/calendar"
+        className={({ isActive }) =>
+          `flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+            isActive
+              ? 'bg-gray-200 text-gray-900'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`
+        }
+      >
+        <Icon name="calendar" className="mr-3" />
+        Calendar
+      </NavLink>
+      <NavLink
+        to="/settings"
+        className={({ isActive }) =>
+          `flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+            isActive
+              ? 'bg-gray-200 text-gray-900'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`
+        }
+      >
+        <Icon name="cog" className="mr-3" />
+        Settings
+      </NavLink>
     </nav>
   );
 };
