@@ -3,14 +3,14 @@ import { getAuth, signOut, createUserWithEmailAndPassword, signInWithEmailAndPas
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 
+// This config now safely reads from your .env.local file
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: "finch-app-v2", // Corrected to match your project config
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 const app = initializeApp(firebaseConfig);
@@ -23,10 +23,7 @@ const appId = import.meta.env.VITE_APP_ID || 'default-finch-app';
 if (import.meta.env.DEV) {
     console.log("Development mode: Connecting to Firebase Emulators.");
     try {
-        // Using the URL you provided
         const authEmulatorUrl = 'https://improved-succotash-wrgxv99rjw5w3v964-9099.app.github.dev/';
-        
-        // This extracts the base hostname (e.g., "improved-succotash...") from the full URL
         const host = new URL(authEmulatorUrl).hostname;
 
         connectAuthEmulator(auth, authEmulatorUrl, { disableCors: true });
