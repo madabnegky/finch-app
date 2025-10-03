@@ -3,14 +3,13 @@
   "version": "1.0.0",
   "description": "A personal finance management application.",
   "private": true,
-  "packageManager": "yarn@3.2.3",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "dev": "yarn workspace web dev",
-    "functions": "yarn workspace functions serve",
-    "start": "concurrently \"yarn:dev\" \"yarn:functions\""
+    "dev": "npm run dev --workspace=web",
+    "functions": "npm run serve --workspace=functions",
+    "start": "concurrently \"npm:dev\" \"npm:functions\""
   },
   "keywords": [
     "firebase",
