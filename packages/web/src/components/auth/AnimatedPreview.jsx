@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { formatCurrency } from '@finch/shared-logic/utils/currency'; // Changed import
+import { formatCurrency } from '@shared/utils/currency'; // Changed import
 import { IconBank, IconKey, IconShieldCheck, IconCheckCircle, IconUtensils, IconAlertTriangle, IconCalendarDays } from '../core/Icon';
 
 const AnimatedCharacter = ({ mood }) => (

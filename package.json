@@ -7,9 +7,9 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=web",
-    "functions": "npm run serve --workspace=functions",
-    "start": "concurrently \"npm:dev\" \"npm:functions\""
+    "dev": "pnpm --filter web dev",
+    "functions": "pnpm --filter functions serve",
+    "start": "concurrently \"pnpm:dev\" \"pnpm:functions\""
   },
   "keywords": [
     "firebase",

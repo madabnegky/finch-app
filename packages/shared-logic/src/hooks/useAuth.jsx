@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext, createContext } from 'react';
-import { auth, signInUser, createUser, signOutUser, signInAnonymously } from '../api/firebase';
+// FIX: Changed to a default import to correctly get the 'api' object.
+import api from '../api/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 const AuthContext = createContext();
@@ -9,23 +10,23 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
+        // FIX: Use the 'auth' object from the imported 'api'
+        const unsubscribe = onAuthStateChanged(api.auth, (user) => {
             setUser(user);
             setLoading(false);
         });
         return () => unsubscribe();
     }, []);
 
-    // --- THIS IS THE FIX ---
-    // We've made signInGuest an async function that manually sets the user
-    // and loading state immediately after the anonymous sign-in succeeds.
     const signInGuest = async () => {
         try {
-            const userCredential = await signInAnonymously(auth);
-            setUser(userCredential.user); // Manually set the user
-            setLoading(false);             // Manually turn off the loading screen
+            // FIX: Use the 'signInAnonymously' function from the imported 'api'
+            const userCredential = await api.signInAnonymously();
+            setUser(userCredential.user);
+            setLoading(false);
             return userCredential;
-        } catch (error) {
+        } catch (error)
+        {
             console.error("Anonymous sign-in failed", error);
         }
     };
@@ -33,10 +34,11 @@ export const AuthProvider = ({ children }) => {
     const value = {
         user,
         loading,
-        signIn: (email, password) => signInUser(email, password),
-        signUp: (email, password) => createUser(email, password),
-        signOut: () => signOutUser(),
-        signInGuest, // Use our new async function
+        // FIX: Reference the functions from the 'api' object
+        signIn: (email, password) => api.signIn(email, password),
+        signUp: (email, password) => api.signUp(email, password),
+        signOut: () => api.signOut(),
+        signInGuest,
     };
 
     return (
