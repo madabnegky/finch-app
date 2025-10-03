@@ -1,12 +1,12 @@
 import React, { useMemo } from 'react';
-import { formatCurrency } from '@finch/shared-logic/utils/currency'; // Changed import
+import { formatCurrency } from '@shared/utils/currency';
 import { IconAlertTriangle, IconCreditCard, IconBank, IconPencil, IconPlus, IconLink } from '../components/core/Icon';
 import { Droppable, Draggable } from 'react-beautiful-dnd';
 import TransactionList from '../components/transactions/TransactionList';
 import UpcomingBills from '../components/dashboard/UpcomingBills';
 import CashFlowChart from '../components/dashboard/CashFlowChart';
 
-// The AccountCard and AddAccountCard components are unchanged
+// The AccountCard and AddAccountCard components are unchanged from your original code.
 const AddAccountCard = ({ onClick }) => {
     return (
         <button
@@ -77,7 +77,7 @@ const AccountCard = ({ account, onOpenEditAccount, onLinkAccount }) => {
 };
 
 
-// THE DASHBOARD LAYOUT IS UPDATED HERE
+// --- THIS IS THE UPDATED LAYOUT ---
 const DashboardPage = ({ 
     orderedAccounts = [], 
     onOpenEditAccount, 
@@ -96,9 +96,12 @@ const DashboardPage = ({
     }, [transactions]);
 
     return (
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            {/* Main Content Area (Left) */}
-            <div className="lg:col-span-2 space-y-8">
+        // Use flexbox for a responsive two-column layout
+        <section className="flex flex-col lg:flex-row gap-8 items-start">
+            
+            {/* Main Content Area (2/3 width on large screens) */}
+            <div className="w-full lg:w-2/3 space-y-8">
+                {/* Your Accounts Section */}
                 <div>
                     <h2 className="text-2xl font-bold text-finch-gray-800 mb-4">Your Accounts</h2>
                     <Droppable droppableId="accounts">
@@ -130,6 +133,7 @@ const DashboardPage = ({
                     </div>
                 </div>
 
+                {/* Recent Transactions Section */}
                 <div className="p-6 bg-white rounded-xl shadow-sm border border-finch-gray-200">
                     <h3 className="text-xl font-bold text-finch-gray-800 mb-4">Recent Transactions</h3>
                     <TransactionList 
@@ -141,9 +145,12 @@ const DashboardPage = ({
                 </div>
             </div>
 
-            {/* Sidebar (Right) */}
-            <div className="lg:col-span-1 space-y-8">
-                <CashFlowChart projections={projections} />
+            {/* Sidebar (1/3 width on large screens, stacks below on mobile) */}
+            <div className="w-full lg:w-1/3 space-y-8">
+                <div className="p-6 bg-white rounded-xl shadow-sm border border-finch-gray-200">
+                    <h3 className="text-xl font-bold text-finch-gray-800 mb-4">Cash Flow</h3>
+                    <CashFlowChart projections={projections} />
+                </div>
                 <UpcomingBills transactions={transactions} />
             </div>
         </section>

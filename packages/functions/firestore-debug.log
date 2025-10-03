@@ -1,4 +1,4 @@
-Oct 03, 2025 4:58:49 PM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketServer start
+Oct 03, 2025 6:30:38 PM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketServer start
 INFO: Started WebSocket server on ws://0.0.0.0:9150
 API endpoint: http://0.0.0.0:8080
 If you are using a library that supports the FIRESTORE_EMULATOR_HOST environment variable, run:
@@ -12,78 +12,41 @@ If you are running a Firestore in Datastore Mode project, run:
 Note: Support for Datastore Mode is in preview. If you encounter any bugs please file at https://github.com/firebase/firebase-tools/issues.
 Dev App Server is now running.
 
-Oct 03, 2025 4:58:59 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:30:51 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 4:58:59 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:30:51 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected HTTP/2 connection.
-Oct 03, 2025 5:03:29 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:30:54 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:03:30 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:30:55 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:03:30 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:30:56 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:04:30 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:31:22 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:04:30 PM com.google.cloud.datastore.emulator.firestore.webchannel.FirestoreV1WebChannelAdapter$FirestoreListenHandler onClose
-INFO: channel closed
-Oct 03, 2025 5:12:05 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:31:22 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:12:05 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:31:23 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:12:06 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:31:23 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:12:06 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
-INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:12:07 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
-INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:12:07 PM com.google.cloud.datastore.emulator.impl.events.FunctionsEmulatorEventPublisher sendHttpRequest
+Oct 03, 2025 6:31:24 PM com.google.cloud.datastore.emulator.impl.events.FunctionsEmulatorEventPublisher sendHttpRequest
 WARNING: Unsuccessful HTTP response when publishing event for projects/finch-app-v2/triggers/us-central1-detectRecurringTransactions-0: 500 Internal Server Error
 POST http://127.0.0.1:5001/functions/projects/finch-app-v2/triggers/us-central1-detectRecurringTransactions-0
 {"code":"ECONNRESET"}
-Oct 03, 2025 5:12:51 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:31:30 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:12:52 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:31:34 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:13:06 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:31:38 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:13:06 PM com.google.cloud.datastore.emulator.firestore.webchannel.FirestoreV1WebChannelAdapter$FirestoreWriteHandler onClose
-INFO: channel closed
-Oct 03, 2025 5:13:37 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:31:40 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:13:52 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:31:41 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:13:53 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:31:42 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:13:55 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Oct 03, 2025 6:31:43 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:13:55 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
-INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:14:05 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
-INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:14:05 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
-INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:14:05 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
-INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:14:31 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
-INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:14:31 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
-INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:14:31 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
-INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:14:31 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
-INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:14:33 PM com.google.cloud.datastore.emulator.impl.events.FunctionsEmulatorEventPublisher sendHttpRequest
-WARNING: Unsuccessful HTTP response when publishing event for projects/finch-app-v2/triggers/us-central1-detectRecurringTransactions-0: 500 Internal Server Error
-POST http://127.0.0.1:5001/functions/projects/finch-app-v2/triggers/us-central1-detectRecurringTransactions-0
-{"code":"ECONNRESET"}
-Oct 03, 2025 5:15:16 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
-INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:15:17 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
-INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:15:31 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
-INFO: Detected non-HTTP/2 connection.
-Oct 03, 2025 5:15:31 PM com.google.cloud.datastore.emulator.firestore.webchannel.FirestoreV1WebChannelAdapter$FirestoreWriteHandler onClose
-INFO: channel closed
 *** shutting down gRPC server since JVM is shutting down
 *** server shut down
-251003 17:15:57.396:I 1 [main] [com.google.cloud.datastore.emulator.firestore.websocket.WebSocketServer.stop:80] Stopping WebSocket server...
