@@ -16,85 +16,86 @@ import {
   CakeIcon,
   TruckIcon,
   ShoppingBagIcon,
-  // FIX: Import the missing icon
   ChartBarIcon,
 } from '@heroicons/react/24/outline';
 
 import finchLogoUrl from '@/assets/images/finch-logo.svg?url';
 
+// --- THIS IS THE FIX ---
+// This helper function ensures that any props (like className) are correctly
+// passed to the underlying Heroicon component. This fixes the sizing issue.
+const createIcon = (IconComponent) => (props) => <IconComponent {...props} />;
+
 export const FinchLogo = (props) => {
   return <img src={finchLogoUrl} alt="Finch Logo" {...props} />;
 };
 
-export const IconShieldCheck = ShieldCheckIcon;
-export const IconPencil = PencilIcon;
-export const IconTrash = TrashIcon;
-export const IconShoppingCart = ShoppingCartIcon;
-export const IconHeart = HeartIcon;
-export const IconPlayCircle = PlayCircleIcon;
-export const IconSparkles = SparklesIcon;
-export const IconGift = GiftIcon;
-export const IconChevronDown = ChevronDownIcon;
-export const IconLink = LinkIcon;
-export const IconPlus = PlusIcon;
-export const IconBank = BanknotesIcon;
-export const IconKey = KeyIcon;
-export const IconCheckCircle = CheckCircleIcon;
-export const IconRepeat = ArrowPathIcon;
-export const IconAlertTriangle = ExclamationTriangleIcon;
-export const IconX = XMarkIcon;
-export const IconCreditCard = CreditCardIcon;
-export const IconInfo = InformationCircleIcon;
-export const IconCalendarDays = CalendarDaysIcon;
-export const IconSave = DocumentArrowDownIcon;
-export const IconDollarSign = CurrencyDollarIcon;
-export const IconHome = HomeIcon;
-export const IconChevronLeft = ChevronLeftIcon;
-export const IconChevronRight = ChevronRightIcon;
-export const IconArrowUpCircle = ArrowUpCircleIcon;
-export const IconArrowDownCircle = ArrowDownCircleIcon;
-export const IconPlane = PaperAirplaneIcon;
-export const IconUtensils = CakeIcon;
-export const IconCar = TruckIcon;
-export const IconShoppingBasket = ShoppingBagIcon;
-// FIX: Export the new icon
-export const IconChartBar = ChartBarIcon;
-
+export const IconShieldCheck = createIcon(ShieldCheckIcon);
+export const IconPencil = createIcon(PencilIcon);
+export const IconTrash = createIcon(TrashIcon);
+export const IconShoppingCart = createIcon(ShoppingCartIcon);
+export const IconHeart = createIcon(HeartIcon);
+export const IconPlayCircle = createIcon(PlayCircleIcon);
+export const IconSparkles = createIcon(SparklesIcon);
+export const IconGift = createIcon(GiftIcon);
+export const IconChevronDown = createIcon(ChevronDownIcon);
+export const IconLink = createIcon(LinkIcon);
+export const IconPlus = createIcon(PlusIcon);
+export const IconBank = createIcon(BanknotesIcon);
+export const IconKey = createIcon(KeyIcon);
+export const IconCheckCircle = createIcon(CheckCircleIcon);
+export const IconRepeat = createIcon(ArrowPathIcon);
+export const IconAlertTriangle = createIcon(ExclamationTriangleIcon);
+export const IconX = createIcon(XMarkIcon);
+export const IconCreditCard = createIcon(CreditCardIcon);
+export const IconInfo = createIcon(InformationCircleIcon);
+export const IconCalendarDays = createIcon(CalendarDaysIcon);
+export const IconSave = createIcon(DocumentArrowDownIcon);
+export const IconDollarSign = createIcon(CurrencyDollarIcon);
+export const IconHome = createIcon(HomeIcon);
+export const IconChevronLeft = createIcon(ChevronLeftIcon);
+export const IconChevronRight = createIcon(ChevronRightIcon);
+export const IconArrowUpCircle = createIcon(ArrowUpCircleIcon);
+export const IconArrowDownCircle = createIcon(ArrowDownCircleIcon);
+export const IconPlane = createIcon(PaperAirplaneIcon);
+export const IconUtensils = createIcon(CakeIcon);
+export const IconCar = createIcon(TruckIcon);
+export const IconShoppingBasket = createIcon(ShoppingBagIcon);
+export const IconChartBar = createIcon(ChartBarIcon);
 
 const ICONS_MAP = {
-  'ShieldCheck': ShieldCheckIcon,
-  'Pencil': PencilIcon,
-  'Trash': TrashIcon,
-  'ShoppingCart': ShoppingCartIcon,
-  'Heart': HeartIcon,
-  'PlayCircle': PlayCircleIcon,
-  'Sparkles': SparklesIcon,
-  'Gift': GiftIcon,
-  'ChevronDown': ChevronDownIcon,
-  'Link': LinkIcon,
-  'Plus': PlusIcon,
-  'Bank': BanknotesIcon,
-  'Key': KeyIcon,
-  'CheckCircle': CheckCircleIcon,
-  'Repeat': ArrowPathIcon,
-  'AlertTriangle': ExclamationTriangleIcon,
-  'X': XMarkIcon,
-  'CreditCard': CreditCardIcon,
-  'Info': InformationCircleIcon,
-  'CalendarDays': CalendarDaysIcon,
-  'Save': DocumentArrowDownIcon,
-  'DollarSign': CurrencyDollarIcon,
-  'Home': HomeIcon,
-  'ChevronLeft': ChevronLeftIcon,
-  'ChevronRight': ChevronRightIcon,
-  'ArrowUpCircle': ArrowUpCircleIcon,
-  'ArrowDownCircle': ArrowDownCircleIcon,
-  'Plane': PaperAirplaneIcon,
-  'Utensils': CakeIcon,
-  'Car': TruckIcon,
-  'ShoppingBasket': ShoppingBagIcon,
-  // FIX: Add the new icon to the map
-  'ChartBar': ChartBarIcon,
+  'ShieldCheck': IconShieldCheck,
+  'Pencil': IconPencil,
+  'Trash': IconTrash,
+  'ShoppingCart': IconShoppingCart,
+  'Heart': IconHeart,
+  'PlayCircle': IconPlayCircle,
+  'Sparkles': IconSparkles,
+  'Gift': IconGift,
+  'ChevronDown': IconChevronDown,
+  'Link': IconLink,
+  'Plus': IconPlus,
+  'Bank': IconBank,
+  'Key': IconKey,
+  'CheckCircle': IconCheckCircle,
+  'Repeat': IconRepeat,
+  'AlertTriangle': IconAlertTriangle,
+  'X': IconX,
+  'CreditCard': IconCreditCard,
+  'Info': IconInfo,
+  'CalendarDays': IconCalendarDays,
+  'Save': IconSave,
+  'DollarSign': IconDollarSign,
+  'Home': IconHome,
+  'ChevronLeft': IconChevronLeft,
+  'ChevronRight': IconChevronRight,
+  'ArrowUpCircle': IconArrowUpCircle,
+  'ArrowDownCircle': IconArrowDownCircle,
+  'Plane': IconPlane,
+  'Utensils': IconUtensils,
+  'Car': IconCar,
+  'ShoppingBasket': IconShoppingBasket,
+  'ChartBar': IconChartBar,
   'FinchLogo': FinchLogo,
 };
 

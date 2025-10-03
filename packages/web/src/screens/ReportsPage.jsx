@@ -1,10 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { formatCurrency } from '@shared/utils/currency'; // Changed import
+import { formatCurrency } from '@shared/utils/currency';
 import { CATEGORIES } from '../constants/categories';
+import { useAppData } from './AppLayout'; // Import the context hook
 
-const ReportsPage = ({ transactions }) => {
+// --- THIS IS THE FIX ---
+// The page now gets its transaction data from the context hook.
+const ReportsPage = () => {
+    const { transactions } = useAppData();
+
     const monthlySpendingByCategory = useMemo(() => {
+        if (!transactions) return [];
         const data = {};
         const today = new Date();
         const sixMonthsAgo = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 5, 1));
@@ -19,8 +25,8 @@ const ReportsPage = ({ transactions }) => {
         const expenses = transactions.filter(t => t.type === 'expense');
 
         expenses.forEach(expense => {
-            const expenseDate = expense.date || expense.createdAt;
-            if (!(expenseDate instanceof Date) || isNaN(expenseDate.getTime())) {
+            const expenseDate = expense.date?.toDate ? expense.date.toDate() : new Date(expense.date);
+            if (isNaN(expenseDate.getTime())) {
                 return;
             }
 
@@ -38,6 +44,7 @@ const ReportsPage = ({ transactions }) => {
     }, [transactions]);
 
     const allCategories = useMemo(() => {
+        if (!transactions) return [];
         const categorySet = new Set();
         transactions.forEach(t => {
             if (t.type === 'expense' && t.category) {
@@ -63,6 +70,7 @@ const ReportsPage = ({ transactions }) => {
     });
 
     const spendingData = useMemo(() => {
+        if (!transactions) return [];
         const now = new Date();
         const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
         const endOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
@@ -71,8 +79,8 @@ const ReportsPage = ({ transactions }) => {
         const expenses = transactions.filter(t => {
             if (t.type !== 'expense') return false;
             if (t.isRecurring) return false;
-            const txDate = t.date || t.createdAt;
-            if (!(txDate instanceof Date) || isNaN(txDate.getTime())) {
+            const txDate = t.date?.toDate ? t.date.toDate() : new Date(t.date);
+            if (isNaN(txDate.getTime())) {
                 return false;
             }
             return txDate >= startOfMonth && txDate <= endOfMonth;

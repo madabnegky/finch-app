@@ -1,20 +1,21 @@
 import React, { useMemo } from 'react';
 import { formatCurrency } from '@shared/utils/currency';
 import { IconAlertTriangle, IconCreditCard, IconBank, IconPencil, IconPlus, IconLink } from '../components/core/Icon';
-// FIX: Import DragDropContext to enable drag-and-drop functionality
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import TransactionList from '../components/transactions/TransactionList';
 import UpcomingBills from '../components/dashboard/UpcomingBills';
 import CashFlowChart from '../components/dashboard/CashFlowChart';
+import { useAppData } from './AppLayout'; // Import the new context hook
 
-// The AccountCard and AddAccountCard components are unchanged.
 const AddAccountCard = ({ onClick }) => {
     return (
         <button
             onClick={onClick}
             className="w-full bg-white/50 border-2 border-dashed border-finch-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-finch-gray-500 hover:bg-white hover:border-finch-teal-400 hover:text-finch-teal-600 transition-all h-full"
         >
-            <IconPlus />
+            {/* --- THIS IS THE FIX --- */}
+            {/* Added sizing classes to the icon to prevent it from being huge. */}
+            <IconPlus className="w-8 h-8" />
             <span className="mt-2 font-bold text-lg">Add Account</span>
         </button>
     );
@@ -78,29 +79,32 @@ const AccountCard = ({ account, onOpenEditAccount, onLinkAccount }) => {
 };
 
 const DashboardPage = ({ 
-    orderedAccounts = [], 
     onOpenEditAccount, 
     onOpenAddAccount,
     onLinkAccount,
-    transactions = [],
-    accounts = [],
     onEditTransaction,
     onDeleteTransaction,
-    projections = []
+    projections = [] // Projections can stay as props for now if they are calculated higher up
 }) => {
     
+    // --- THIS IS THE FIX ---
+    // Use the context hook to get the accounts and transactions data
+    // from the AppLayout parent component.
+    const { accounts, transactions } = useAppData();
+
+    // The rest of your component logic can now use this data
+    const orderedAccounts = accounts || [];
+
     const recentTransactions = useMemo(() => {
+        if (!transactions) return [];
         return transactions.filter(t => !t.isRecurring || t.isInstance).slice(0, 5);
     }, [transactions]);
 
-    // This handler is required for DragDropContext to work.
     const onDragEnd = (result) => {
         console.log("Drag ended:", result);
-        // In the future, you would add logic here to reorder your accounts.
     };
 
     return (
-        // FIX: Wrap the entire component in DragDropContext to fix the crash.
         <DragDropContext onDragEnd={onDragEnd}>
             <section className="flex flex-col lg:flex-row gap-8 items-start">
                 <div className="w-full lg:w-2/3 space-y-8">

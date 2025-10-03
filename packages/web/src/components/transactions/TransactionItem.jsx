@@ -6,17 +6,18 @@ import { Edit3, Trash2 } from 'lucide-react';
 
 const TransactionItem = ({ transaction, onEdit, onDelete, isRecurring }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const { name, amount, category: categoryName, date } = transaction;
+  const { description, amount, category: categoryName, date } = transaction;
+
   const category = getCategoryByName(categoryName);
   const isExpense = amount < 0;
 
   // --- THIS IS THE FIX ---
-  // The original `formatDate` utility was not correctly handling Date objects
-  // passed from Firestore. This new function ensures the date is always a
-  // valid Date object before formatting, preventing crashes.
+  // A component variable in JSX MUST start with a capital letter.
+  // We assign the lowercase `category.icon` to a capitalized variable `IconComponent`.
+  const IconComponent = category.icon;
+
   const formatDate = (date) => {
     if (!date) return 'N/A';
-    // Ensure date is a Date object, converting from Firestore Timestamp if necessary
     const dateObj = date.toDate ? date.toDate() : new Date(date);
     return formatDateUtil(dateObj, 'MMM d');
   };
@@ -32,11 +33,12 @@ const TransactionItem = ({ transaction, onEdit, onDelete, isRecurring }) => {
     >
       <div className="flex items-center">
         <div className={`flex items-center justify-center w-10 h-10 mr-4 rounded-full ${category.color}`}>
-          <category.Icon className="w-5 h-5 text-white" />
+          {/* Now we render the capitalized `IconComponent` variable */}
+          <IconComponent className="w-5 h-5 text-white" />
         </div>
         <div>
-          <p className="font-semibold text-gray-800">{name}</p>
-          <p className="text-sm text-gray-500">{category.label}</p>
+          <p className="font-semibold text-gray-800">{description}</p>
+          <p className="text-sm text-gray-500">{categoryName}</p>
         </div>
       </div>
       <div className="flex items-center">
@@ -67,3 +69,4 @@ const TransactionItem = ({ transaction, onEdit, onDelete, isRecurring }) => {
 };
 
 export default TransactionItem;
+

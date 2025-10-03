@@ -35,7 +35,9 @@ function AppRoutes() {
             <Route path="/" element={user ? <Navigate to="/app/dashboard" /> : <LandingPage />} />
             <Route path="/setup" element={<ProtectedRoute><SetupWizard /></ProtectedRoute>} />
             
-            {/* FIX: Define the child routes that will render inside AppLayout */}
+            {/* --- THIS IS THE FIX --- */}
+            {/* The AppLayout now fetches data and provides it via context. */}
+            {/* The child routes will consume this context, so we no longer need to pass props here. */}
             <Route
                 path="/app"
                 element={
@@ -52,7 +54,6 @@ function AppRoutes() {
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="calendar" element={<CalendarPage />} />
                 <Route path="settings" element={<SettingsPage />} />
-                {/* Redirect from /app to /app/dashboard */}
                 <Route index element={<Navigate to="dashboard" replace />} />
             </Route>
         </Routes>
