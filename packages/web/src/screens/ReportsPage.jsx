@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { formatCurrency } from '@finch/shared-logic/utils/currency'; // Changed import
+import { formatCurrency } from '@shared/utils/currency'; // Changed import
 import { CATEGORIES } from '../constants/categories';
 
 const ReportsPage = ({ transactions }) => {

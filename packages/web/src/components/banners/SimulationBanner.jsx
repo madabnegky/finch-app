@@ -1,6 +1,6 @@
 import React from 'react';
 import { IconAlertTriangle, IconX } from '../core/Icon';
-import { formatCurrency } from '@finch/shared-logic/utils/currency'; // Changed import
+import { formatCurrency } from '@shared/utils/currency'; // Changed import
 
 const SimulationBanner = ({ transaction, onClear }) => {
     return (

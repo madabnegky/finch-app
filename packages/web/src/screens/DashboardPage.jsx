@@ -7,6 +7,7 @@ import TransactionList from '../components/transactions/TransactionList';
 import UpcomingBills from '../components/dashboard/UpcomingBills';
 import CashFlowChart from '../components/dashboard/CashFlowChart';
 
+// The AccountCard and AddAccountCard components are unchanged.
 const AddAccountCard = ({ onClick }) => {
     return (
         <button
@@ -91,12 +92,15 @@ const DashboardPage = ({
     const recentTransactions = useMemo(() => {
         return transactions.filter(t => !t.isRecurring || t.isInstance).slice(0, 5);
     }, [transactions]);
-    
+
+    // This handler is required for DragDropContext to work.
     const onDragEnd = (result) => {
-        console.log("Drag ended. In a future feature, we would save this new order:", result);
+        console.log("Drag ended:", result);
+        // In the future, you would add logic here to reorder your accounts.
     };
 
     return (
+        // FIX: Wrap the entire component in DragDropContext to fix the crash.
         <DragDropContext onDragEnd={onDragEnd}>
             <section className="flex flex-col lg:flex-row gap-8 items-start">
                 <div className="w-full lg:w-2/3 space-y-8">

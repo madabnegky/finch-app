@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { toDateInputString } from '@finch/shared-logic/utils/date'; // Changed import
+import { toDateInputString } from '@shared/utils/date'; // Changed import
 import Modal from '../core/Modal';
 
 const TransferModal = ({ isOpen, onClose, accounts, onSave, transferToEdit, initialData }) => {

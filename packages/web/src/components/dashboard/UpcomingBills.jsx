@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { formatCurrency } from '@finch/shared-logic/utils/currency'; // Changed import
+import { formatCurrency } from '@shared/utils/currency'; // Changed import
 import { IconCalendarDays } from '../core/Icon';
 
 const UpcomingBills = ({ transactions }) => {

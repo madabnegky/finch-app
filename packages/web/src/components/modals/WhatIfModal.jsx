@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { parseDateString, toDateInputString } from '@finch/shared-logic/utils/date'; // Changed import
+import { parseDateString, toDateInputString } from '@shared/utils/date'; // Changed import
 import Modal from '../core/Modal';
 
 const WhatIfModal = ({ isOpen, onClose, onSimulate, accounts }) => {

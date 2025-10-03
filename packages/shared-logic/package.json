@@ -12,6 +12,7 @@
     "./utils/date": "./src/utils/date.js"
   },
   "dependencies": {
+    "date-fns": "^3.6.0",
     "firebase": "^10.12.2"
   }
 }

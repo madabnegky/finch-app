@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { formatCurrency } from '@finch/shared-logic/utils/currency'; // Changed import
-import { toDateInputString } from '@finch/shared-logic/utils/date'; // Changed import
+import { formatCurrency } from '@shared/utils/currency'; // Changed import
+import { toDateInputString } from '@shared/utils/date'; // Changed import
 import { IconChevronLeft, IconChevronRight, IconArrowUpCircle, IconArrowDownCircle } from '../components/core/Icon';
 
 const CalendarTooltip = ({ transactions, position }) => (
