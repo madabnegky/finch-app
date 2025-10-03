@@ -1,5 +1,6 @@
 import { getMessaging, getToken } from "firebase/messaging";
-import { app, db } from "@shared/api/firebase";
+// FIX: Changed to a default import to correctly get the 'api' object.
+import api from "@shared/api/firebase";
 import { doc, updateDoc, arrayUnion } from "firebase/firestore";
 import { useAuth } from "@shared/hooks/useAuth";
 
@@ -13,7 +14,8 @@ const useNotifications = () => {
     }
 
     try {
-      const messaging = getMessaging(app);
+      // FIX: Use api.app and api.firestore from the imported object
+      const messaging = getMessaging(api.app);
       const permission = await Notification.requestPermission();
 
       if (permission === 'granted') {
@@ -24,7 +26,7 @@ const useNotifications = () => {
 
         if (currentToken) {
           console.log('FCM Token:', currentToken);
-          const userDocRef = doc(db, 'users', user.uid);
+          const userDocRef = doc(api.firestore, 'users', user.uid);
           await updateDoc(userDocRef, {
             fcmTokens: arrayUnion(currentToken)
           });

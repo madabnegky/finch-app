@@ -28,8 +28,17 @@ const getNextOccurrence = (startDate, frequency) => {
   }
 };
 
+const toDateInputString = (date) => {
+    if (!date) return '';
+    // YYYY-MM-DD
+    return new Date(date.getTime() - (date.getTimezoneOffset() * 60000 ))
+        .toISOString()
+        .split("T")[0];
+}
+
 module.exports = {
   parseDateString,
   getNextOccurrence,
   startOfDay,
+  toDateInputString,
 };

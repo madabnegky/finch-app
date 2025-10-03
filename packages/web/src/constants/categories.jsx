@@ -27,3 +27,7 @@ export const CATEGORIES = {
   'Entertainment': { icon: () => <span className="text-xl">🎭</span>, color: 'text-amber-600' },
   'Uncategorized': { icon: () => <span className="text-xl">❓</span>, color: 'text-slate-500' },
 };
+
+export const getCategoryByName = (name) => {
+    return CATEGORIES[name] || CATEGORIES['Uncategorized'];
+};

@@ -10,16 +10,19 @@ import {
   isAfter
 } from 'date-fns';
 
-// --- THIS IS THE FIX ---
-// The original function could fail in certain time zones due to how JavaScript
-// parses date strings. Replacing hyphens with slashes makes the parsing
-// more consistent and reliable across different environments.
 export const parseDateString = (dateString) => {
   if (!dateString) return null;
-  // Replace hyphens with slashes for better cross-browser compatibility
   const formattedDateString = dateString.replace(/-/g, '/');
   return startOfDay(new Date(formattedDateString));
 };
+
+export const toDateInputString = (date) => {
+    if (!date) return '';
+    // YYYY-MM-DD
+    return new Date(date.getTime() - (date.getTimezoneOffset() * 60000 ))
+        .toISOString()
+        .split("T")[0];
+}
 
 export const formatDate = (date, format = 'MM/dd/yyyy') => {
   if (!date) return '';

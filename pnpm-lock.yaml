@@ -15,8 +15,8 @@ importers:
   packages/functions:
     dependencies:
       date-fns:
-        specifier: ^2.28.0
-        version: 2.30.0
+        specifier: ^3.6.0
+        version: 3.6.0
       firebase-admin:
         specifier: ^11.8.0
         version: 11.11.1(encoding@0.1.13)
@@ -36,6 +36,9 @@ importers:
 
   packages/shared-logic:
     dependencies:
+      date-fns:
+        specifier: ^3.6.0
+        version: 3.6.0
       firebase:
         specifier: ^10.12.2
         version: 10.14.1
