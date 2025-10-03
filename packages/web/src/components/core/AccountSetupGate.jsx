@@ -1,42 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useCollection } from 'react-firebase-hooks/firestore';
+import api from '@shared/api/firebase';
 import { useAuth } from '@shared/hooks/useAuth';
-import { db } from '@shared/api/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
 import { Navigate } from 'react-router-dom';
 import LoadingScreen from './LoadingScreen';
 
-// This component checks if a user has accounts. If not, it forces them to the setup page.
-function AccountSetupGate({ children }) {
-    const { user } = useAuth();
-    const [hasAccounts, setHasAccounts] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
+const AccountSetupGate = ({ children }) => {
+  const { user, loading: authLoading } = useAuth();
 
-    useEffect(() => {
-        if (!user) return;
+  // FIX: Corrected the invalid destructuring syntax.
+  const [accounts, accountsLoading, error] = useCollection(
+    user ? api.firestore.collection(`users/${user.uid}/accounts`) : null
+  );
 
-        const checkAccounts = async () => {
-            const accountsCol = collection(db, `users/${user.uid}/accounts`);
-            const q = query(accountsCol);
-            const querySnapshot = await getDocs(q);
+  if (authLoading || accountsLoading) {
+    return <LoadingScreen />;
+  }
 
-            setHasAccounts(!querySnapshot.empty);
-            setIsLoading(false);
-        };
+  if (error) {
+    console.error("Error fetching accounts for gate:", error);
+    return <div>Error: Could not verify account setup. Please try again later.</div>;
+  }
 
-        checkAccounts();
-    }, [user]);
+  if (user && (!accounts || accounts.docs.length === 0)) {
+    return <Navigate to="/setup" />;
+  }
 
-    if (isLoading) {
-        return <LoadingScreen />;
-    }
-
-    // If the user has no accounts, redirect them to the setup wizard
-    if (!hasAccounts) {
-        return <Navigate to="/setup" replace />;
-    }
-
-    // Otherwise, show them the main app
-    return children;
-}
+  return children;
+};
 
 export default AccountSetupGate;
