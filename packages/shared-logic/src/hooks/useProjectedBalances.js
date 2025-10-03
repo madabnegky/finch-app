@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { getNextDate, toDateInputString } from '../utils/date';
+import { getNextOccurrence, toDateInputString } from '../utils/date';
 
 const useProjectedBalances = (accounts, transactions, selectedAccountId = 'all') => {
   return useMemo(() => {
@@ -44,7 +44,7 @@ const useProjectedBalances = (accounts, transactions, selectedAccountId = 'all')
           if (!excludedDates.includes(toDateInputString(cursorDate))) {
             allInstances.push({ ...t, date: new Date(cursorDate) });
           }
-          cursorDate = getNextDate(cursorDate, t.recurringDetails.frequency);
+          cursorDate = getNextOccurrence(cursorDate, t.recurringDetails.frequency);
         }
       }
     });

@@ -1,4 +1,4 @@
-const { getNextDate, toDateInputString } = require('./dateUtils'); // We will create this file next
+const { getNextOccurrence, toDateInputString } = require('./dateUtils'); // We will create this file next
 
 const calculateProjections = (accounts, transactions, daysToProject = 60) => {
   if (!accounts || accounts.length === 0) return [];
@@ -27,7 +27,7 @@ const calculateProjections = (accounts, transactions, daysToProject = 60) => {
         if (!excludedDates.includes(toDateInputString(cursorDate))) {
           allInstances.push({ ...t, date: new Date(cursorDate) });
         }
-        cursorDate = getNextDate(cursorDate, t.recurringDetails.frequency);
+        cursorDate = getNextOccurrence(cursorDate, t.recurringDetails.frequency);
       }
     }
   });

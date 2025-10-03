@@ -3,7 +3,7 @@ import { usePlaidLink } from 'react-plaid-link';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import Modal from '../core/Modal';
 import { IconBank } from '../core/Icon';
-import { formatCurrency } from '@finch/shared-logic/utils/currency'; // Changed import
+import { formatCurrency } from '@shared/utils/currency'; // Changed import
 
 const PlaidLinkModal = ({ isOpen, onClose, manualAccount, onLinkSuccess }) => {
     const [linkToken, setLinkToken] = useState(null);

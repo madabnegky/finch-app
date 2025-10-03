@@ -12,4 +12,7 @@ export default defineConfig({
       '@shared': path.resolve(__dirname, '../shared-logic/src'),
     },
   },
+  optimizeDeps: {
+    include: ['@shared/logic/api/firebase', '@shared/logic/hooks/useAuth', '@shared/logic/hooks/useProjectedBalances', '@shared/logic/hooks/useTransactionInstances', '@shared/logic/utils/currency', '@shared/logic/utils/date'],
+  },
 });

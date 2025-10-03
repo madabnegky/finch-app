@@ -1,6 +1,7 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { calculateProjections, getAvailableToSpend } = require('./projection');
+const { toDateInputString } = require('./dateUtils');
 
 // This function will run every day at 9:00 AM Eastern Time
 exports.sendScheduledNotifications = functions.pubsub.schedule('every day 09:00').timeZone('America/New_York').onRun(async (context) => {
