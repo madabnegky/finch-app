@@ -1,12 +1,12 @@
 import React, { useMemo } from 'react';
 import { formatCurrency } from '@shared/utils/currency';
 import { IconAlertTriangle, IconCreditCard, IconBank, IconPencil, IconPlus, IconLink } from '../components/core/Icon';
-import { Droppable, Draggable } from 'react-beautiful-dnd';
+// FIX: Import DragDropContext to enable drag-and-drop functionality
+import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import TransactionList from '../components/transactions/TransactionList';
 import UpcomingBills from '../components/dashboard/UpcomingBills';
 import CashFlowChart from '../components/dashboard/CashFlowChart';
 
-// The AccountCard and AddAccountCard components are unchanged from your original code.
 const AddAccountCard = ({ onClick }) => {
     return (
         <button
@@ -76,8 +76,6 @@ const AccountCard = ({ account, onOpenEditAccount, onLinkAccount }) => {
     );
 };
 
-
-// --- THIS IS THE UPDATED LAYOUT ---
 const DashboardPage = ({ 
     orderedAccounts = [], 
     onOpenEditAccount, 
@@ -91,69 +89,66 @@ const DashboardPage = ({
 }) => {
     
     const recentTransactions = useMemo(() => {
-        // Filter out recurring templates, only show actual instances or one-time transactions
         return transactions.filter(t => !t.isRecurring || t.isInstance).slice(0, 5);
     }, [transactions]);
+    
+    const onDragEnd = (result) => {
+        console.log("Drag ended. In a future feature, we would save this new order:", result);
+    };
 
     return (
-        // Use flexbox for a responsive two-column layout
-        <section className="flex flex-col lg:flex-row gap-8 items-start">
-            
-            {/* Main Content Area (2/3 width on large screens) */}
-            <div className="w-full lg:w-2/3 space-y-8">
-                {/* Your Accounts Section */}
-                <div>
-                    <h2 className="text-2xl font-bold text-finch-gray-800 mb-4">Your Accounts</h2>
-                    <Droppable droppableId="accounts">
-                        {(provided) => (
-                            <div
-                                className="grid grid-cols-1 md:grid-cols-2 gap-6"
-                                ref={provided.innerRef}
-                                {...provided.droppableProps}
-                            >
-                                {orderedAccounts.map((account, index) => (
-                                    <Draggable key={account.id} draggableId={account.id} index={index}>
-                                        {(provided) => (
-                                            <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-                                                <AccountCard 
-                                                    account={account} 
-                                                    onOpenEditAccount={onOpenEditAccount} 
-                                                    onLinkAccount={onLinkAccount}
-                                                />
-                                            </div>
-                                        )}
-                                    </Draggable>
-                                ))}
-                                {provided.placeholder}
-                            </div>
-                        )}
-                    </Droppable>
-                    <div className="pt-6 mt-6 border-t border-finch-gray-200">
-                        <AddAccountCard onClick={onOpenAddAccount} />
+        <DragDropContext onDragEnd={onDragEnd}>
+            <section className="flex flex-col lg:flex-row gap-8 items-start">
+                <div className="w-full lg:w-2/3 space-y-8">
+                    <div>
+                        <h2 className="text-2xl font-bold text-finch-gray-800 mb-4">Your Accounts</h2>
+                        <Droppable droppableId="accounts">
+                            {(provided) => (
+                                <div
+                                    className="grid grid-cols-1 md:grid-cols-2 gap-6"
+                                    ref={provided.innerRef}
+                                    {...provided.droppableProps}
+                                >
+                                    {orderedAccounts.map((account, index) => (
+                                        <Draggable key={account.id} draggableId={account.id} index={index}>
+                                            {(provided) => (
+                                                <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
+                                                    <AccountCard 
+                                                        account={account} 
+                                                        onOpenEditAccount={onOpenEditAccount} 
+                                                        onLinkAccount={onLinkAccount}
+                                                    />
+                                                </div>
+                                            )}
+                                        </Draggable>
+                                    ))}
+                                    {provided.placeholder}
+                                </div>
+                            )}
+                        </Droppable>
+                        <div className="pt-6 mt-6 border-t border-finch-gray-200">
+                            <AddAccountCard onClick={onOpenAddAccount} />
+                        </div>
+                    </div>
+                    <div className="p-6 bg-white rounded-xl shadow-sm border border-finch-gray-200">
+                        <h3 className="text-xl font-bold text-finch-gray-800 mb-4">Recent Transactions</h3>
+                        <TransactionList 
+                            transactions={recentTransactions}
+                            accounts={accounts}
+                            onEdit={onEditTransaction}
+                            onDelete={onDeleteTransaction}
+                        />
                     </div>
                 </div>
-
-                {/* Recent Transactions Section */}
-                <div className="p-6 bg-white rounded-xl shadow-sm border border-finch-gray-200">
-                    <h3 className="text-xl font-bold text-finch-gray-800 mb-4">Recent Transactions</h3>
-                    <TransactionList 
-                        transactions={recentTransactions}
-                        accounts={accounts}
-                        onEdit={onEditTransaction}
-                        onDelete={onDeleteTransaction}
-                    />
+                <div className="w-full lg:w-1/3 space-y-8">
+                    <div className="p-6 bg-white rounded-xl shadow-sm border border-finch-gray-200">
+                        <h3 className="text-xl font-bold text-finch-gray-800 mb-4">Cash Flow</h3>
+                        <CashFlowChart projections={projections} />
+                    </div>
+                    <UpcomingBills transactions={transactions} />
                 </div>
-            </div>
-
-            {/* Sidebar (1/3 width on large screens, stacks below on mobile) */}
-            <div className="w-full lg:w-1/3 space-y-8">
-                <div className="p-6 bg-white rounded-xl shadow-sm border border-finch-gray-200">
-                    <h3 className="text-xl font-bold text-finch-gray-800 mb-4">Cash Flow</h3>
-                    <CashFlowChart projections={projections} />
-                </div>
-                <UpcomingBills transactions={transactions} />
-            </div>
-        </section>
+            </section>
+        </DragDropContext>
     );
 };
 

@@ -16,14 +16,12 @@ import {
   CakeIcon,
   TruckIcon,
   ShoppingBagIcon,
+  // FIX: Import the missing icon
+  ChartBarIcon,
 } from '@heroicons/react/24/outline';
 
-// NEW METHOD: Import the SVG's URL. The '?url' suffix tells Vite to give us the file path.
 import finchLogoUrl from '@/assets/images/finch-logo.svg?url';
 
-// --- PART 1: NAMED EXPORTS ---
-
-// NEW METHOD: Create a standard React component that renders an <img> tag for the logo.
 export const FinchLogo = (props) => {
   return <img src={finchLogoUrl} alt="Finch Logo" {...props} />;
 };
@@ -59,9 +57,10 @@ export const IconPlane = PaperAirplaneIcon;
 export const IconUtensils = CakeIcon;
 export const IconCar = TruckIcon;
 export const IconShoppingBasket = ShoppingBagIcon;
+// FIX: Export the new icon
+export const IconChartBar = ChartBarIcon;
 
 
-// --- PART 2: DEFAULT EXPORT (Dynamic Switcher) ---
 const ICONS_MAP = {
   'ShieldCheck': ShieldCheckIcon,
   'Pencil': PencilIcon,
@@ -94,7 +93,9 @@ const ICONS_MAP = {
   'Utensils': CakeIcon,
   'Car': TruckIcon,
   'ShoppingBasket': ShoppingBagIcon,
-  'FinchLogo': FinchLogo, // The map now points to our new <img> component
+  // FIX: Add the new icon to the map
+  'ChartBar': ChartBarIcon,
+  'FinchLogo': FinchLogo,
 };
 
 const Icon = ({ name, className, ...props }) => {

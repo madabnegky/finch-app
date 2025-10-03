@@ -8,44 +8,36 @@ import AppLayout from './screens/AppLayout';
 import LoadingScreen from './components/core/LoadingScreen';
 import AccountSetupGate from './components/core/AccountSetupGate';
 import SetupWizard from './screens/SetupWizard';
+import DashboardPage from './screens/DashboardPage';
+import BudgetPage from './screens/BudgetPage';
+import TransactionsPage from './screens/TransactionsPage';
+import ReportsPage from './screens/ReportsPage';
+import CalendarPage from './screens/CalendarPage';
+import SettingsPage from './screens/SettingsPage';
 
-// A simple wrapper to protect routes that require a user to be logged in
+
 function ProtectedRoute({ children }) {
     const { user, loading } = useAuth();
-
     if (loading) {
         return <LoadingScreen />;
     }
-
     if (!user) {
         return <Navigate to="/" replace />;
     }
-
     return children;
 }
 
-// The main router component
 function AppRoutes() {
     const { user } = useAuth();
 
     return (
         <Routes>
-            {/* If there is a user, the root path redirects to the app, otherwise show landing page */}
-            <Route path="/" element={user ? <Navigate to="/app" /> : <LandingPage />} />
-
-            {/* The setup wizard is a protected route */}
+            <Route path="/" element={user ? <Navigate to="/app/dashboard" /> : <LandingPage />} />
+            <Route path="/setup" element={<ProtectedRoute><SetupWizard /></ProtectedRoute>} />
+            
+            {/* FIX: Define the child routes that will render inside AppLayout */}
             <Route
-                path="/setup"
-                element={
-                    <ProtectedRoute>
-                        <SetupWizard />
-                    </ProtectedRoute>
-                }
-            />
-
-            {/* The main application is a protected route wrapped by our new gatekeeper */}
-            <Route
-                path="/app/*"
+                path="/app"
                 element={
                     <ProtectedRoute>
                         <AccountSetupGate>
@@ -53,7 +45,16 @@ function AppRoutes() {
                         </AccountSetupGate>
                     </ProtectedRoute>
                 }
-            />
+            >
+                <Route path="dashboard" element={<DashboardPage />} />
+                <Route path="budget" element={<BudgetPage />} />
+                <Route path="transactions" element={<TransactionsPage />} />
+                <Route path="reports" element={<ReportsPage />} />
+                <Route path="calendar" element={<CalendarPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+                {/* Redirect from /app to /app/dashboard */}
+                <Route index element={<Navigate to="dashboard" replace />} />
+            </Route>
         </Routes>
     );
 }

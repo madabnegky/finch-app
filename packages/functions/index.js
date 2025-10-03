@@ -1,6 +1,5 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-// FIX: The import path for the date utility file was incorrect.
 const { getNextOccurrence, startOfDay } = require("./dateUtils");
 
 admin.initializeApp();
@@ -43,7 +42,6 @@ exports.generateProjections = functions.https.onCall(async (data, context) => {
       let dailyNet = 0;
 
       transactions.forEach((t) => {
-        // Handle one-time transactions
         if (!t.recurring || t.recurring.frequency === "once") {
           const transactionDate = t.date.toDate();
           if (
@@ -54,7 +52,6 @@ exports.generateProjections = functions.https.onCall(async (data, context) => {
             dailyNet += t.amount;
           }
         }
-        // Handle recurring transactions
         else {
           let nextDate = t.date.toDate();
           while (nextDate <= currentDate) {
@@ -65,7 +62,6 @@ exports.generateProjections = functions.https.onCall(async (data, context) => {
             ) {
               dailyNet += t.amount;
             }
-            // Important: get the *next* occurrence to check in the next loop
             const next = getNextOccurrence(nextDate, t.recurring.frequency);
             if (!next || next <= nextDate) break; // Break if no next date or logic error
             nextDate = next;
@@ -93,31 +89,33 @@ exports.detectRecurringTransactions = functions.firestore
         const userId = context.params.userId;
         const transactionId = context.params.transactionId;
 
-        // Simple detection logic: check for transactions with the same name and similar amount
+        // FIX: Query by 'description' instead of 'name' to match the data structure.
+        if (!newTransaction.description) {
+            console.log("New transaction has no description, skipping recurring detection.");
+            return null;
+        }
+        
         const similarTransactions = await db.collection(`users/${userId}/transactions`)
-            .where('name', '==', newTransaction.name)
+            .where('description', '==', newTransaction.description)
             .get();
 
         if (similarTransactions.docs.length < 2) {
-            return null; // Not enough transactions with the same name to be recurring
+            return null; 
         }
 
         let isRecurring = false;
         similarTransactions.forEach(doc => {
-            if (doc.id === transactionId) return; // Don't compare with itself
+            if (doc.id === transactionId) return;
             const oldTransaction = doc.data();
             const amountDifference = Math.abs(oldTransaction.amount - newTransaction.amount);
 
-            // Consider it a match if the amount is very close (e.g., within $1)
             if (amountDifference < 1.00) {
                 isRecurring = true;
             }
         });
 
         if (isRecurring) {
-            console.log(`Detected potential recurring transaction: ${newTransaction.name} for user ${userId}`);
-            // In a real application, you might update the transaction document,
-            // create a "recurring pattern" document, or notify the user.
+            console.log(`Detected potential recurring transaction: ${newTransaction.description} for user ${userId}`);
         }
 
         return null;
