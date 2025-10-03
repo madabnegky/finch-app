@@ -21,7 +21,7 @@ export const AuthProvider = ({ children }) => {
     const signInGuest = async () => {
         try {
             // FIX: Use the 'signInAnonymously' function from the imported 'api'
-            const userCredential = await api.signInAnonymously();
+            const userCredential = await api.signInAnonymously(api.auth);
             setUser(userCredential.user);
             setLoading(false);
             return userCredential;

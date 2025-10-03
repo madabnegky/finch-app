@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
 import { useCollection } from 'react-firebase-hooks/firestore';
-// FIX: Changed to a default import to match the updated firebase.js export
+import { collection, addDoc } from "firebase/firestore";
 import api from '@shared/api/firebase';
 import { useAuth } from '@shared/hooks/useAuth';
 import Button from '../components/core/Button';
 import Input from '../components/core/Input';
 import Select from '../components/core/Select';
 import { CATEGORIES } from '../constants/categories';
-import { formatCurrency } from '@shared/utils';
+import { formatCurrency } from '@shared/utils/currency';
 
 const BudgetPage = () => {
   const { user } = useAuth();
   const [budgets, loading, error] = useCollection(
-    user ? api.firestore.collection(`users/${user.uid}/budgets`) : null
+    user ? collection(api.firestore, `users/${user.uid}/budgets`) : null
   );
 
   const [newBudgetCategory, setNewBudgetCategory] = useState('');
@@ -24,7 +24,8 @@ const BudgetPage = () => {
       alert('Please select a category and enter a limit.');
       return;
     }
-    await api.firestore.collection(`users/${user.uid}/budgets`).add({
+    const budgetsCollection = collection(api.firestore, `users/${user.uid}/budgets`);
+    await addDoc(budgetsCollection, {
       category: newBudgetCategory,
       limit: parseFloat(newBudgetLimit),
       spent: 0, // Initialize spent amount to 0
@@ -36,7 +37,7 @@ const BudgetPage = () => {
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
 
-  const categoryOptions = CATEGORIES.map((c) => ({ value: c, label: c }));
+  const categoryOptions = Object.keys(CATEGORIES).map((c) => ({ value: c, label: c }));
 
   return (
     <div className="container mx-auto p-4">
@@ -47,20 +48,26 @@ const BudgetPage = () => {
         <h2 className="text-xl font-semibold mb-2">Create New Budget</h2>
         <form onSubmit={handleAddBudget} className="flex items-end space-x-4">
           <div className="flex-grow">
+            {/* FIX: Added explicit label */}
+            <label className="block text-sm font-medium text-gray-700">Category</label>
             <Select
-              label="Category"
               value={newBudgetCategory}
               onChange={(e) => setNewBudgetCategory(e.target.value)}
-              options={[{ value: '', label: 'Select a category' }, ...categoryOptions]}
-            />
+              className="mt-1"
+            >
+                <option value="">Select a category</option>
+                {categoryOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+            </Select>
           </div>
           <div>
+            {/* FIX: Added explicit label */}
+            <label className="block text-sm font-medium text-gray-700">Monthly Limit</label>
             <Input
-              label="Monthly Limit"
               type="number"
               value={newBudgetLimit}
               onChange={(e) => setNewBudgetLimit(e.target.value)}
               placeholder="e.g., 500"
+              className="mt-1"
             />
           </div>
           <Button type="submit" variant="primary">

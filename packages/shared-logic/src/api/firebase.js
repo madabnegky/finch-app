@@ -31,9 +31,10 @@ const appId = import.meta.env.VITE_APP_ID || 'default-finch-app';
 if (import.meta.env.DEV) {
     console.log("Development mode: Connecting to Firebase Emulators on localhost.");
     try {
-        connectAuthEmulator(auth, 'http://127.0.0.1:9099');
-        connectFirestoreEmulator(db, '127.0.0.1', 8080);
-        connectFunctionsEmulator(functions, '127.0.0.1', 5001);
+        // FIX: Changed '127.0.0.1' to 'localhost' for better compatibility
+        connectAuthEmulator(auth, 'http://localhost:9099');
+        connectFirestoreEmulator(db, 'localhost', 8080);
+        connectFunctionsEmulator(functions, 'localhost', 5001);
         console.log(`Successfully configured emulators to use localhost.`);
     } catch (error) {
         console.error("Error connecting to Firebase Emulators:", error);

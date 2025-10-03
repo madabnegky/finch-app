@@ -4,9 +4,11 @@ import Button from '../components/core/Button';
 import Input from '../components/core/Input';
 import Select from '../components/core/Select';
 import { useAuth } from '@shared/hooks/useAuth';
-// FIX: Changed to a default import to match the updated export
+import { collection, addDoc } from "firebase/firestore";
 import api from '@shared/api/firebase';
 import TransactionModal from '../components/modals/TransactionModal';
+// Import the currency formatter to display amounts nicely
+import { formatCurrency } from '@shared/utils/currency';
 
 // Helper component for Step 1
 const SetupMethodSelection = ({ onSelect }) => {
@@ -40,9 +42,9 @@ const SetupMethodSelection = ({ onSelect }) => {
 };
 
 // Helper component for Manual Account step
-const ManualAccountSetup = ({ onNext, onUpdateAccounts }) => {
+const ManualAccountSetup = ({ onNext, onUpdateAccounts, accounts }) => {
   const [accountName, setAccountName] = useState('');
-  const [accountType, setAccountType] = useState('checking');
+  const [accountType, setAccountType] = useState('Checking');
   const [balance, setBalance] = useState('');
   const [cushion, setCushion] = useState('');
 
@@ -52,6 +54,7 @@ const ManualAccountSetup = ({ onNext, onUpdateAccounts }) => {
         return;
     }
     const newAccount = {
+      id: `temp-${Date.now()}`,
       name: accountName,
       type: accountType,
       balance: parseFloat(balance),
@@ -59,7 +62,7 @@ const ManualAccountSetup = ({ onNext, onUpdateAccounts }) => {
     };
     onUpdateAccounts(newAccount);
     setAccountName('');
-    setAccountType('checking');
+    setAccountType('Checking');
     setBalance('');
     setCushion('');
   };
@@ -68,39 +71,66 @@ const ManualAccountSetup = ({ onNext, onUpdateAccounts }) => {
     <div>
       <h2 className="text-2xl font-bold text-center">Add Your Accounts</h2>
       <div className="mt-8 space-y-4">
-        <Input
-          label="Account Name"
-          value={accountName}
-          onChange={(e) => setAccountName(e.target.value)}
-          placeholder="e.g., Chase Checking"
-        />
-        <Select
-          label="Account Type"
-          value={accountType}
-          onChange={(e) => setAccountType(e.target.value)}
-          options={[
-            { value: 'checking', label: 'Checking' },
-            { value: 'savings', label: 'Savings' },
-            { value: 'credit_card', label: 'Credit Card' },
-          ]}
-        />
-        <Input
-          label="Current Balance"
-          type="number"
-          value={balance}
-          onChange={(e) => setBalance(e.target.value)}
-          placeholder="e.g., 1500.00"
-        />
-        <Input
-          label="Balance Cushion (Optional)"
-          type="number"
-          value={cushion}
-          onChange={(e) => setCushion(e.target.value)}
-          placeholder="e.g., 200.00"
-        />
-        <Button onClick={handleAddAccount} className="w-full">
-          Add Another Account
+        <div>
+            <label className="block text-sm font-medium text-gray-700">Account Name</label>
+            <Input
+              value={accountName}
+              onChange={(e) => setAccountName(e.target.value)}
+              placeholder="e.g., Chase Checking"
+              className="mt-1"
+            />
+        </div>
+        <div>
+            <label className="block text-sm font-medium text-gray-700">Account Type</label>
+            <Select
+              value={accountType}
+              onChange={(e) => setAccountType(e.target.value)}
+              className="mt-1"
+            >
+                <option value="Checking">Checking</option>
+                <option value="Savings">Savings</option>
+                <option value="Credit Card">Credit Card</option>
+            </Select>
+        </div>
+        <div>
+            <label className="block text-sm font-medium text-gray-700">Current Balance</label>
+            <Input
+              type="number"
+              value={balance}
+              onChange={(e) => setBalance(e.target.value)}
+              placeholder="e.g., 1500.00"
+              className="mt-1"
+            />
+        </div>
+        <div>
+            <label className="block text-sm font-medium text-gray-700">Balance Cushion (Optional)</label>
+            <Input
+              type="number"
+              value={cushion}
+              onChange={(e) => setCushion(e.target.value)}
+              placeholder="e.g., 200.00"
+              className="mt-1"
+            />
+        </div>
+        <Button onClick={handleAddAccount} className="w-full !mt-6">
+          Add Account
         </Button>
+
+        {/* FIX: Add visual feedback for added accounts */}
+        {accounts.length > 0 && (
+            <div className="mt-6 border-t pt-4">
+                <h3 className="font-semibold text-center text-gray-600">Your Accounts</h3>
+                <ul className="mt-2 space-y-2">
+                    {accounts.map(acc => (
+                        <li key={acc.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
+                            <span>{acc.name} ({acc.type})</span>
+                            <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        )}
+
         <Button onClick={onNext} variant="primary" className="w-full mt-4">
           Next
         </Button>
@@ -110,7 +140,7 @@ const ManualAccountSetup = ({ onNext, onUpdateAccounts }) => {
 };
 
 // Helper component for Recurring Transactions step
-const RecurringTransactionsSetup = ({ onFinish, onUpdateTransactions }) => {
+const RecurringTransactionsSetup = ({ onFinish, onUpdateTransactions, transactions }) => {
   return (
     <div>
       <h2 className="text-2xl font-bold text-center">
@@ -123,6 +153,22 @@ const RecurringTransactionsSetup = ({ onFinish, onUpdateTransactions }) => {
         <Button onClick={onUpdateTransactions} className="w-full">
           Add Recurring Transaction
         </Button>
+        
+        {/* FIX: Add visual feedback for added transactions */}
+        {transactions.length > 0 && (
+            <div className="mt-6 border-t pt-4">
+                <h3 className="font-semibold text-center text-gray-600">Your Recurring Transactions</h3>
+                <ul className="mt-2 space-y-2">
+                    {transactions.map((t, i) => (
+                        <li key={i} className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
+                            <span>{t.description} ({t.frequency})</span>
+                            <span className={`font-medium ${t.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(t.amount)}</span>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        )}
+
         <Button onClick={onFinish} variant="primary" className="w-full mt-4">
           Finish Setup
         </Button>
@@ -182,17 +228,20 @@ const SetupWizard = () => {
         throw new Error("User is not authenticated.");
       }
       
-      const accountPromises = manualAccounts.map((account) =>
-        api.firestore.collection(`users/${user.uid}/accounts`).add(account)
-      );
+      const accountsCollection = collection(api.firestore, `users/${user.uid}/accounts`);
+      const accountPromises = manualAccounts.map((account) => {
+        const { id, ...acc } = account; // Remove temp ID
+        return addDoc(accountsCollection, acc);
+      });
       
-      const transactionPromises = manualTransactions.map((transaction) =>
-        api.firestore.collection(`users/${user.uid}/transactions`).add(transaction)
-      );
+      const transactionsCollection = collection(api.firestore, `users/${user.uid}/transactions`);
+      const transactionPromises = manualTransactions.map((transaction) => {
+        return addDoc(transactionsCollection, transaction);
+      });
       
       await Promise.all([...accountPromises, ...transactionPromises]);
       
-      navigate('/dashboard');
+      navigate('/app/dashboard'); // Navigate to the dashboard inside the app layout
 
     } catch (error) {
       console.error("Error finishing setup: ", error);
@@ -219,6 +268,7 @@ const SetupWizard = () => {
           <ManualAccountSetup
             onNext={handleNextStep}
             onUpdateAccounts={updateAccounts}
+            accounts={manualAccounts}
           />
         );
       case 3:
@@ -226,6 +276,7 @@ const SetupWizard = () => {
           <RecurringTransactionsSetup
             onFinish={handleFinishSetup}
             onUpdateTransactions={() => setIsTransactionModalOpen(true)}
+            transactions={manualTransactions}
           />
         );
       default:
@@ -249,8 +300,9 @@ const SetupWizard = () => {
              <TransactionModal
                 isOpen={isTransactionModalOpen}
                 onClose={() => setIsTransactionModalOpen(false)}
-                onSave={updateTransactions}
-                isRecurring={true}
+                onSubmit={updateTransactions}
+                isRecurringSetup={true}
+                accounts={manualAccounts}
             />
         )}
       </div>

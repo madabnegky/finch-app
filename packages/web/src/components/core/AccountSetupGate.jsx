@@ -1,5 +1,7 @@
 import React from 'react';
 import { useCollection } from 'react-firebase-hooks/firestore';
+// FIX: Import the 'collection' function from firestore
+import { collection } from "firebase/firestore";
 import api from '@shared/api/firebase';
 import { useAuth } from '@shared/hooks/useAuth';
 import { Navigate } from 'react-router-dom';
@@ -8,9 +10,9 @@ import LoadingScreen from './LoadingScreen';
 const AccountSetupGate = ({ children }) => {
   const { user, loading: authLoading } = useAuth();
 
-  // FIX: Corrected the invalid destructuring syntax.
+  // FIX: Use the imported 'collection' function with the firestore instance
   const [accounts, accountsLoading, error] = useCollection(
-    user ? api.firestore.collection(`users/${user.uid}/accounts`) : null
+    user ? collection(api.firestore, `users/${user.uid}/accounts`) : null
   );
 
   if (authLoading || accountsLoading) {
