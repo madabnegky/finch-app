@@ -1,13 +1,25 @@
 {
   "name": "finch-app",
+  "version": "1.0.0",
+  "description": "A personal finance management application.",
   "private": true,
-  "devDependencies": {
-    "lerna": "^8.1.2"
-  },
-  "scripts": {
-    "start": "lerna run start --parallel"
-  },
+  "packageManager": "yarn@3.2.3",
   "workspaces": [
     "packages/*"
-  ]
+  ],
+  "scripts": {
+    "dev": "yarn workspace web dev",
+    "functions": "yarn workspace functions serve",
+    "start": "concurrently \"yarn:dev\" \"yarn:functions\""
+  },
+  "keywords": [
+    "firebase",
+    "react",
+    "personal-finance"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
 }

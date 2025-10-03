@@ -1,0 +1,141 @@
+[debug] [2025-10-03T01:36:34.266Z] ----------------------------------------------------------------------
+[debug] [2025-10-03T01:36:34.268Z] Command:       /usr/local/share/nvm/versions/node/v22.19.0/bin/node /home/codespace/nvm/current/bin/firebase emulators:start --only functions
+[debug] [2025-10-03T01:36:34.269Z] CLI Version:   14.17.0
+[debug] [2025-10-03T01:36:34.269Z] Platform:      linux
+[debug] [2025-10-03T01:36:34.269Z] Node Version:  v22.19.0
+[debug] [2025-10-03T01:36:34.269Z] Time:          Fri Oct 03 2025 01:36:34 GMT+0000 (Coordinated Universal Time)
+[debug] [2025-10-03T01:36:34.269Z] Env Overrides: GITHUB_API_URL, GITHUB_API_URL
+[debug] [2025-10-03T01:36:34.269Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-10-03T01:36:34.724Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-10-03T01:36:34.724Z] > authorizing via signed-in user (kyle.christian@gmail.com)
+[info] i  emulators: Starting emulators: functions {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: functions"}}
+[debug] [2025-10-03T01:36:34.732Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-10-03T01:36:34.732Z] assigned listening specs for emulators {"user":{"ui":[{"address":"0.0.0.0","family":"IPv4","port":4000}],"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2025-10-03T01:36:34.743Z] Emulator locator file path: /tmp/hub-finch-app-v2.json
+[debug] [2025-10-03T01:36:34.743Z] [hub] writing locator at /tmp/hub-finch-app-v2.json
+[debug] [2025-10-03T01:36:34.754Z] [eventarc] Eventarc Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-10-03T01:36:34.754Z] [tasks] Cloud Tasks Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-10-03T01:36:34.754Z] late-assigned ports for functions and eventarc emulators {"user":{"ui":[{"address":"0.0.0.0","family":"IPv4","port":4000}],"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"functions":[{"address":"0.0.0.0","family":"IPv4","port":5001}],"eventarc":[{"address":"127.0.0.1","family":"IPv4","port":9299}],"tasks":[{"address":"127.0.0.1","family":"IPv4","port":9499}]},"metadata":{"message":"late-assigned ports for functions and eventarc emulators"}}
+[warn] ⚠  functions: The following emulators are not running, calls to these services from the Functions emulator will affect production: apphosting, auth, firestore, database, hosting, pubsub, storage, dataconnect {"metadata":{"emulator":{"name":"functions"},"message":"The following emulators are not running, calls to these services from the Functions emulator will affect production: \u001b[1mapphosting, auth, firestore, database, hosting, pubsub, storage, dataconnect\u001b[22m"}}
+[debug] [2025-10-03T01:36:34.767Z] defaultcredentials: writing to file /home/codespace/.config/firebase/kyle_christian_gmail.com_application_default_credentials.json
+[debug] [2025-10-03T01:36:34.774Z] Setting GAC to /home/codespace/.config/firebase/kyle_christian_gmail.com_application_default_credentials.json {"metadata":{"emulator":{"name":"functions"},"message":"Setting GAC to /home/codespace/.config/firebase/kyle_christian_gmail.com_application_default_credentials.json"}}
+[debug] [2025-10-03T01:36:34.775Z] Checked if tokens are valid: true, expires at: 1759458828498
+[debug] [2025-10-03T01:36:34.775Z] Checked if tokens are valid: true, expires at: 1759458828498
+[debug] [2025-10-03T01:36:34.776Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/finch-app-v2/adminSdkConfig [none]
+[debug] [2025-10-03T01:36:34.952Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/finch-app-v2/adminSdkConfig 200
+[debug] [2025-10-03T01:36:34.952Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/finch-app-v2/adminSdkConfig {"projectId":"finch-app-v2","storageBucket":"finch-app-v2.firebasestorage.app"}
+[info] i  functions: Watching "/workspaces/finch-app/packages/functions" for Cloud Functions... {"metadata":{"emulator":{"name":"functions"},"message":"Watching \"/workspaces/finch-app/packages/functions\" for Cloud Functions..."}}
+[debug] [2025-10-03T01:36:34.974Z] Validating nodejs source
+[warn] ⚠  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+[warn] ⚠  functions: Please note that there will be breaking changes when you upgrade. 
+[debug] [2025-10-03T01:36:35.463Z] > [functions] package.json contents: {
+  "name": "functions",
+  "description": "Cloud Functions for Firebase",
+  "scripts": {
+    "lint": "eslint .",
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "18"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^11.8.0",
+    "firebase-functions": "^4.3.1",
+    "date-fns": "^2.28.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.15.0",
+    "eslint-config-google": "^0.14.0"
+  },
+  "private": true
+}
+[debug] [2025-10-03T01:36:35.463Z] Building nodejs source
+[debug] [2025-10-03T01:36:35.464Z] Failed to find version of module node: reached end of search path /workspaces/finch-app/packages/functions/node_modules
+[warn] ⚠  functions: Your requested "node" version "18" doesn't match your global version "22". Using node@22 from host. 
+[info] i  functions: You are using a version of firebase-functions SDK (4.9.0) that does not have support for the newest Firebase Extensions features. Please update firebase-functions SDK to >=5.1.0 to use them correctly 
+[debug] [2025-10-03T01:36:35.469Z] Could not find functions.yaml. Must use http discovery
+[debug] [2025-10-03T01:36:35.473Z] Found firebase-functions binary at '/workspaces/finch-app/node_modules/.bin/firebase-functions'
+[info] Serving at port 8936
+
+[debug] [2025-10-03T01:36:36.142Z] Got response from /__/functions.yaml {"endpoints":{"generateProjections":{"platform":"gcfv1","labels":{},"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"callableTrigger":{},"entryPoint":"generateProjections"},"detectRecurringTransactions":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.create","eventFilters":{"resource":"projects/finch-app-v2/databases/(default)/documents/users/{userId}/transactions/{transactionId}"},"retry":false},"labels":{},"entryPoint":"detectRecurringTransactions"}},"specVersion":"v1alpha1","requiredAPIs":[]}
+[info] ✔  functions: Loaded functions definitions from source: generateProjections, detectRecurringTransactions. {"metadata":{"emulator":{"name":"functions"},"message":"Loaded functions definitions from source: generateProjections, detectRecurringTransactions."}}
+[info] ✔  functions[us-central1-generateProjections]: http function initialized (http://127.0.0.1:5001/finch-app-v2/us-central1/generateProjections). {"metadata":{"emulator":{"name":"functions"},"message":"\u001b[1mhttp\u001b[22m function initialized (http://127.0.0.1:5001/finch-app-v2/us-central1/generateProjections)."}}
+[info] i  functions[us-central1-detectRecurringTransactions]: function ignored because the firestore emulator does not exist or is not running. {"metadata":{"emulator":{"name":"functions"},"message":"function ignored because the firestore emulator does not exist or is not running."}}
+[debug] [2025-10-03T01:36:40.184Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[info] 
+┌─────────────────────────────────────────────────────────────┐
+│ ✔  All emulators ready! It is now safe to connect your app. │
+│ i  View Emulator UI at http://127.0.0.1:4000/               │
+└─────────────────────────────────────────────────────────────┘
+
+┌───────────┬──────────────┬─────────────────────────────────┐
+│ Emulator  │ Host:Port    │ View in Emulator UI             │
+├───────────┼──────────────┼─────────────────────────────────┤
+│ Functions │ 0.0.0.0:5001 │ http://127.0.0.1:4000/functions │
+└───────────┴──────────────┴─────────────────────────────────┘
+  Emulator Hub host: 127.0.0.1 port: 4400
+  Other reserved ports: 4500
+
+Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
+ 
+[debug] [2025-10-03T01:57:46.380Z] File /workspaces/finch-app/packages/functions/package.json changed, reloading triggers {"metadata":{"emulator":{"name":"functions"},"message":"File /workspaces/finch-app/packages/functions/package.json changed, reloading triggers"}}
+[debug] [2025-10-03T01:57:47.382Z] Validating nodejs source
+[warn] ⚠  functions: Couldn't find firebase-functions package in your source code. Have you run 'npm install'? 
+[debug] [2025-10-03T01:57:47.383Z] getFunctionsSDKVersion encountered error: Cannot find module 'firebase-functions'
+Require stack:
+- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/deploy/functions/runtimes/node/versioning.js
+- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/deploy/functions/runtimes/node/index.js
+- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/deploy/functions/runtimes/index.js
+- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/deploy/functions/prepare.js
+- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/emulator/functionsEmulatorShared.js
+- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/emulator/functionsEmulator.js
+- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/emulator/controller.js
+- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/emulator/commandUtils.js
+- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/commands/database-get.js
+- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/commands/index.js
+- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/index.js
+- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/bin/cli.js
+- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/bin/firebase.js {"code":"MODULE_NOT_FOUND","requireStack":["/usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/deploy/functions/runtimes/node/versioning.js","/usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/deploy/functions/runtimes/node/index.js","/usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/deploy/functions/runtimes/index.js","/usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/deploy/functions/prepare.js","/usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/emulator/functionsEmulatorShared.js","/usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/emulator/functionsEmulator.js","/usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/emulator/controller.js","/usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/emulator/commandUtils.js","/usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/commands/database-get.js","/usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/commands/index.js","/usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/index.js","/usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/bin/cli.js","/usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/bin/firebase.js"]}
+[debug] [2025-10-03T01:57:47.384Z] checkFunctionsSDKVersion encountered error: Invalid Version:  {}
+[debug] [2025-10-03T01:57:47.385Z] > [functions] package.json contents: {
+  "name": "functions",
+  "description": "Cloud Functions for Firebase",
+  "scripts": {
+    "lint": "eslint .",
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "18"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "date-fns": "^2.28.0",
+    "firebase-admin": "^11.8.0",
+    "firebase-functions": "^4.3.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.15.0",
+    "eslint-config-google": "^0.14.0"
+  },
+  "private": true
+}
+[debug] [2025-10-03T01:57:47.385Z] Building nodejs source
+[debug] [2025-10-03T01:57:47.385Z] Failed to find version of module node: reached end of search path /workspaces/finch-app/packages/functions/node_modules
+[warn] ⚠  functions: Your requested "node" version "18" doesn't match your global version "22". Using node@22 from host. 
+[debug] [2025-10-03T01:57:47.386Z] Could not parse firebase-functions version '' into semver. Falling back to parseTriggers.
+[error] ⬢  functions: Failed to load function definition from source: FirebaseError: Error parsing triggers: Cannot find module 'firebase-functions'
+Require stack:
+- /workspaces/finch-app/packages/functions/index.js
+- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/deploy/functions/runtimes/node/triggerParser.js
+
+Try running "npm install" in your functions directory before deploying. {"metadata":{"emulator":{"name":"functions"},"message":"Failed to load function definition from source: FirebaseError: Error parsing triggers: Cannot find module 'firebase-functions'\nRequire stack:\n- /workspaces/finch-app/packages/functions/index.js\n- /usr/local/share/nvm/versions/node/v22.19.0/lib/node_modules/firebase-tools/lib/deploy/functions/runtimes/node/triggerParser.js\n\nTry running \"npm install\" in your functions directory before deploying."}}

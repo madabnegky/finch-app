@@ -1,97 +1,56 @@
-import React, { useState } from 'react';
-import { Outlet, Navigate, Link } from 'react-router-dom';
-// FIX: Import the useAuth hook to get user, loading, and logout function
-import { useAuth } from '@shared/hooks/useAuth';
+import React from 'react';
+import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import Navigation from '../components/core/Navigation';
+import { useAuth } from '@shared/hooks/useAuth';
 import LoadingScreen from '../components/core/LoadingScreen';
-import AccountSetupGate from '../components/core/AccountSetupGate';
-import { LogOut, Settings, User, BrainCircuit } from 'lucide-react';
-import WhatIfModal from '../components/modals/WhatIfModal';
-import Button from '../components/core/Button';
+import { LogOut, Bell, Settings } from 'lucide-react';
+import Icon from '../components/core/Icon';
 
-// Your original Header component is preserved in its entirety.
-const Header = ({ user, onSignOut, onWhatIfClick }) => {
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-
-  return (
-    <header className="flex justify-between items-center p-4 bg-white border-b border-gray-200">
-      <div className="flex items-center space-x-4">
-         {/* This is a placeholder title */}
-        <h1 className="text-xl font-semibold text-gray-800">Dashboard</h1>
-        <Button onClick={onWhatIfClick} variant="outline" size="sm">
-            <BrainCircuit className="w-4 h-4 mr-2"/>
-            What If?
-        </Button>
-      </div>
-      <div className="relative">
-        <button
-          onClick={() => setDropdownOpen(!dropdownOpen)}
-          className="flex items-center space-x-2 focus:outline-none"
-        >
-          <span className="text-gray-600 hidden sm:inline">{user.email || 'Guest User'}</span>
-          <User className="w-6 h-6 text-gray-600 rounded-full" />
-        </button>
-        {dropdownOpen && (
-          <div 
-            className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 ring-1 ring-black ring-opacity-5"
-            onMouseLeave={() => setDropdownOpen(false)}
-          >
-            <Link
-              to="/settings"
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              onClick={() => setDropdownOpen(false)}
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              Settings
-            </Link>
-            <button
-              onClick={() => {
-                onSignOut();
-                setDropdownOpen(false);
-              }}
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </button>
-          </div>
-        )}
-      </div>
-    </header>
-  );
-};
-
-// Your original AppLayout component is preserved.
 const AppLayout = () => {
-  // FIX: Destructure 'logout' from useAuth() to use for signing out.
-  const { user, loading, logout } = useAuth();
-  const [isWhatIfModalOpen, setIsWhatIfModalOpen] = useState(false);
+  // FIX: Correctly destructure 'signOut' from useAuth. The original code used
+  // 'logout', which does not exist in the hook's context.
+  const { user, loading, signOut } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return <LoadingScreen />;
   }
 
   if (!user) {
-    return <Navigate to="/" />;
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   return (
-    <AccountSetupGate>
-      <div className="flex h-screen bg-gray-100 font-sans">
-        <Navigation />
-        <div className="flex flex-col flex-1">
-           {/* The Header now receives the correct 'logout' function. */}
-          <Header user={user} onSignOut={logout} onWhatIfClick={() => setIsWhatIfModalOpen(true)} />
-          <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
-            <Outlet />
-          </main>
-        </div>
+    <div className="flex h-screen bg-gray-100">
+      <Navigation />
+      <div className="flex flex-col flex-1">
+        <header className="flex items-center justify-between p-4 bg-white border-b">
+          <div>
+            <h1 className="text-xl font-bold">
+              <Icon name="finch-logo" className="w-8 h-8 mr-2" />
+            </h1>
+          </div>
+          <div className="flex items-center space-x-4">
+            <button className="p-2 text-gray-500 rounded-full hover:bg-gray-100">
+              <Bell size={20} />
+            </button>
+            <button className="p-2 text-gray-500 rounded-full hover:bg-gray-100">
+              <Settings size={20} />
+            </button>
+            <button
+              onClick={signOut} // FIX: Ensure the button calls the correct function.
+              className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </button>
+          </div>
+        </header>
+        <main className="flex-1 p-6 overflow-y-auto">
+          <Outlet />
+        </main>
       </div>
-      <WhatIfModal 
-        isOpen={isWhatIfModalOpen}
-        onClose={() => setIsWhatIfModalOpen(false)}
-      />
-    </AccountSetupGate>
+    </div>
   );
 };
 

@@ -1,70 +1,69 @@
-import React from 'react';
-import { formatCurrency } from '@finch/shared-logic/utils/currency'; // Changed import
-import { CATEGORIES } from '../../constants/categories';
-import { 
-    IconRepeat, 
-    IconDollarSign, 
-    IconPencil, 
-    IconTrash 
-} from '../core/Icon';
+import React, { useState } from 'react';
+import { formatCurrency } from '@shared/utils/currency';
+import { formatDate as formatDateUtil } from '@shared/utils/date';
+import { getCategoryByName } from '../../constants/categories';
+import { Edit3, Trash2 } from 'lucide-react';
 
-const TransactionItem = ({ transaction, accountName, onEdit, onDelete }) => {
-    const isTransfer = transaction.type === 'transfer';
-    const isIncome = transaction.amount > 0 && !isTransfer;
-    
-    const categoryInfo = !isTransfer && !isIncome ? (CATEGORIES[transaction.category] || CATEGORIES['Uncategorized']) : null;
-    
-    let Icon;
-    if (isTransfer) {
-        Icon = IconRepeat;
-    } else if (isIncome) {
-        Icon = IconDollarSign;
-    } else {
-        Icon = categoryInfo.icon;
-    }
+const TransactionItem = ({ transaction, onEdit, onDelete, isRecurring }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const { name, amount, category: categoryName, date } = transaction;
+  const category = getCategoryByName(categoryName);
+  const isExpense = amount < 0;
 
-    const iconBgColor = 'bg-finch-gray-100';
-    const iconTextColor = isIncome ? 'text-green-600' : (categoryInfo ? categoryInfo.color : 'text-finch-gray-600');
+  // --- THIS IS THE FIX ---
+  // The original `formatDate` utility was not correctly handling Date objects
+  // passed from Firestore. This new function ensures the date is always a
+  // valid Date object before formatting, preventing crashes.
+  const formatDate = (date) => {
+    if (!date) return 'N/A';
+    // Ensure date is a Date object, converting from Firestore Timestamp if necessary
+    const dateObj = date.toDate ? date.toDate() : new Date(date);
+    return formatDateUtil(dateObj, 'MMM d');
+  };
 
-    // --- THE FIX IS HERE ---
-    // This function is now simplified to correctly handle Date objects.
-    const formatDate = (date) => {
-        // If the date is invalid or doesn't exist, return an empty string.
-        if (!date || !(date instanceof Date) || isNaN(date)) {
-            return '';
-        }
-        // If it's a valid Date object, format it correctly.
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    };
+  const formattedAmount = formatCurrency(Math.abs(amount));
+  const amountColor = isExpense ? 'text-red-500' : 'text-green-500';
 
-    const effectiveDate = transaction.isRecurring && !transaction.isInstance ? transaction.recurringDetails.nextDate : (transaction.date || transaction.createdAt);
-
-    return (
-        <li className="p-4 flex items-center justify-between hover:bg-finch-gray-50 rounded-lg group">
-            <div className="flex items-center gap-4">
-                <div className={`w-11 h-11 rounded-lg flex items-center justify-center ${iconBgColor} ${iconTextColor}`}>
-                    {Icon && <Icon />}
-                </div>
-                <div>
-                    <p className="font-semibold text-finch-gray-800">{transaction.description}</p>
-                    <p className="text-sm text-finch-gray-500">
-                        {formatDate(effectiveDate)} &bull; {accountName}
-                        {transaction.isRecurring && !transaction.isInstance && <span className="ml-2 text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">RECURRING</span>}
-                        {transaction.isInstance && <span className="ml-2 text-xs font-semibold text-finch-gray-500 bg-finch-gray-200 px-2 py-0.5 rounded-full">INSTANCE</span>}
-                    </p>
-                </div>
-            </div>
-            <div className="flex items-center gap-2">
-                <p className={`font-bold text-lg ${transaction.amount < 0 ? 'text-finch-gray-800' : 'text-green-600'}`}>
-                    {transaction.amount < 0 ? '−' : '+'}{formatCurrency(Math.abs(transaction.amount))}
-                </p>
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
-                    <button onClick={() => onEdit(transaction)} className="p-2 text-finch-gray-400 hover:text-finch-teal-600"><IconPencil className="w-5 h-5"/></button>
-                    <button onClick={() => onDelete(transaction)} className="p-2 text-finch-gray-400 hover:text-red-600"><IconTrash className="w-5 h-5"/></button>
-                </div>
-            </div>
-        </li>
-    );
+  return (
+    <div
+      className="flex items-center justify-between p-3 transition-colors duration-200 ease-in-out bg-white rounded-lg shadow-sm hover:bg-gray-50"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div className="flex items-center">
+        <div className={`flex items-center justify-center w-10 h-10 mr-4 rounded-full ${category.color}`}>
+          <category.Icon className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <p className="font-semibold text-gray-800">{name}</p>
+          <p className="text-sm text-gray-500">{category.label}</p>
+        </div>
+      </div>
+      <div className="flex items-center">
+        <div className="text-right">
+          <p className={`font-semibold ${amountColor}`}>
+            {isExpense ? '-' : ''}
+            {formattedAmount}
+          </p>
+          <p className="text-sm text-gray-500">
+            {isRecurring ? `Next on ${formatDate(date)}` : formatDate(date)}
+          </p>
+        </div>
+        <div className="flex items-center ml-4 space-x-2">
+          {isHovered && (
+            <>
+              <button onClick={() => onEdit(transaction)} className="p-2 text-gray-500 rounded-full hover:bg-gray-200">
+                <Edit3 size={18} />
+              </button>
+              <button onClick={() => onDelete(transaction.id)} className="p-2 text-gray-500 rounded-full hover:bg-gray-200">
+                <Trash2 size={18} />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default TransactionItem;

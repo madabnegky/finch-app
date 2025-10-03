@@ -1,282 +1,124 @@
-const functions = require('firebase-functions');
-const admin = require('firebase-admin');
-const { PlaidApi, PlaidEnvironments } = require('plaid');
-const { getNextDate, toDateInputString } = require('../shared-logic/src/utils/date'); // CORRECTED PATH
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
+// FIX: The import path for the date utility file was incorrect.
+const { getNextOccurrence, startOfDay } = require("./dateUtils");
 
 admin.initializeApp();
-
 const db = admin.firestore();
 
-const plaidClient = new PlaidApi({
-  clientID: functions.config().plaid.client_id,
-  secret: functions.config().plaid.secret,
-  env: PlaidEnvironments.sandbox,
-});
-
-// ... (rest of the file is unchanged) ...
-// (The full content of your original file follows)
-exports.createLinkToken = functions.https.onCall(async (data, context) => {
+exports.generateProjections = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated."
+    );
   }
 
   const userId = context.auth.uid;
-  const configs = {
-    user: { client_user_id: userId },
-    client_name: 'Finch',
-    products: ['transactions'],
-    country_codes: ['US'],
-    language: 'en',
-    webhook: functions.config().plaid.webhook_url,
-    transactions: {
-      days_requested: 730,
-    },
-  };
+  const today = startOfDay(new Date());
 
   try {
-    const createTokenResponse = await plaidClient.createLinkToken(configs);
-    return createTokenResponse.data;
+    const accountsSnapshot = await db
+      .collection(`users/${userId}/accounts`)
+      .get();
+    let currentBalance = accountsSnapshot.docs.reduce(
+      (sum, doc) => sum + doc.data().balance,
+      0
+    );
+
+    const transactionsSnapshot = await db
+      .collection(`users/${userId}/transactions`)
+      .get();
+    const transactions = transactionsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    const projections = [{ date: today, balance: currentBalance }];
+    let runningBalance = currentBalance;
+
+    for (let i = 1; i <= 14; i++) {
+      const currentDate = new Date(today);
+      currentDate.setDate(today.getDate() + i);
+      let dailyNet = 0;
+
+      transactions.forEach((t) => {
+        // Handle one-time transactions
+        if (!t.recurring || t.recurring.frequency === "once") {
+          const transactionDate = t.date.toDate();
+          if (
+            transactionDate.getDate() === currentDate.getDate() &&
+            transactionDate.getMonth() === currentDate.getMonth() &&
+            transactionDate.getFullYear() === currentDate.getFullYear()
+          ) {
+            dailyNet += t.amount;
+          }
+        }
+        // Handle recurring transactions
+        else {
+          let nextDate = t.date.toDate();
+          while (nextDate <= currentDate) {
+            if (
+              nextDate.getDate() === currentDate.getDate() &&
+              nextDate.getMonth() === currentDate.getMonth() &&
+              nextDate.getFullYear() === currentDate.getFullYear()
+            ) {
+              dailyNet += t.amount;
+            }
+            // Important: get the *next* occurrence to check in the next loop
+            const next = getNextOccurrence(nextDate, t.recurring.frequency);
+            if (!next || next <= nextDate) break; // Break if no next date or logic error
+            nextDate = next;
+          }
+        }
+      });
+      runningBalance += dailyNet;
+      projections.push({ date: currentDate, balance: runningBalance });
+    }
+
+    return { projections };
   } catch (error) {
-    console.error("Plaid createLinkToken error:", error.response ? error.response.data : error);
-    throw new functions.https.HttpsError('internal', 'Could not create Plaid link token.', error.message);
+    console.error("Error generating projections:", error);
+    throw new functions.https.HttpsError(
+      "internal",
+      "Error generating projections."
+    );
   }
 });
 
-exports.exchangePublicToken = functions.https.onCall(async (data, context) => {
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
-    }
+exports.detectRecurringTransactions = functions.firestore
+    .document('users/{userId}/transactions/{transactionId}')
+    .onCreate(async (snap, context) => {
+        const newTransaction = snap.data();
+        const userId = context.params.userId;
+        const transactionId = context.params.transactionId;
 
-    const { publicToken, institution } = data;
-    const userId = context.auth.uid;
+        // Simple detection logic: check for transactions with the same name and similar amount
+        const similarTransactions = await db.collection(`users/${userId}/transactions`)
+            .where('name', '==', newTransaction.name)
+            .get();
 
-    try {
-        const response = await plaidClient.exchangePublicToken({ public_token: publicToken });
-        const accessToken = response.data.access_token;
-        const itemId = response.data.item_id;
+        if (similarTransactions.docs.length < 2) {
+            return null; // Not enough transactions with the same name to be recurring
+        }
 
-        const itemRef = db.collection('users').doc(userId).collection('items').doc(itemId);
-        await itemRef.set({
-            accessToken,
-            institutionId: institution.institution_id,
-            institutionName: institution.name,
-            lastSync: null,
-            cursor: null, 
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        
-        const accountsResponse = await plaidClient.accountsGet({ access_token: accessToken });
-        const accounts = accountsResponse.data.accounts;
+        let isRecurring = false;
+        similarTransactions.forEach(doc => {
+            if (doc.id === transactionId) return; // Don't compare with itself
+            const oldTransaction = doc.data();
+            const amountDifference = Math.abs(oldTransaction.amount - newTransaction.amount);
 
-        const batch = db.batch();
-        accounts.forEach(account => {
-            const accountRef = db.collection('users').doc(userId).collection('accounts').doc(account.account_id);
-            batch.set(accountRef, {
-                itemId,
-                name: account.name,
-                mask: account.mask,
-                type: account.type,
-                subtype: account.subtype,
-                startingBalance: account.balances.current,
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
-        });
-        await batch.commit();
-
-        await syncTransactions({ userId, itemId, accessToken });
-        await identifyRecurringTransactions({ userId, accessToken });
-
-        return { success: true };
-    } catch (error) {
-        console.error("Plaid exchangePublicToken error:", error.response ? error.response.data : error);
-        throw new functions.https.HttpsError('internal', 'Could not exchange public token.', error.message);
-    }
-});
-
-
-const syncTransactions = async ({ userId, itemId, accessToken, cursor = null }) => {
-    let added = [];
-    let modified = [];
-    let removed = [];
-    let hasMore = true;
-    let nextCursor = cursor;
-
-    while (hasMore) {
-        const request = {
-            access_token: accessToken,
-            cursor: nextCursor,
-            count: 500,
-        };
-        const response = await plaidClient.transactionsSync(request);
-        const data = response.data;
-
-        added = added.concat(data.added);
-        modified = modified.concat(data.modified);
-        removed = removed.concat(data.removed.map(t => t.transaction_id));
-        hasMore = data.has_more;
-        nextCursor = data.next_cursor;
-    }
-    
-    const batch = db.batch();
-
-    added.forEach(txn => {
-        const ref = db.collection('users').doc(userId).collection('transactions').doc(txn.transaction_id);
-        batch.set(ref, { 
-            ...txn,
-            isRecurring: false,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-    });
-
-    modified.forEach(txn => {
-        const ref = db.collection('users').doc(userId).collection('transactions').doc(txn.transaction_id);
-        batch.update(ref, txn);
-    });
-
-    removed.forEach(txnId => {
-        const ref = db.collection('users').doc(userId).collection('transactions').doc(txnId);
-        batch.delete(ref);
-    });
-
-    if (batch._ops.length > 0) {
-        await batch.commit();
-    }
-    
-    const itemRef = db.collection('users').doc(userId).collection('items').doc(itemId);
-    await itemRef.update({ cursor: nextCursor, lastSync: admin.firestore.FieldValue.serverTimestamp() });
-
-    return { added: added.length, modified: modified.length, removed: removed.length };
-};
-
-
-exports.handlePlaidWebhook = functions.https.onRequest(async (req, res) => {
-    const { webhook_type, webhook_code, item_id, new_transactions } = req.body;
-
-    if (webhook_type === 'TRANSACTIONS') {
-        if (webhook_code === 'SYNC_UPDATES_AVAILABLE') {
-            const itemDocQuery = await db.collectionGroup('items').where('itemId', '==', item_id).limit(1).get();
-            if (itemDocQuery.empty) {
-                console.error(`Could not find item with ID: ${item_id}`);
-                res.status(404).send('Item not found.');
-                return;
+            // Consider it a match if the amount is very close (e.g., within $1)
+            if (amountDifference < 1.00) {
+                isRecurring = true;
             }
-            const item = itemDocQuery.docs[0];
-            const userId = item.ref.parent.parent.id;
-            const { accessToken, cursor } = item.data();
-
-            try {
-                const results = await syncTransactions({ userId, itemId: item_id, accessToken, cursor });
-                console.log(`Synced ${results.added} new transactions for item ${item_id}`);
-                await identifyRecurringTransactions({ userId, accessToken });
-
-                res.status(200).send('Sync complete.');
-            } catch (error) {
-                console.error(`Error syncing transactions for item ${item_id}:`, error);
-                res.status(500).send('Error syncing transactions.');
-            }
-        }
-    } else {
-        res.status(200).send('Webhook received.');
-    }
-});
-
-
-const identifyRecurringTransactions = async ({ userId, accessToken }) => {
-    try {
-        const transactionsResponse = await plaidClient.transactionsGet({
-            access_token: accessToken,
-            start_date: '2000-01-01',
-            end_date: toDateInputString(new Date()),
-        });
-        
-        let allTransactions = transactionsResponse.data.transactions;
-        while (allTransactions.length < transactionsResponse.data.total_transactions) {
-            const paginatedResponse = await plaidClient.transactionsGet({
-                access_token: accessToken,
-                start_date: '2000-01-01',
-                end_date: toDateInputString(new Date()),
-                options: {
-                    offset: allTransactions.length,
-                },
-            });
-            allTransactions = allTransactions.concat(paginatedResponse.data.transactions);
-        }
-
-        const recurringResponse = await plaidClient.transactionsRecurringGet({
-            access_token: accessToken,
-            account_ids: transactionsResponse.data.accounts.map(a => a.account_id),
         });
 
-        const { inflow_streams, outflow_streams } = recurringResponse.data;
-        const allStreams = [...inflow_streams, ...outflow_streams];
-
-        const batch = db.batch();
-
-        for (const stream of allStreams) {
-            const transactionsInStream = allTransactions.filter(t => stream.transaction_ids.includes(t.transaction_id));
-            if (transactionsInStream.length === 0) continue;
-
-            const mostRecentTxn = transactionsInStream.reduce((latest, current) => {
-                return new Date(latest.date) > new Date(current.date) ? latest : current;
-            });
-
-            const nextDueDate = getNextDate(new Date(mostRecentTxn.date), stream.frequency.interval_unit);
-            
-            const recurringDetails = {
-                streamId: stream.stream_id,
-                frequency: stream.frequency.interval_unit,
-                nextDate: toDateInputString(nextDueDate),
-                isIncome: stream.flow === 'INFLOW',
-            };
-
-            for (const txnId of stream.transaction_ids) {
-                const txnRef = db.collection('users').doc(userId).collection('transactions').doc(txnId);
-                batch.update(txnRef, { 
-                    isRecurring: true,
-                    recurringDetails: recurringDetails
-                });
-            }
+        if (isRecurring) {
+            console.log(`Detected potential recurring transaction: ${newTransaction.name} for user ${userId}`);
+            // In a real application, you might update the transaction document,
+            // create a "recurring pattern" document, or notify the user.
         }
 
-        if (batch._ops.length > 0) {
-            await batch.commit();
-        }
-
-        return { identifiedStreams: allStreams.length };
-    } catch (error) {
-        console.error("Error identifying recurring transactions:", error.response ? error.response.data : error);
-        throw new functions.https.HttpsError('internal', 'Could not identify recurring transactions.', error.message);
-    }
-};
-
-exports.syncAllItems = functions.https.onCall(async (data, context) => {
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
-    }
-    const userId = context.auth.uid;
-    const itemsRef = db.collection('users').doc(userId).collection('items');
-    const itemsSnapshot = await itemsRef.get();
-
-    if (itemsSnapshot.empty) {
-        return { success: true, message: 'No items to sync.' };
-    }
-
-    const syncPromises = itemsSnapshot.docs.map(async (doc) => {
-        const item = doc.data();
-        const itemId = doc.id;
-        try {
-            await syncTransactions({ userId, itemId, accessToken: item.accessToken, cursor: item.cursor });
-            await identifyRecurringTransactions({ userId, accessToken: item.accessToken });
-            return { itemId, status: 'success' };
-        } catch (error) {
-            console.error(`Failed to sync item ${itemId}:`, error);
-            return { itemId, status: 'error', error: error.message };
-        }
+        return null;
     });
-
-    const results = await Promise.all(syncPromises);
-    return { success: true, results };
-});
-
-const notifications = require('./notifications');
-exports.sendScheduledNotifications = notifications.sendScheduledNotifications;

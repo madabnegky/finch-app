@@ -1,44 +1,43 @@
-import React, { useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { formatCurrency } from '@finch/shared-logic/utils/currency'; // Changed import
+import React from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { formatCurrency } from '@shared/utils/currency';
+import { formatDate } from '@shared/utils/date';
 
 const CashFlowChart = ({ projections }) => {
-    const chartData = useMemo(() => {
-        if (!projections || projections.length === 0) return [];
-        // THE FIX: Removed the .reverse() call from this line
-        return projections.slice(0, 15).map(p => ({
-            date: new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            balance: p.totalBalance,
-        }));
-    }, [projections]);
-
-    const CustomTooltip = ({ active, payload, label }) => {
-        if (active && payload && payload.length) {
-            return (
-                <div className="bg-slate-800 text-white p-2 rounded-lg shadow-lg">
-                    <p className="text-sm font-semibold">{`Date: ${label}`}</p>
-                    <p className="text-sm">{`Balance: ${formatCurrency(payload[0].value)}`}</p>
-                </div>
-            );
-        }
-        return null;
-    };
+    if (!projections || projections.length === 0) {
+        return (
+            <div className="flex items-center justify-center h-64 bg-gray-100 rounded-lg">
+                <p className="text-gray-500">Not enough data to display chart.</p>
+            </div>
+        );
+    }
+    
+    // --- THIS IS THE FIX ---
+    // The `.reverse()` call was mutating the projections array in place,
+    // causing the chart to display data in the wrong order. Creating a shallow
+    // copy with `.slice()` before reversing ensures the original array is not modified.
+    const chartData = projections.slice().reverse().map(p => ({
+        date: formatDate(p.date.toDate(), 'MMM d'),
+        balance: p.balance,
+    }));
 
     return (
-        <div className="p-6 bg-white rounded-xl shadow-sm border border-finch-gray-200 h-full">
-            <h3 className="text-xl font-bold text-finch-gray-800 mb-4">14-Day Cash Flow Forecast</h3>
-            <div style={{ width: '100%', height: 250 }}>
-                <ResponsiveContainer>
-                    <LineChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                        <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                        <YAxis tickFormatter={(value) => formatCurrency(value)} tick={{ fontSize: 12 }} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Line type="monotone" dataKey="balance" stroke="#47a490" strokeWidth={3} dot={{ r: 5 }} />
-                    </LineChart>
-                </ResponsiveContainer>
-            </div>
-        </div>
+        <ResponsiveContainer width="100%" height={300}>
+            <LineChart
+                data={chartData}
+                margin={{ top: 5, right: 20, left: -10, bottom: 5 }}
+            >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis tickFormatter={(value) => formatCurrency(value, true)} />
+                <Tooltip
+                    formatter={(value) => [formatCurrency(value), 'Balance']}
+                    labelStyle={{ color: '#333' }}
+                    itemStyle={{ fontWeight: 'bold' }}
+                />
+                <Line type="monotone" dataKey="balance" stroke="#8884d8" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 8 }} />
+            </LineChart>
+        </ResponsiveContainer>
     );
 };
 
