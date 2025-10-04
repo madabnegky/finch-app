@@ -10,11 +10,6 @@ const useProjectedBalances = (accounts, transactions, selectedAccountId = 'all')
 
     if (!accountsToProject || accountsToProject.length === 0) return [];
 
-    // --- THIS IS THE FIX ---
-    // The entire hook has been rewritten to be robust against Firestore Timestamps.
-    // 1. All transaction dates are consistently converted to JS Dates upfront.
-    // 2. The logic for calculating past vs. future transactions is now reliable.
-    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
