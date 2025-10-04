@@ -7,7 +7,6 @@ import { useAuth } from '@shared/hooks/useAuth';
 import { collection, addDoc } from "firebase/firestore";
 import api from '@shared/api/firebase';
 import TransactionModal from '../components/modals/TransactionModal';
-// Import the currency formatter to display amounts nicely
 import { formatCurrency } from '@shared/utils/currency';
 
 // Helper component for Step 1
@@ -57,7 +56,7 @@ const ManualAccountSetup = ({ onNext, onUpdateAccounts, accounts }) => {
       id: `temp-${Date.now()}`,
       name: accountName,
       type: accountType,
-      balance: parseFloat(balance),
+      startingBalance: parseFloat(balance),
       cushion: cushion ? parseFloat(cushion) : 0,
     };
     onUpdateAccounts(newAccount);
@@ -116,7 +115,6 @@ const ManualAccountSetup = ({ onNext, onUpdateAccounts, accounts }) => {
           Add Account
         </Button>
 
-        {/* FIX: Add visual feedback for added accounts */}
         {accounts.length > 0 && (
             <div className="mt-6 border-t pt-4">
                 <h3 className="font-semibold text-center text-gray-600">Your Accounts</h3>
@@ -124,7 +122,7 @@ const ManualAccountSetup = ({ onNext, onUpdateAccounts, accounts }) => {
                     {accounts.map(acc => (
                         <li key={acc.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
                             <span>{acc.name} ({acc.type})</span>
-                            <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                            <span className="font-medium">{formatCurrency(acc.startingBalance)}</span>
                         </li>
                     ))}
                 </ul>
@@ -154,7 +152,6 @@ const RecurringTransactionsSetup = ({ onFinish, onUpdateTransactions, transactio
           Add Recurring Transaction
         </Button>
         
-        {/* FIX: Add visual feedback for added transactions */}
         {transactions.length > 0 && (
             <div className="mt-6 border-t pt-4">
                 <h3 className="font-semibold text-center text-gray-600">Your Recurring Transactions</h3>
@@ -169,9 +166,14 @@ const RecurringTransactionsSetup = ({ onFinish, onUpdateTransactions, transactio
             </div>
         )}
 
-        <Button onClick={onFinish} variant="primary" className="w-full mt-4">
-          Finish Setup
-        </Button>
+        <div className="flex space-x-4 !mt-6">
+            <Button onClick={onFinish} variant="secondary" className="w-full">
+                Skip & Finish
+            </Button>
+            <Button onClick={onFinish} variant="primary" className="w-full">
+                Finish Setup
+            </Button>
+        </div>
       </div>
     </div>
   );
@@ -241,7 +243,7 @@ const SetupWizard = () => {
       
       await Promise.all([...accountPromises, ...transactionPromises]);
       
-      navigate('/app/dashboard'); // Navigate to the dashboard inside the app layout
+      navigate('/app/dashboard');
 
     } catch (error) {
       console.error("Error finishing setup: ", error);

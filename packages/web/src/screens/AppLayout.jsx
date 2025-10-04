@@ -21,7 +21,6 @@ const AppLayout = () => {
     user ? collection(api.firestore, `users/${user.uid}/transactions`) : null
   );
 
-  // --- THIS IS THE FIX ---
   // 1. Convert Firestore snapshots into clean data arrays.
   const accounts = React.useMemo(() => accountsSnapshot ? accountsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) : [], [accountsSnapshot]);
   const transactions = React.useMemo(() => transactionsSnapshot ? transactionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) : [], [transactionsSnapshot]);
@@ -31,16 +30,20 @@ const AppLayout = () => {
 
   // 3. Create an enriched `accounts` array that includes calculated balances.
   const accountsWithBalances = React.useMemo(() => {
-    if (!accounts || !projections || projections.length === 0) return accounts;
+    if (!accounts || !projections || projections.length === 0) return accounts.map(acc => ({...acc, currentBalance: acc.startingBalance, availableToSpend: acc.startingBalance - (acc.cushion || 0)}));
 
     return accounts.map(acc => {
       const accountProjection = projections.find(p => p.accountId === acc.id);
+      
+      // --- THIS IS THE FIX ---
+      // We now subtract the cushion from the lowest projected balance.
+      const lowestBalance = accountProjection ? Math.min(...accountProjection.projections.map(p => p.balance)) : acc.startingBalance;
+      const availableToSpend = lowestBalance - (acc.cushion || 0);
+
       return {
         ...acc,
-        // The first projection entry is today's starting balance.
         currentBalance: accountProjection?.projections[0]?.balance || acc.startingBalance,
-        // Find the lowest point in the future projection for "available to spend".
-        availableToSpend: accountProjection ? Math.min(...accountProjection.projections.map(p => p.balance)) : acc.startingBalance,
+        availableToSpend,
       };
     });
   }, [accounts, projections]);
@@ -100,11 +103,10 @@ const AppLayout = () => {
       </header>
       
       <main className="flex-1 p-6 overflow-y-auto">
-        {/* 4. Pass all the clean, calculated data down to child components. */}
         <Outlet context={{ 
-          accounts: accountsWithBalances, // Pass the enriched accounts
-          transactions, // Pass the raw transactions
-          projections, // Pass the calculated projections
+          accounts: accountsWithBalances,
+          transactions,
+          projections,
           accountsError,
           transactionsError,
         }} />
@@ -118,4 +120,3 @@ export function useAppData() {
 }
 
 export default AppLayout;
-

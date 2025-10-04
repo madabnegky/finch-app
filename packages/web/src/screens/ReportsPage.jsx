@@ -4,8 +4,6 @@ import { formatCurrency } from '@shared/utils/currency';
 import { CATEGORIES } from '../constants/categories';
 import { useAppData } from './AppLayout'; // Import the context hook
 
-// --- THIS IS THE FIX ---
-// The page now gets its transaction data from the context hook.
 const ReportsPage = () => {
     const { transactions } = useAppData();
 

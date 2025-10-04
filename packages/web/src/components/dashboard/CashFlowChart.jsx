@@ -13,11 +13,9 @@ const CashFlowChart = ({ projections }) => {
     }
     
     // --- THIS IS THE FIX ---
-    // The `.reverse()` call was mutating the projections array in place,
-    // causing the chart to display data in the wrong order. Creating a shallow
-    // copy with `.slice()` before reversing ensures the original array is not modified.
-    const chartData = projections.slice().reverse().map(p => ({
-        date: formatDate(p.date.toDate(), 'MMM d'),
+    // The date object `p.date` is already a JS Date, so we don't need to call `.toDate()`.
+    const chartData = projections.map(p => ({
+        date: formatDate(p.date, 'MMM d'),
         balance: p.balance,
     }));
 

@@ -13,8 +13,6 @@ const AddAccountCard = ({ onClick }) => {
             onClick={onClick}
             className="w-full bg-white/50 border-2 border-dashed border-finch-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-finch-gray-500 hover:bg-white hover:border-finch-teal-400 hover:text-finch-teal-600 transition-all h-full"
         >
-            {/* --- THIS IS THE FIX --- */}
-            {/* Added sizing classes to the icon to prevent it from being huge. */}
             <IconPlus className="w-8 h-8" />
             <span className="mt-2 font-bold text-lg">Add Account</span>
         </button>
@@ -84,15 +82,36 @@ const DashboardPage = ({
     onLinkAccount,
     onEditTransaction,
     onDeleteTransaction,
-    projections = [] // Projections can stay as props for now if they are calculated higher up
 }) => {
     
-    // --- THIS IS THE FIX ---
-    // Use the context hook to get the accounts and transactions data
-    // from the AppLayout parent component.
-    const { accounts, transactions } = useAppData();
+    const { accounts, transactions, projections } = useAppData();
 
-    // The rest of your component logic can now use this data
+    // --- THIS IS THE FIX ---
+    // Aggregate projections from all accounts into a single data series for the chart.
+    const aggregatedProjections = useMemo(() => {
+        if (!projections || projections.length === 0) {
+            return [];
+        }
+
+        const dailyTotals = {};
+
+        projections.forEach(({ projections: accountProjections }) => {
+            accountProjections.forEach(dayProjection => {
+                const dateKey = dayProjection.date.toISOString().split('T')[0];
+                if (!dailyTotals[dateKey]) {
+                    dailyTotals[dateKey] = {
+                        date: dayProjection.date,
+                        balance: 0,
+                    };
+                }
+                dailyTotals[dateKey].balance += dayProjection.balance;
+            });
+        });
+        
+        return Object.values(dailyTotals).sort((a, b) => a.date - b.date);
+
+    }, [projections]);
+    
     const orderedAccounts = accounts || [];
 
     const recentTransactions = useMemo(() => {
@@ -151,7 +170,7 @@ const DashboardPage = ({
                 <div className="w-full lg:w-1/3 space-y-8">
                     <div className="p-6 bg-white rounded-xl shadow-sm border border-finch-gray-200">
                         <h3 className="text-xl font-bold text-finch-gray-800 mb-4">Cash Flow</h3>
-                        <CashFlowChart projections={projections} />
+                        <CashFlowChart projections={aggregatedProjections} />
                     </div>
                     <UpcomingBills transactions={transactions} />
                 </div>

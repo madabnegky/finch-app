@@ -170,8 +170,6 @@ const CalendarView = ({ projections }) => {
     );
 };
 
-// --- THIS IS THE FIX ---
-// The page now gets its data from context and manages its own state for the account filter.
 const CalendarPage = () => {
     const { accounts, projections: allProjections } = useAppData();
     const [selectedAccountId, setSelectedAccountId] = useState('all');

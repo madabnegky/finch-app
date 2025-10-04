@@ -11,9 +11,6 @@ const TransactionItem = ({ transaction, onEdit, onDelete, isRecurring }) => {
   const category = getCategoryByName(categoryName);
   const isExpense = amount < 0;
 
-  // --- THIS IS THE FIX ---
-  // A component variable in JSX MUST start with a capital letter.
-  // We assign the lowercase `category.icon` to a capitalized variable `IconComponent`.
   const IconComponent = category.icon;
 
   const formatDate = (date) => {
@@ -33,7 +30,6 @@ const TransactionItem = ({ transaction, onEdit, onDelete, isRecurring }) => {
     >
       <div className="flex items-center">
         <div className={`flex items-center justify-center w-10 h-10 mr-4 rounded-full ${category.color}`}>
-          {/* Now we render the capitalized `IconComponent` variable */}
           <IconComponent className="w-5 h-5 text-white" />
         </div>
         <div>
@@ -69,4 +65,3 @@ const TransactionItem = ({ transaction, onEdit, onDelete, isRecurring }) => {
 };
 
 export default TransactionItem;
-

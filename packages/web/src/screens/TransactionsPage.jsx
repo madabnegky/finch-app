@@ -2,8 +2,6 @@ import React from 'react';
 import TransactionList from '../components/transactions/TransactionList';
 import { useAppData } from './AppLayout'; // Import the context hook
 
-// --- THIS IS THE FIX ---
-// The page now gets its data from the context and passes it to the TransactionList.
 const TransactionsPage = ({ onEdit, onDelete }) => {
     const { transactions, accounts } = useAppData();
 

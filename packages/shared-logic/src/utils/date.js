@@ -12,6 +12,10 @@ import {
 
 export const parseDateString = (dateString) => {
   if (!dateString) return null;
+  // This handles both 'YYYY-MM-DD' strings and existing Date objects
+  if (dateString instanceof Date) {
+    return startOfDay(dateString);
+  }
   const formattedDateString = dateString.replace(/-/g, '/');
   return startOfDay(new Date(formattedDateString));
 };
@@ -31,7 +35,10 @@ export const formatDate = (date, format = 'MM/dd/yyyy') => {
 };
 
 export const getNextOccurrence = (startDate, frequency) => {
-  const dt = parseDateString(startDate);
+  // --- THIS IS THE FIX ---
+  // The dt variable now correctly handles being passed a Date object directly,
+  // without trying to parse it as a string.
+  const dt = startDate instanceof Date ? startDate : parseDateString(startDate);
   if (!dt) return null;
 
   switch (frequency) {

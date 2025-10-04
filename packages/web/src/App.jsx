@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@shared/hooks/useAuth';
 
 // Import all our screens and components
@@ -35,15 +35,14 @@ function AppRoutes() {
             <Route path="/" element={user ? <Navigate to="/app/dashboard" /> : <LandingPage />} />
             <Route path="/setup" element={<ProtectedRoute><SetupWizard /></ProtectedRoute>} />
             
-            {/* --- THIS IS THE FIX --- */}
-            {/* The AppLayout now fetches data and provides it via context. */}
-            {/* The child routes will consume this context, so we no longer need to pass props here. */}
             <Route
                 path="/app"
                 element={
                     <ProtectedRoute>
                         <AccountSetupGate>
-                            <AppLayout />
+                            <AppLayout>
+                                <Outlet />
+                            </AppLayout>
                         </AccountSetupGate>
                     </ProtectedRoute>
                 }
