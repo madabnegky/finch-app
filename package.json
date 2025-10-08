@@ -1,0 +1,24 @@
+{
+  "name": "finch-app",
+  "version": "1.0.0",
+  "description": "A personal finance management application.",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "emulators": "pnpm --filter functions emulators",
+    "start": "concurrently \"pnpm:dev\" \"pnpm:emulators\""
+  },
+  "keywords": [
+    "firebase",
+    "react",
+    "personal-finance"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

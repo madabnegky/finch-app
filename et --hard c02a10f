@@ -1,0 +1,32 @@
+* [33mf577e16[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix: Attempt to resolve emulator connection issue
+* [33mc02a10f[m Fix: Correct 'available to spend' balance calculation
+* [33meff9b6a[m Fix: Correct balance calculations and wizard flow
+* [33m1c3e87f[m refactor: Centralize data fetching and balance calculations in AppLayout
+* [33m1100587[m fix: Resolve module import/export errors and dependency conflicts
+* [33m0926825[m most recent changes
+* [33m78a35f2[m Fix: Correct routing, layout, and component crashes
+* [33m1f548d1[m Fix: Correct routing, layout, and icon issues
+* [33m100faa5[m Fix: Resolve emulator connection issues
+* [33mf25c79d[m Feat: Add visual feedback and conditional logic to setup wizard
+* [33m041cfc2[m Fix: Resolve setup, dependency, and code issues to get app running
+* [33m7523525[m move back to npm
+* [33m0703ef6[m Changes
+* [33m1426efe[m Fix: Resolve cascading import/export and dependency issues
+* [33ma80b526[m Fix: Resolve all SetupWizard bugs and dependencies
+* [33m557b246[m recent changes
+* [33mf4fa9d2[m fixed bugs after split
+* [33m9121729[m Add new feature for notifications w bugs
+* [33m57ed86d[m Remove node_modules and package-lock.json
+* [33mc557aae[m Hide node_modules
+* [33m6a4d3b1[m Update to .gitignore file
+* [33ma960745[m Add .gitignore for node_modules
+* [33m9333480[m refactor: Restructure project into a monorepo
+* [33m3decb87[m Add new feature for transaction reports
+* [33m8ec2b9a[m feat: Add dashboard widgets and fix layout
+* [33m5baece2[m feat: Add dashboard widgets and fix layout
+* [33md4b45f2[m feat: Add dashboard widgets and fix setup flow
+* [33m6f426ce[m feat: Overhaul animated preview with detailed story
+* [33mbd7e18a[m feat: Integrate Plaid for account and transaction syncing
+* [33m3cff53b[m Implement new professional UI design system
+* [33m40d6682[m feat: Complete MVP with all features and bug fixes
+* [33m16fc646[m Initial working project structure

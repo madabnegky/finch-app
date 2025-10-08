@@ -1,0 +1,18 @@
+{
+  "name": "@shared/logic",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.js",
+  "exports": {
+    "./api/firebase": "./src/api/firebase.js",
+    "./hooks/useAuth": "./src/hooks/useAuth.js",
+    "./hooks/useProjectedBalances": "./src/hooks/useProjectedBalances.js",
+    "./hooks/useTransactionInstances": "./src/hooks/useTransactionInstances.js",
+    "./utils/currency": "./src/utils/currency.js",
+    "./utils/date": "./src/utils/date.js"
+  },
+  "dependencies": {
+    "date-fns": "^3.6.0",
+    "firebase": "^10.12.2"
+  }
+}
