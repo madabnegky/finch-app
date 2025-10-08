@@ -1,0 +1,50 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Match any document in the 'users' collection
+    match /users/{userId} {
+      // A user can read, update, or delete their own user profile document.
+      allow read, update, delete: if request.auth.uid == userId;
+      // Any authenticated user can create a user profile document
+      // (usually done at sign-up).
+      allow create: if request.auth != null;
+
+      // Rules for the 'accounts' subcollection
+      match /accounts/{accountId} {
+        // A user can perform any operation on their own accounts.
+        allow read, write: if request.auth.uid == userId;
+      }
+
+      // Rules for the 'goals' subcollection
+      match /goals/{goalId} {
+        // A user can read and write to their own goals.
+        allow read, write: if request.auth.uid == userId;
+      }
+      
+      // Rules for the 'budgets' subcollection
+      match /budgets/{budgetId} {
+        // A user can read and write to their own budgets.
+        allow read, write: if request.auth.uid == userId;
+      }
+
+      // Rules for the 'transactions' subcollection with data validation
+      match /transactions/{transactionId} {
+        // A user can read any of their own transactions.
+        allow read: if request.auth.uid == userId;
+
+        // Rules for creating, updating, and deleting transactions.
+        allow create, update, delete: if request.auth.uid == userId && isTransactionValid();
+      }
+    }
+  }
+
+  // Helper function to validate transaction data
+  function isTransactionValid() {
+    // Ensure the required fields exist and have the correct data types.
+    return request.resource.data.accountId is string &&
+           request.resource.data.amount is number &&
+           request.resource.data.date is timestamp &&
+           request.resource.data.description is string;
+  }
+}
