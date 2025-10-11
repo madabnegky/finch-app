@@ -1,7 +1,6 @@
 package com.finchandroid;
 
 import android.app.Application;
-import com.facebook.react.PackageList;
 import com.facebook.react.ReactApplication;
 import com.facebook.react.ReactNativeHost;
 import com.facebook.react.ReactPackage;
@@ -9,6 +8,8 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint;
 import com.facebook.react.defaults.DefaultReactNativeHost;
 import com.facebook.soloader.SoLoader;
 import java.util.List;
+// We are removing the import for the missing PackageList
+// import com.facebook.react.PackageList;
 
 public class MainApplication extends Application implements ReactApplication {
 
@@ -21,12 +22,11 @@ public class MainApplication extends Application implements ReactApplication {
 
         @Override
         protected List<ReactPackage> getPackages() {
-          @SuppressWarnings("UnnecessaryLocalVariable")
-          List<ReactPackage> packages = new PackageList(this).getPackages();
-          // Packages that cannot be autolinked yet can be added manually here, for example:
-          // packages.add(new MyReactNativePackage());
-          return packages;
-        }
+       // This is the correct way to manually create the list of core packages.
+       List<ReactPackage> packages = new java.util.ArrayList<>();
+       packages.add(new com.facebook.react.shell.MainReactPackage());
+        return packages;
+}
 
         @Override
         protected String getJSMainModuleName() {
