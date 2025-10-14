@@ -1,21 +1,26 @@
-plugins {
-    id "com.android.application"
-    id "com.facebook.react"
+apply plugin: "com.android.application"
+apply plugin: "com.facebook.react"
+
+react {
+    root = file("../../../../../")
+    reactNativeDir = file("../../../../../node_modules/react-native")
+    codegenDir = file("../../../../../node_modules/react-native-codegen")
 }
 
-android {
-    ndkVersion rootProject.ext.ndkVersion
-    compileSdkVersion rootProject.ext.compileSdkVersion
-    namespace "com.finchandroid"
+def enableProguardInReleaseBuilds = false
+def jscFlavor = 'org.webkit:android-jsc:+'
 
+android {
+    namespace "com.finchandroid"
+    compileSdkVersion 33
+    ndkVersion "23.1.7779620"
     defaultConfig {
         applicationId "com.finchandroid"
-        minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion rootProject.ext.targetSdkVersion
+        minSdkVersion 21
+        targetSdkVersion 33
         versionCode 1
         versionName "1.0"
     }
-
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -24,33 +29,28 @@ android {
             keyPassword 'android'
         }
     }
-
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
             signingConfig signingConfigs.debug
-            minifyEnabled false
+            minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
 }
 
 dependencies {
-    // React Native's core library
     implementation("com.facebook.react:react-android")
-
-    // Hermes is the modern JavaScript engine for React Native
     implementation("com.facebook.react:hermes-android")
-
-    // --- Start of added lines for Flipper ---
-    if (hermesEnabled.toBoolean()) {
-        debugImplementation("com.facebook.flipper:flipper:0.125.0")
-        debugImplementation("com.facebook.flipper:flipper-network-plugin:0.125.0") {
-            exclude group:'com.squareup.okhttp3', module:'okhttp'
-        }
-        debugImplementation("com.facebook.flipper:flipper-fresco-plugin:0.125.0")
+    def isGifEnabled = findProperty('reactNativeEnableGif') ?: true
+    if (isGifEnabled) {
+        implementation 'com.facebook.fresco:animated-gif:2.5.0'
     }
-    // --- End of added lines for Flipper ---
+    if (hermesEnabled.toBoolean()) {
+        implementation 'com.facebook.soloader:soloader:0.10.3'
+    } else {
+        implementation jscFlavor
+    }
 }
