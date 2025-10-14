@@ -53,4 +53,16 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    if (findProperty('FLIPPER_VERSION')) {
+        debugImplementation("com.facebook.flipper:flipper:${findProperty('FLIPPER_VERSION')}") {
+            exclude group: 'com.facebook.fbjni'
+        }
+        debugImplementation("com.facebook.flipper:flipper-network-plugin:${findProperty('FLIPPER_VERSION')}") {
+            exclude group: 'com.facebook.flipper'
+        }
+        debugImplementation("com.facebook.flipper:flipper-fresco-plugin:${findProperty('FLIPPER_VERSION')}") {
+            exclude group: 'com.facebook.flipper'
+        }
+    }
 }
