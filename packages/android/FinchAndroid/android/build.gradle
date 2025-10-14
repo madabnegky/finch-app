@@ -1,4 +1,5 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
+
 buildscript {
     ext {
         buildToolsVersion = "33.0.0"
@@ -12,7 +13,20 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        // We only need the Android Gradle Plugin here.
-        classpath("com.android.tools.build:gradle:7.4.2")
+        classpath("com.android.tools.build:gradle:7.3.1")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+    }
+}
+
+allprojects {
+    repositories {
+        maven {
+            url("$rootDir/../../../../node_modules/react-native/android")
+        }
+        maven {
+            url("$rootDir/../../../../node_modules/jsc-android/dist")
+        }
+        google()
+        mavenCentral()
     }
 }
