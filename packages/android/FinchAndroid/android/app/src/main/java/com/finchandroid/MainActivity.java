@@ -1,9 +1,12 @@
+// packages/android/FinchAndroid/android/app/src/main/java/com/finchandroid/MainActivity.java
+
 package com.finchandroid;
 
 import com.facebook.react.ReactActivity;
 import com.facebook.react.ReactActivityDelegate;
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint;
 import com.facebook.react.defaults.DefaultReactActivityDelegate;
+import android.os.Bundle; // <-- ADD THIS LINE
 
 public class MainActivity extends ReactActivity {
 
@@ -29,4 +32,11 @@ public class MainActivity extends ReactActivity {
         // If you opted-in for the New Architecture, we enable the Fabric Renderer.
         DefaultNewArchitectureEntryPoint.getFabricEnabled());
   }
+
+  // vvv ADD THIS METHOD vvv
+  @Override
+  protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(null);
+  }
+  // ^^^ ADD THIS METHOD ^^^
 }
