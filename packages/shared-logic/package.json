@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "exports": {
     "./api/firebase": "./src/api/firebase.js",
-    "./hooks/useAuth": "./src/hooks/useAuth.js",
+    "./api/firebase.native": "./src/api/firebase.native.js",
+    "./hooks/useAuth": "./src/hooks/useAuth.jsx",
     "./hooks/useProjectedBalances": "./src/hooks/useProjectedBalances.js",
     "./hooks/useTransactionInstances": "./src/hooks/useTransactionInstances.js",
     "./utils/currency": "./src/utils/currency.js",
