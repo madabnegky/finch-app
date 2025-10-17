@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "271671331037",
+    "project_id": "finch-app-v2",
+    "storage_bucket": "finch-app-v2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:271671331037:android:f57d56b330a4de2a6af334",
+        "android_client_info": {
+          "package_name": "com.finchandroid"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "271671331037-90pnnqenl2enkc9es1gr6qcer1ugf8at.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3iREWC8o-gzlnVy3ZCOIv6E3POp8lROI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "271671331037-90pnnqenl2enkc9es1gr6qcer1ugf8at.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
