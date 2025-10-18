@@ -1,9 +1,14 @@
 // packages/mobile/src/screens/DashboardScreen.tsx
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import firestore from '@react-native-firebase/firestore';
 import { AddTransactionModal } from '../components/AddTransactionModal';
+import { AddGoalModal } from '../components/AddGoalModal';
+import { ManageAccountModal } from '../components/ManageAccountModal';
+import { TransferModal } from '../components/TransferModal';
+import { WhatIfModal } from '../components/WhatIfModal';
 
 const brandColors = {
   primaryBlue: '#4F46E5',
@@ -37,12 +42,27 @@ type Transaction = {
   frequency?: 'weekly' | 'biweekly' | 'monthly';
 };
 
+type Goal = {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+};
+
 export const DashboardScreen = () => {
+  const navigation = useNavigation();
   const { user, signOut } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
+  const [showAddGoal, setShowAddGoal] = useState(false);
+  const [showManageAccount, setShowManageAccount] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [showWhatIf, setShowWhatIf] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [showActionMenu, setShowActionMenu] = useState(false);
 
   // Fetch accounts and transactions from Firebase
   useEffect(() => {
@@ -79,9 +99,20 @@ export const DashboardScreen = () => {
         setTransactions(transactionsData);
       });
 
+    const unsubscribeGoals = firestore()
+      .collection(`users/${user.uid}/goals`)
+      .onSnapshot((snapshot) => {
+        const goalsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        } as Goal));
+        setGoals(goalsData);
+      });
+
     return () => {
       unsubscribeAccounts();
       unsubscribeTransactions();
+      unsubscribeGoals();
     };
   }, [user]);
 
@@ -200,20 +231,50 @@ export const DashboardScreen = () => {
 
   return (
     <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Finch</Text>
-        <TouchableOpacity onPress={handleSignOut} style={styles.signOutButton}>
-          <Text style={styles.signOutText}>Sign Out</Text>
+      {/* Navigation Buttons - MOVED TO TOP */}
+      <View style={styles.navContainer}>
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Transactions' as never)}>
+          <Text style={styles.navButtonText}>💳 Transactions</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Calendar' as never)}>
+          <Text style={styles.navButtonText}>📅 Calendar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Reports' as never)}>
+          <Text style={styles.navButtonText}>📊 Reports</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Budget' as never)}>
+          <Text style={styles.navButtonText}>💰 Budget</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Settings' as never)}>
+          <Text style={styles.navButtonText}>⚙️ Settings</Text>
         </TouchableOpacity>
       </View>
 
       {/* Welcome Message */}
       <View style={styles.welcomeContainer}>
-        <Text style={styles.welcomeText}>Your Dashboard</Text>
+        <Text style={styles.welcomeText}>*** UPDATED CODE *** Welcome to Finch</Text>
         <Text style={styles.welcomeSubtext}>
           {user?.isAnonymous ? 'Guest Mode' : 'Manage your finances with ease'}
         </Text>
+      </View>
+
+      {/* OLD Navigation Buttons Section - REMOVED */}
+      <View style={styles.navContainer}>
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Transactions' as never)}>
+          <Text style={styles.navButtonText}>💳 Transactions</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Calendar' as never)}>
+          <Text style={styles.navButtonText}>📅 Calendar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Reports' as never)}>
+          <Text style={styles.navButtonText}>📊 Reports</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Budget' as never)}>
+          <Text style={styles.navButtonText}>💰 Budget</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Settings' as never)}>
+          <Text style={styles.navButtonText}>⚙️ Settings</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Guest Mode Upgrade Prompt - Moved to top */}
@@ -255,6 +316,95 @@ export const DashboardScreen = () => {
           </View>
         </View>
       </View>
+
+      {/* Quick Actions */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <View style={styles.actionsGrid}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => setShowAddTransaction(true)}
+          >
+            <Text style={styles.actionButtonIcon}>💵</Text>
+            <Text style={styles.actionButtonText}>Add Transaction</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => setShowManageAccount(true)}
+          >
+            <Text style={styles.actionButtonIcon}>🏦</Text>
+            <Text style={styles.actionButtonText}>Add Account</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => setShowTransfer(true)}
+          >
+            <Text style={styles.actionButtonIcon}>💸</Text>
+            <Text style={styles.actionButtonText}>Transfer</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => setShowWhatIf(true)}
+          >
+            <Text style={styles.actionButtonIcon}>🤔</Text>
+            <Text style={styles.actionButtonText}>What If?</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Goals & Envelopes */}
+      {goals.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Goals & Envelopes</Text>
+            <TouchableOpacity onPress={() => setShowAddGoal(true)}>
+              <Text style={styles.addLink}>+ Add</Text>
+            </TouchableOpacity>
+          </View>
+          {goals.map((goal) => {
+            const progress = (goal.currentAmount / goal.targetAmount) * 100;
+            return (
+              <View key={goal.id} style={styles.goalCard}>
+                <View style={styles.goalHeader}>
+                  <Text style={styles.goalName}>{goal.name}</Text>
+                  <Text style={styles.goalAmount}>
+                    {formatCurrency(goal.currentAmount)} / {formatCurrency(goal.targetAmount)}
+                  </Text>
+                </View>
+                <View style={styles.progressBarContainer}>
+                  <View
+                    style={[
+                      styles.progressBar,
+                      {
+                        width: `${Math.min(progress, 100)}%`,
+                        backgroundColor: progress >= 100 ? brandColors.green : brandColors.primaryBlue
+                      }
+                    ]}
+                  />
+                </View>
+                <Text style={styles.goalProgress}>{progress.toFixed(0)}% complete</Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      {goals.length === 0 && (
+        <View style={styles.section}>
+          <View style={styles.emptyGoalsCard}>
+            <Text style={styles.emptyGoalsTitle}>Set Financial Goals</Text>
+            <Text style={styles.emptyGoalsText}>
+              Create goals to track your savings progress
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyGoalsButton}
+              onPress={() => setShowAddGoal(true)}
+            >
+              <Text style={styles.emptyGoalsButtonText}>+ Add Goal</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Accounts */}
       {accounts.length > 0 && (
@@ -315,30 +465,56 @@ export const DashboardScreen = () => {
       )}
 
       {/* Empty State */}
-      {accounts.length === 0 && transactions.length === 0 && (
+      {accounts.length === 0 && transactions.length === 0 && goals.length === 0 && (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateTitle}>No data yet</Text>
           <Text style={styles.emptyStateText}>
-            Complete the setup wizard to add accounts and transactions
+            Use the quick actions above to get started
           </Text>
         </View>
       )}
 
-      {/* Floating Action Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setShowAddTransaction(true)}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
-
-      {/* Add Transaction Modal */}
+      {/* Modals */}
       <AddTransactionModal
         visible={showAddTransaction}
         onClose={() => setShowAddTransaction(false)}
         onSuccess={() => {
           console.log('Transaction added successfully!');
         }}
+      />
+
+      <AddGoalModal
+        visible={showAddGoal}
+        onClose={() => setShowAddGoal(false)}
+        onSuccess={() => {
+          console.log('Goal added successfully!');
+        }}
+      />
+
+      <ManageAccountModal
+        visible={showManageAccount}
+        onClose={() => {
+          setShowManageAccount(false);
+          setSelectedAccount(null);
+        }}
+        onSuccess={() => {
+          console.log('Account saved successfully!');
+        }}
+        account={selectedAccount}
+      />
+
+      <TransferModal
+        visible={showTransfer}
+        onClose={() => setShowTransfer(false)}
+        onSuccess={() => {
+          console.log('Transfer completed successfully!');
+        }}
+      />
+
+      <WhatIfModal
+        visible={showWhatIf}
+        onClose={() => setShowWhatIf(false)}
+        currentBalance={outlook.currentBalance}
       />
     </ScrollView>
   );
@@ -352,6 +528,27 @@ const styles = StyleSheet.create({
   centerContent: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  navContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  navButton: {
+    backgroundColor: brandColors.primaryBlue,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    minWidth: '48%',
+    alignItems: 'center',
+  },
+  navButtonText: {
+    color: brandColors.white,
+    fontSize: 14,
+    fontWeight: '600',
   },
   loadingText: {
     marginTop: 16,
@@ -601,25 +798,112 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: brandColors.primaryBlue,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+  actionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 8,
   },
-  fabText: {
+  actionButton: {
+    flex: 1,
+    minWidth: '47%',
+    backgroundColor: brandColors.white,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: brandColors.lightGray,
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionButtonIcon: {
     fontSize: 32,
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: brandColors.textDark,
+    textAlign: 'center',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addLink: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: brandColors.primaryBlue,
+  },
+  goalCard: {
+    backgroundColor: brandColors.white,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: brandColors.lightGray,
+    marginBottom: 12,
+  },
+  goalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  goalName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: brandColors.textDark,
+    flex: 1,
+  },
+  goalAmount: {
+    fontSize: 14,
+    color: brandColors.textGray,
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: brandColors.lightGray,
+    borderRadius: 4,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  goalProgress: {
+    fontSize: 12,
+    color: brandColors.textGray,
+    textAlign: 'right',
+  },
+  emptyGoalsCard: {
+    backgroundColor: brandColors.white,
+    padding: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: brandColors.lightGray,
+    alignItems: 'center',
+  },
+  emptyGoalsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: brandColors.textDark,
+    marginBottom: 8,
+  },
+  emptyGoalsText: {
+    fontSize: 14,
+    color: brandColors.textGray,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  emptyGoalsButton: {
+    backgroundColor: brandColors.primaryBlue,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  emptyGoalsButtonText: {
     color: brandColors.white,
-    fontWeight: '300',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

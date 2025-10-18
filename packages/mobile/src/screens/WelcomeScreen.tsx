@@ -9,7 +9,7 @@ type RootStackParamList = {
   Splash: undefined;
   Welcome: undefined;
   Setup: undefined;
-  Dashboard: undefined;
+  Main: undefined;
 };
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
