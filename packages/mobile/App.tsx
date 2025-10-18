@@ -4,11 +4,16 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthProvider } from '../shared-logic/src/hooks/useAuth';
 
-// Import our new screens
+// Import our screens
 import { SplashScreen } from './src/screens/SplashScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { SetupWizardScreen } from './src/screens/SetupWizardScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
+import { TransactionsScreen } from './src/screens/TransactionsScreen';
+import { CalendarScreen } from './src/screens/CalendarScreen';
+import { ReportsScreen } from './src/screens/ReportsScreen';
+import { BudgetScreen } from './src/screens/BudgetScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
 import { AccountSetupGate } from './src/components/AccountSetupGate';
 import { useAuth } from '../shared-logic/src/hooks/useAuth';
 
@@ -43,16 +48,21 @@ function AppNavigator() {
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
           </>
         ) : (
-          // Authenticated - show setup and dashboard screens
+          // Authenticated - show all screens as stack
           <>
             <Stack.Screen name="Setup" component={SetupWizardScreen} />
-            <Stack.Screen name="Dashboard">
+            <Stack.Screen name="Dashboard" options={{ title: 'Finch' }}>
               {() => (
                 <AccountSetupGate>
                   <DashboardScreen />
                 </AccountSetupGate>
               )}
             </Stack.Screen>
+            <Stack.Screen name="Transactions" component={TransactionsScreen} options={{ title: 'Transactions' }} />
+            <Stack.Screen name="Calendar" component={CalendarScreen} options={{ title: 'Calendar' }} />
+            <Stack.Screen name="Reports" component={ReportsScreen} options={{ title: 'Reports' }} />
+            <Stack.Screen name="Budget" component={BudgetScreen} options={{ title: 'Budget' }} />
+            <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
           </>
         )}
       </Stack.Navigator>

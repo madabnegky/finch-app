@@ -261,7 +261,7 @@ export const SetupWizardScreen = () => {
       await batch.commit();
       console.log('Setup completed successfully!');
 
-      // Navigate to dashboard
+      // Navigate to main tabs (dashboard)
       navigation.replace('Dashboard');
     } catch (error) {
       console.error('Setup error:', error);
