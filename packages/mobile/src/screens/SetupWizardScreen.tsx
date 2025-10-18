@@ -34,12 +34,10 @@ type Account = {
 
 type Transaction = {
   name: string;
-  description?: string;
   amount: string;
   type: 'income' | 'expense';
   frequency: 'weekly' | 'biweekly' | 'monthly';
-  day?: string;
-  nextDate?: string;
+  nextDate: string;
   category?: string;
   accountId?: string;
 };
@@ -78,11 +76,9 @@ export const SetupWizardScreen = () => {
 
   // Transaction form state
   const [transactionName, setTransactionName] = useState('');
-  const [transactionDescription, setTransactionDescription] = useState('');
   const [transactionAmount, setTransactionAmount] = useState('');
   const [transactionType, setTransactionType] = useState<'income' | 'expense'>('income');
   const [transactionFrequency, setTransactionFrequency] = useState<'weekly' | 'biweekly' | 'monthly'>('monthly');
-  const [transactionDay, setTransactionDay] = useState('1');
   const [transactionNextDate, setTransactionNextDate] = useState('');
   const [transactionCategory, setTransactionCategory] = useState('Uncategorized');
   const [transactionAccountId, setTransactionAccountId] = useState('');
@@ -156,28 +152,18 @@ export const SetupWizardScreen = () => {
       return;
     }
 
-    // Validate frequency-specific fields
-    if (transactionFrequency === 'monthly') {
-      const day = parseInt(transactionDay);
-      if (!day || day < 1 || day > 31) {
-        Alert.alert('Error', 'Please enter a valid day of month (1-31)');
-        return;
-      }
-    } else {
-      if (!transactionNextDate.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(transactionNextDate)) {
-        Alert.alert('Invalid Date', 'Please enter a valid date in YYYY-MM-DD format');
-        return;
-      }
+    // Validate next occurrence date for all frequencies
+    if (!transactionNextDate.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(transactionNextDate)) {
+      Alert.alert('Invalid Date', 'Please enter a valid date in YYYY-MM-DD format');
+      return;
     }
 
     const newTransaction: Transaction = {
       name: transactionName,
-      ...(transactionDescription && { description: transactionDescription }),
       amount: transactionAmount,
       type: transactionType,
       frequency: transactionFrequency,
-      ...(transactionFrequency === 'monthly' && { day: transactionDay }),
-      ...(transactionFrequency !== 'monthly' && { nextDate: transactionNextDate }),
+      nextDate: transactionNextDate,
       ...(transactionType === 'expense' && { category: transactionCategory }),
       ...(transactionAccountId && { accountId: transactionAccountId }),
     };
@@ -194,11 +180,9 @@ export const SetupWizardScreen = () => {
 
     // Reset form
     setTransactionName('');
-    setTransactionDescription('');
     setTransactionAmount('');
     setTransactionType('income');
     setTransactionFrequency('monthly');
-    setTransactionDay('1');
     setTransactionNextDate('');
     setTransactionCategory('Uncategorized');
     setTransactionAccountId(accounts.length === 1 ? accounts[0].name : '');
@@ -233,26 +217,28 @@ export const SetupWizardScreen = () => {
       transactions.forEach(transaction => {
         const newTransactionRef = transactionsCollection.doc();
         const transactionData: any = {
-          name: transaction.name,
-          ...(transaction.description && { description: transaction.description }),
-          amount: parseFloat(transaction.amount) || 0,
+          description: transaction.name,
+          amount: transaction.type === 'expense'
+            ? -Math.abs(parseFloat(transaction.amount) || 0)
+            : Math.abs(parseFloat(transaction.amount) || 0),
           type: transaction.type,
-          frequency: transaction.frequency,
+          date: transaction.nextDate,
           isRecurring: true,
+          recurringDetails: {
+            frequency: transaction.frequency,
+            nextDate: transaction.nextDate,
+          },
           ...(transaction.category && { category: transaction.category }),
           createdAt: firestore.FieldValue.serverTimestamp(),
         };
 
-        // Add day or nextOccurrence based on frequency
-        if (transaction.frequency === 'monthly' && transaction.day) {
-          transactionData.day = parseInt(transaction.day);
-        } else if (transaction.nextDate) {
-          transactionData.nextOccurrence = transaction.nextDate;
-        }
-
-        // Add account ID if account was selected
+        // Add account ID
         if (transaction.accountId && accountNameToIdMap[transaction.accountId]) {
+          // User selected a specific account
           transactionData.accountId = accountNameToIdMap[transaction.accountId];
+        } else if (accounts.length === 1) {
+          // Only one account - assign all transactions to it
+          transactionData.accountId = accountNameToIdMap[accounts[0].name];
         }
 
         batch.set(newTransactionRef, transactionData);
@@ -433,20 +419,6 @@ export const SetupWizardScreen = () => {
           placeholderTextColor={brandColors.textGray}
         />
 
-        {/* Description field for income */}
-        {transactionType === 'income' && (
-          <>
-            <Text style={styles.label}>Description (Optional)</Text>
-            <TextInput
-              style={styles.input}
-              value={transactionDescription}
-              onChangeText={setTransactionDescription}
-              placeholder="e.g., Monthly salary"
-              placeholderTextColor={brandColors.textGray}
-            />
-          </>
-        )}
-
         <Text style={styles.label}>Type</Text>
         <View style={styles.segmentedControl}>
           <TouchableOpacity
@@ -601,33 +573,17 @@ export const SetupWizardScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {transactionFrequency === 'monthly' ? (
-          <>
-            <Text style={styles.label}>Day of Month</Text>
-            <TextInput
-              style={styles.input}
-              value={transactionDay}
-              onChangeText={setTransactionDay}
-              placeholder="1-31"
-              keyboardType="numeric"
-              placeholderTextColor={brandColors.textGray}
-            />
-          </>
-        ) : (
-          <>
-            <Text style={styles.label}>Next Occurrence Date (YYYY-MM-DD)</Text>
-            <TextInput
-              style={styles.input}
-              value={transactionNextDate}
-              onChangeText={setTransactionNextDate}
-              placeholder="2025-01-15"
-              placeholderTextColor={brandColors.textGray}
-            />
-            <Text style={styles.helperText}>
-              Example: 2025-01-15 for January 15, 2025
-            </Text>
-          </>
-        )}
+        <Text style={styles.label}>Next Occurrence Date (YYYY-MM-DD)</Text>
+        <TextInput
+          style={styles.input}
+          value={transactionNextDate}
+          onChangeText={setTransactionNextDate}
+          placeholder="2025-01-15"
+          placeholderTextColor={brandColors.textGray}
+        />
+        <Text style={styles.helperText}>
+          Example: 2025-01-15 for January 15, 2025
+        </Text>
 
         <TouchableOpacity style={styles.addButton} onPress={handleAddTransaction}>
           <Text style={styles.addButtonText}>Add Transaction</Text>

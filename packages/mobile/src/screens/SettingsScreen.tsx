@@ -8,7 +8,10 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Modal,
+  TextInput,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
@@ -31,7 +34,7 @@ type NotificationSettings = {
 };
 
 export const SettingsScreen: React.FC = () => {
-  const { user } = useAuth();
+  const { user, linkAccountWithEmail, linkAccountWithGoogle } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notifications, setNotifications] = useState<NotificationSettings>({
@@ -39,6 +42,10 @@ export const SettingsScreen: React.FC = () => {
     budgetAlerts: true,
     weeklyReports: false,
   });
+  const [convertModalVisible, setConvertModalVisible] = useState(false);
+  const [convertEmail, setConvertEmail] = useState('');
+  const [convertPassword, setConvertPassword] = useState('');
+  const [converting, setConverting] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -133,6 +140,48 @@ export const SettingsScreen: React.FC = () => {
     );
   };
 
+  const handleConvertAccount = async () => {
+    if (!convertEmail.trim() || !convertPassword.trim()) {
+      Alert.alert('Required', 'Please enter both email and password');
+      return;
+    }
+
+    if (convertPassword.length < 6) {
+      Alert.alert('Invalid Password', 'Password must be at least 6 characters');
+      return;
+    }
+
+    setConverting(true);
+
+    try {
+      await linkAccountWithEmail(convertEmail, convertPassword);
+      Alert.alert('Success', 'Your demo account has been converted! All your data has been saved.');
+      setConvertModalVisible(false);
+      setConvertEmail('');
+      setConvertPassword('');
+    } catch (error: any) {
+      console.error('Error converting account:', error);
+      Alert.alert('Error', error.message || 'Failed to convert account. Please try again.');
+    } finally {
+      setConverting(false);
+    }
+  };
+
+  const handleConvertWithGoogle = async () => {
+    setConverting(true);
+
+    try {
+      await linkAccountWithGoogle();
+      Alert.alert('Success', 'Your demo account has been converted with Google! All your data has been saved.');
+      setConvertModalVisible(false);
+    } catch (error: any) {
+      console.error('Error converting account with Google:', error);
+      Alert.alert('Error', error.message || 'Failed to convert account. Please try again.');
+    } finally {
+      setConverting(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -154,9 +203,21 @@ export const SettingsScreen: React.FC = () => {
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
               <Text style={styles.settingLabel}>Email</Text>
-              <Text style={styles.settingValue}>{user?.email || 'Guest User'}</Text>
+              <Text style={styles.settingValue}>{user?.email || 'Guest User (Demo Mode)'}</Text>
             </View>
           </View>
+
+          {/* Convert Demo Account Button (only for anonymous users) */}
+          {user?.isAnonymous && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.convertButton]}
+              onPress={() => setConvertModalVisible(true)}
+            >
+              <Text style={[styles.actionButtonText, styles.convertButtonText]}>
+                Convert Demo Account
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Notifications Section */}
@@ -237,6 +298,93 @@ export const SettingsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Convert Account Modal */}
+      <Modal
+        visible={convertModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setConvertModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Convert Demo Account</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setConvertModalVisible(false);
+                  setConvertEmail('');
+                  setConvertPassword('');
+                }}
+                style={styles.modalCloseButton}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalDescription}>
+              Create an account to save your demo data permanently. You'll be able to sign in on any device!
+            </Text>
+
+            <View style={styles.modalInputGroup}>
+              <Text style={styles.modalLabel}>Email</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="your@email.com"
+                placeholderTextColor={brandColors.textGray}
+                value={convertEmail}
+                onChangeText={setConvertEmail}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                textContentType="emailAddress"
+                editable={!converting}
+              />
+            </View>
+
+            <View style={styles.modalInputGroup}>
+              <Text style={styles.modalLabel}>Password</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="At least 6 characters"
+                placeholderTextColor={brandColors.textGray}
+                value={convertPassword}
+                onChangeText={setConvertPassword}
+                secureTextEntry
+                textContentType="newPassword"
+                editable={!converting}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.modalButton, converting && styles.buttonDisabled]}
+              onPress={handleConvertAccount}
+              disabled={converting}
+            >
+              <Text style={styles.modalButtonText}>
+                {converting ? 'Converting...' : 'Convert with Email'}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.modalDivider}>
+              <View style={styles.modalDividerLine} />
+              <Text style={styles.modalDividerText}>OR</Text>
+              <View style={styles.modalDividerLine} />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.modalButton, styles.modalGoogleButton, converting && styles.buttonDisabled]}
+              onPress={handleConvertWithGoogle}
+              disabled={converting}
+            >
+              <Icon name="google" size={20} color={brandColors.textDark} style={{ marginRight: 8 }} />
+              <Text style={styles.modalButtonText}>
+                Convert with Google
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -338,5 +486,103 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: brandColors.backgroundOffWhite,
+  },
+  convertButton: {
+    backgroundColor: brandColors.green,
+    borderWidth: 0,
+  },
+  convertButtonText: {
+    color: brandColors.white,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: brandColors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: brandColors.textDark,
+  },
+  modalCloseButton: {
+    padding: 8,
+  },
+  modalCloseText: {
+    fontSize: 24,
+    color: brandColors.textGray,
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: brandColors.textGray,
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  modalInputGroup: {
+    marginBottom: 16,
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: brandColors.textDark,
+    marginBottom: 8,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: brandColors.lightGray,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: brandColors.textDark,
+    backgroundColor: brandColors.white,
+  },
+  modalButton: {
+    flexDirection: 'row',
+    backgroundColor: brandColors.primaryBlue,
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  modalButtonText: {
+    color: brandColors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  modalDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: brandColors.lightGray,
+  },
+  modalDividerText: {
+    marginHorizontal: 16,
+    color: brandColors.textGray,
+    fontSize: 14,
+  },
+  modalGoogleButton: {
+    backgroundColor: brandColors.white,
+    borderWidth: 1,
+    borderColor: brandColors.lightGray,
   },
 });
