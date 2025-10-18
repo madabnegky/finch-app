@@ -6,6 +6,11 @@ export type RootStackParamList = {
   Welcome: undefined;
   Setup: undefined;
   Dashboard: undefined;
+  Transactions: undefined;
+  Calendar: undefined;
+  Reports: undefined;
+  Budget: undefined;
+  Settings: undefined;
 };
 
 export type NavigationProp = NativeStackNavigationProp<RootStackParamList>;

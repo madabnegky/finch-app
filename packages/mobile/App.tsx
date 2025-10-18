@@ -6,7 +6,7 @@ import { AuthProvider } from '../shared-logic/src/hooks/useAuth';
 
 // Import our screens
 import { SplashScreen } from './src/screens/SplashScreen';
-import { WelcomeScreen } from './src/screens/WelcomeScreen';
+import { AuthScreen } from './src/screens/AuthScreen';
 import { SetupWizardScreen } from './src/screens/SetupWizardScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { TransactionsScreen } from './src/screens/TransactionsScreen';
@@ -38,26 +38,31 @@ function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator
+        initialRouteName={user ? 'Dashboard' : 'Auth'}
         screenOptions={{
-          headerShown: false, // This hides the header bar at the top
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: '#4F46E5', // primaryBlue
+          },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
         }}>
         {!user ? (
-          // Not authenticated - show splash and welcome screens
-          <>
-            <Stack.Screen name="Splash" component={SplashScreen} />
-            <Stack.Screen name="Welcome" component={WelcomeScreen} />
-          </>
+          // Not authenticated - show auth screen
+          <Stack.Screen name="Auth" component={AuthScreen} options={{ headerShown: false }} />
         ) : (
-          // Authenticated - show all screens as stack
+          // Authenticated - show all screens as stack, Dashboard first
           <>
-            <Stack.Screen name="Setup" component={SetupWizardScreen} />
-            <Stack.Screen name="Dashboard" options={{ title: 'Finch' }}>
+            <Stack.Screen name="Dashboard" options={{ title: 'Finch', headerShown: false }}>
               {() => (
                 <AccountSetupGate>
                   <DashboardScreen />
                 </AccountSetupGate>
               )}
             </Stack.Screen>
+            <Stack.Screen name="Setup" component={SetupWizardScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Transactions" component={TransactionsScreen} options={{ title: 'Transactions' }} />
             <Stack.Screen name="Calendar" component={CalendarScreen} options={{ title: 'Calendar' }} />
             <Stack.Screen name="Reports" component={ReportsScreen} options={{ title: 'Reports' }} />

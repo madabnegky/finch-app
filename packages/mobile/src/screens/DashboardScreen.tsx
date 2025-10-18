@@ -1,5 +1,5 @@
 // packages/mobile/src/screens/DashboardScreen.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
@@ -9,6 +9,7 @@ import { AddGoalModal } from '../components/AddGoalModal';
 import { ManageAccountModal } from '../components/ManageAccountModal';
 import { TransferModal } from '../components/TransferModal';
 import { WhatIfModal } from '../components/WhatIfModal';
+import { generateTransactionInstances } from '../utils/transactionInstances';
 
 const brandColors = {
   primaryBlue: '#4F46E5',
@@ -87,10 +88,9 @@ export const DashboardScreen = () => {
         setLoading(false);
       });
 
+    // Fetch ALL transactions (for accurate instance generation)
     const unsubscribeTransactions = firestore()
       .collection(`users/${user.uid}/transactions`)
-      .orderBy('createdAt', 'desc')
-      .limit(10)
       .onSnapshot((snapshot) => {
         const transactionsData = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -127,91 +127,69 @@ export const DashboardScreen = () => {
     }
   };
 
-  // Calculate 60-day outlook
-  const calculate60DayOutlook = () => {
+  // Generate all transaction instances for 60 days
+  const allInstances = useMemo(() => {
+    return generateTransactionInstances(transactions, 60);
+  }, [transactions]);
+
+  // Calculate 60-day outlook using generated instances
+  const outlook = useMemo(() => {
     const currentBalance = accounts.reduce((sum, acc) => sum + acc.currentBalance, 0);
 
-    console.log('Dashboard - Calculating outlook with:', {
-      accountsCount: accounts.length,
-      transactionsCount: transactions.length,
-      currentBalance
+    if (allInstances.length === 0 || accounts.length === 0) {
+      return {
+        currentBalance,
+        projectedLow: currentBalance,
+        projectedHigh: currentBalance,
+      };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(today);
+    endDate.setDate(today.getDate() + 60);
+
+    // Filter to future instances only
+    const futureInstances = allInstances.filter(inst => {
+      const instDate = inst.date instanceof Date ? inst.date : new Date(inst.date);
+      return instDate >= today && instDate <= endDate;
     });
-
-    if (transactions.length === 0 || accounts.length === 0) {
-      return {
-        currentBalance,
-        projectedLow: currentBalance,
-        projectedHigh: currentBalance,
-      };
-    }
-
-    // Simple projection: calculate based on recurring transactions over 60 days
-    const recurringTransactions = transactions.filter(t => t.isRecurring);
-
-    console.log('Dashboard - Recurring transactions:', recurringTransactions.length);
-
-    if (recurringTransactions.length === 0) {
-      return {
-        currentBalance,
-        projectedLow: currentBalance,
-        projectedHigh: currentBalance,
-      };
-    }
 
     let projectedLow = currentBalance;
     let projectedHigh = currentBalance;
     let runningBalance = currentBalance;
 
-    // Calculate monthly income and expenses
-    let monthlyIncome = 0;
-    let monthlyExpenses = 0;
-
-    recurringTransactions.forEach(transaction => {
-      const amount = Math.abs(transaction.amount);
-      let monthlyAmount = 0;
-
-      // Convert to monthly based on frequency
-      switch (transaction.frequency) {
-        case 'weekly':
-          monthlyAmount = amount * 4.33; // ~4.33 weeks per month
-          break;
-        case 'biweekly':
-          monthlyAmount = amount * 2.17; // ~2.17 biweeks per month
-          break;
-        case 'monthly':
-        default:
-          monthlyAmount = amount;
-          break;
+    // Group instances by date
+    const instancesByDate = new Map<string, typeof allInstances>();
+    futureInstances.forEach(inst => {
+      const instDate = inst.date instanceof Date ? inst.date : new Date(inst.date);
+      const dateKey = instDate.toISOString().split('T')[0];
+      if (!instancesByDate.has(dateKey)) {
+        instancesByDate.set(dateKey, []);
       }
-
-      if (transaction.type === 'income') {
-        monthlyIncome += monthlyAmount;
-      } else {
-        monthlyExpenses += monthlyAmount;
-      }
+      instancesByDate.get(dateKey)!.push(inst);
     });
 
-    const monthlyNet = monthlyIncome - monthlyExpenses;
-    const dailyNet = monthlyNet / 30;
+    // Project day by day
+    for (let day = 0; day <= 60; day++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + day);
+      const dateKey = date.toISOString().split('T')[0];
 
-    // Project for 60 days
-    for (let day = 1; day <= 60; day++) {
+      const dayInstances = instancesByDate.get(dateKey) || [];
+      const dailyNet = dayInstances.reduce((sum, inst) => sum + inst.amount, 0);
       runningBalance += dailyNet;
 
       if (runningBalance < projectedLow) projectedLow = runningBalance;
       if (runningBalance > projectedHigh) projectedHigh = runningBalance;
     }
 
-    console.log('Dashboard - Outlook calculated:', { currentBalance, projectedLow, projectedHigh });
-
     return {
       currentBalance,
       projectedLow,
       projectedHigh,
     };
-  };
-
-  const outlook = calculate60DayOutlook();
+  }, [accounts, allInstances]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -231,7 +209,7 @@ export const DashboardScreen = () => {
 
   return (
     <ScrollView style={styles.container}>
-      {/* Navigation Buttons - MOVED TO TOP */}
+      {/* Navigation Buttons */}
       <View style={styles.navContainer}>
         <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Transactions' as never)}>
           <Text style={styles.navButtonText}>💳 Transactions</Text>
@@ -252,29 +230,10 @@ export const DashboardScreen = () => {
 
       {/* Welcome Message */}
       <View style={styles.welcomeContainer}>
-        <Text style={styles.welcomeText}>*** UPDATED CODE *** Welcome to Finch</Text>
+        <Text style={styles.welcomeText}>Welcome to Finch</Text>
         <Text style={styles.welcomeSubtext}>
           {user?.isAnonymous ? 'Guest Mode' : 'Manage your finances with ease'}
         </Text>
-      </View>
-
-      {/* OLD Navigation Buttons Section - REMOVED */}
-      <View style={styles.navContainer}>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Transactions' as never)}>
-          <Text style={styles.navButtonText}>💳 Transactions</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Calendar' as never)}>
-          <Text style={styles.navButtonText}>📅 Calendar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Reports' as never)}>
-          <Text style={styles.navButtonText}>📊 Reports</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Budget' as never)}>
-          <Text style={styles.navButtonText}>💰 Budget</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Settings' as never)}>
-          <Text style={styles.navButtonText}>⚙️ Settings</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Guest Mode Upgrade Prompt - Moved to top */}
@@ -445,22 +404,32 @@ export const DashboardScreen = () => {
       {transactions.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Activity</Text>
-          {transactions.map((transaction) => (
-            <View key={transaction.id} style={styles.transactionItem}>
-              <View style={styles.transactionLeft}>
-                <Text style={styles.transactionName}>{transaction.name}</Text>
-                {transaction.category && (
-                  <Text style={styles.transactionCategory}>{transaction.category}</Text>
-                )}
+          {transactions.slice(0, 10).map((transaction) => {
+            const txnDate = transaction.date instanceof Date
+              ? transaction.date
+              : (transaction.date?.toDate ? transaction.date.toDate() : new Date(transaction.date));
+            return (
+              <View key={transaction.id} style={styles.transactionItem}>
+                <View style={styles.transactionLeft}>
+                  <Text style={styles.transactionName}>{transaction.description || transaction.name || 'Unnamed'}</Text>
+                  <View style={styles.transactionMeta}>
+                    {transaction.category && (
+                      <Text style={styles.transactionCategory}>{transaction.category}</Text>
+                    )}
+                    <Text style={styles.transactionDate}>
+                      {txnDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={[
+                  styles.transactionAmount,
+                  transaction.type === 'income' ? styles.incomeAmount : styles.expenseAmount
+                ]}>
+                  {transaction.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(transaction.amount))}
+                </Text>
               </View>
-              <Text style={[
-                styles.transactionAmount,
-                transaction.type === 'income' ? styles.incomeAmount : styles.expenseAmount
-              ]}>
-                {transaction.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(transaction.amount))}
-              </Text>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
 
@@ -738,7 +707,16 @@ const styles = StyleSheet.create({
     color: brandColors.textDark,
     marginBottom: 4,
   },
+  transactionMeta: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
   transactionCategory: {
+    fontSize: 12,
+    color: brandColors.textGray,
+  },
+  transactionDate: {
     fontSize: 12,
     color: brandColors.textGray,
   },

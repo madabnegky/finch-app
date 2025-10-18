@@ -70,17 +70,30 @@ export const BudgetScreen: React.FC = () => {
 
     const unsubscribe = firestore()
       .collection(`users/${user.uid}/budgets`)
-      .onSnapshot((snapshot) => {
-        const budgetData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          category: doc.data().category,
-          limit: doc.data().limit,
-          spent: 0,
-        }));
+      .onSnapshot(
+        (snapshot) => {
+          if (!snapshot) {
+            setBudgets([]);
+            setLoading(false);
+            return;
+          }
 
-        setBudgets(budgetData);
-        setLoading(false);
-      });
+          const budgetData = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            category: doc.data().category,
+            limit: doc.data().limit,
+            spent: 0,
+          }));
+
+          setBudgets(budgetData);
+          setLoading(false);
+        },
+        (error) => {
+          console.error('Error fetching budgets:', error);
+          setBudgets([]);
+          setLoading(false);
+        }
+      );
 
     return () => unsubscribe();
   }, [user]);
@@ -98,22 +111,31 @@ export const BudgetScreen: React.FC = () => {
       .where('type', '==', 'expense')
       .where('date', '>=', firestore.Timestamp.fromDate(startOfMonth))
       .where('date', '<=', firestore.Timestamp.fromDate(endOfMonth))
-      .onSnapshot((snapshot) => {
-        const transactions = snapshot.docs.map((doc) => doc.data()) as Transaction[];
+      .onSnapshot(
+        (snapshot) => {
+          if (!snapshot) {
+            return;
+          }
 
-        const categorySpending: { [key: string]: number } = {};
-        transactions.forEach((txn) => {
-          const category = txn.category || 'Uncategorized';
-          categorySpending[category] = (categorySpending[category] || 0) + txn.amount;
-        });
+          const transactions = snapshot.docs.map((doc) => doc.data()) as Transaction[];
 
-        setBudgets((prevBudgets) =>
-          prevBudgets.map((budget) => ({
-            ...budget,
-            spent: categorySpending[budget.category] || 0,
-          }))
-        );
-      });
+          const categorySpending: { [key: string]: number } = {};
+          transactions.forEach((txn) => {
+            const category = txn.category || 'Uncategorized';
+            categorySpending[category] = (categorySpending[category] || 0) + txn.amount;
+          });
+
+          setBudgets((prevBudgets) =>
+            prevBudgets.map((budget) => ({
+              ...budget,
+              spent: categorySpending[budget.category] || 0,
+            }))
+          );
+        },
+        (error) => {
+          console.error('Error fetching transactions for budget:', error);
+        }
+      );
 
     return () => unsubscribe();
   }, [user, budgets.length]);
