@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
+import { getInstancesInRange } from '../utils/transactionInstances';
 
 const brandColors = {
   primaryBlue: '#4F46E5',
@@ -27,45 +28,223 @@ type Transaction = {
   amount: number;
   type: 'income' | 'expense';
   date: any;
+  accountId?: string;
+};
+
+type Account = {
+  id: string;
+  name: string;
+  currentBalance: number;
+  cushion: number;
 };
 
 export const CalendarScreen: React.FC = () => {
   const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [rawTransactions, setRawTransactions] = useState<Transaction[]>([]); // Series + one-time
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+
+  // Generate instances for the current month view + all past transactions
+  // We need past transactions for accurate balance calculations
+  const transactions = useMemo(() => {
+    const startOfMonth = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), 1));
+    const endOfMonth = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth() + 1, 0));
+
+    console.log(`[CALENDAR] currentDate: ${currentDate.toISOString()}, startOfMonth: ${startOfMonth.toISOString()}, endOfMonth: ${endOfMonth.toISOString()}`);
+
+    // For balance calculations, we need all instances from way in the past to end of current month
+    // Generate instances for 2 years back to cover all possible past transactions
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+
+    console.log(`[CALENDAR] Calling getInstancesInRange with twoYearsAgo: ${twoYearsAgo.toISOString()}, endOfMonth: ${endOfMonth.toISOString()}`);
+    const instances = getInstancesInRange(rawTransactions, twoYearsAgo, endOfMonth);
+    console.log(`[CALENDAR] Generated ${instances.length} instances from ${rawTransactions.length} raw transactions`);
+    const testRentInstances = instances.filter(i => (i.description || '').toLowerCase().includes('rent'));
+    console.log(`  - TestRent instances: ${testRentInstances.length}`);
+    testRentInstances.forEach(i => console.log(`    - Date: ${i.date}, amount: ${i.amount}, accountId: ${i.accountId}`));
+    return instances;
+  }, [rawTransactions, currentDate]);
 
   useEffect(() => {
     if (!user) return;
 
-    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    setLoading(true);
 
-    const unsubscribe = firestore()
+    // Fetch accounts
+    const unsubscribeAccounts = firestore()
+      .collection(`users/${user.uid}/accounts`)
+      .onSnapshot(
+        (snapshot) => {
+          if (!snapshot) {
+            setAccounts([]);
+            return;
+          }
+
+          const accts = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            name: doc.data().name || 'Unnamed Account',
+            currentBalance: doc.data().currentBalance || 0,
+            cushion: doc.data().cushion || 0,
+          })) as Account[];
+          setAccounts(accts);
+        },
+        (error) => {
+          console.error('Error fetching accounts:', error);
+          setAccounts([]);
+        }
+      );
+
+    // Fetch ALL transactions (series + one-time), not just current month
+    // Instance generation will handle filtering by date
+    const unsubscribeTransactions = firestore()
       .collection(`users/${user.uid}/transactions`)
-      .where('date', '>=', firestore.Timestamp.fromDate(startOfMonth))
-      .where('date', '<=', firestore.Timestamp.fromDate(endOfMonth))
-      .onSnapshot((snapshot) => {
-        const txns = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Transaction[];
+      .onSnapshot(
+        (snapshot) => {
+          if (!snapshot) {
+            setRawTransactions([]);
+            setLoading(false);
+            return;
+          }
 
-        setTransactions(txns);
-        setLoading(false);
+          const txns = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Transaction[];
+
+          console.log(`[CALENDAR] Loaded ${txns.length} raw transactions from Firestore`);
+          txns.forEach(t => console.log(`  - ${t.description || 'no desc'}, amount: ${t.amount}, accountId: ${t.accountId}, isRecurring: ${t.isRecurring}`));
+          setRawTransactions(txns);
+          setLoading(false);
+        },
+        (error) => {
+          console.error('Error fetching transactions:', error);
+          setRawTransactions([]);
+          setLoading(false);
+        }
+      );
+
+    return () => {
+      unsubscribeAccounts();
+      unsubscribeTransactions();
+    };
+  }, [user]);
+
+  // Generate projections for the current month (mimicking Cloud Function logic)
+  const monthProjections = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const startOfMonth = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), 1));
+    const endOfMonth = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth() + 1, 0));
+
+    // Filter accounts based on selection
+    const relevantAccounts = selectedAccountId === 'all'
+      ? accounts
+      : accounts.filter(acc => acc.id === selectedAccountId);
+
+    // Calculate starting balance for each account (current balance is already the "starting" balance)
+    // We need to add all PAST instances (before start of month) to get the balance at start of month
+    const accountProjections = relevantAccounts.map(account => {
+      // Start with account's current balance
+      let startingBalance = account.currentBalance;
+
+      // Get all past instances for this account (before start of month)
+      const pastInstances = transactions.filter(inst => {
+        const instDate = inst.date instanceof Date ? inst.date : new Date(inst.date);
+        return inst.accountId === account.id && instDate < startOfMonth;
       });
 
-    return () => unsubscribe();
-  }, [user, currentDate]);
+      // Add past transactions to starting balance
+      startingBalance += pastInstances.reduce((sum, inst) => sum + inst.amount, 0);
+
+      // Group future instances by date for this account
+      const futureInstancesByDate = new Map();
+      console.log(`[PROJECTION] Filtering ${transactions.length} transactions for account ${account.id}, startOfMonth: ${startOfMonth.toISOString()}, endOfMonth: ${endOfMonth.toISOString()}`);
+      transactions.forEach(inst => {
+        const instDate = inst.date instanceof Date ? inst.date : new Date(inst.date);
+        const matchesAccount = inst.accountId === account.id;
+        const afterStart = instDate >= startOfMonth;
+        const beforeEnd = instDate <= endOfMonth;
+
+        if ((inst.description || '').toLowerCase().includes('rent')) {
+          console.log(`[PROJECTION] TestRent check: instDate=${instDate.toISOString()}, accountId=${inst.accountId}, matchesAccount=${matchesAccount}, afterStart=${afterStart}, beforeEnd=${beforeEnd}`);
+        }
+
+        if (matchesAccount && afterStart && beforeEnd) {
+          const dateKey = instDate.toISOString().split('T')[0];
+          console.log(`[PROJECTION] Adding to futureInstancesByDate: ${inst.description || inst.name}, dateKey=${dateKey}, amount=${inst.amount}, accountId=${inst.accountId}`);
+          if (!futureInstancesByDate.has(dateKey)) {
+            futureInstancesByDate.set(dateKey, []);
+          }
+          futureInstancesByDate.get(dateKey).push(inst);
+        }
+      });
+
+      // Build day-by-day projections with running balance
+      const projections = [];
+      let currentBalance = startingBalance;
+
+      for (let day = 1; day <= endOfMonth.getUTCDate(); day++) {
+        const date = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), day));
+        const dateKey = date.toISOString().split('T')[0];
+
+        const transactionsToday = futureInstancesByDate.get(dateKey) || [];
+        if (transactionsToday.length > 0) {
+          console.log(`[PROJECTION] Day ${day} (${dateKey}): ${transactionsToday.length} transactions`);
+          transactionsToday.forEach(t => console.log(`  - ${t.description || t.name}: ${t.amount}`));
+        }
+        const dailyNet = transactionsToday.reduce((sum, t) => sum + t.amount, 0);
+        currentBalance += dailyNet;
+
+        projections.push({
+          date,
+          balance: currentBalance,
+          transactions: transactionsToday,
+        });
+      }
+
+      return { accountId: account.id, projections };
+    });
+
+    // Aggregate projections across all accounts by date
+    const dailyTotals = new Map();
+    accountProjections.forEach(({ accountId, projections: accountProj }) => {
+      accountProj.forEach(dayProj => {
+        const dateKey = dayProj.date.toISOString().split('T')[0];
+
+        if (!dailyTotals.has(dateKey)) {
+          dailyTotals.set(dateKey, {
+            date: dayProj.date,
+            totalBalance: 0,
+            transactionsToday: [],
+          });
+        }
+        dailyTotals.get(dateKey).totalBalance += dayProj.balance;
+
+        // Add transactions without duplicates
+        const existing = new Set(dailyTotals.get(dateKey).transactionsToday.map(t => t.id || t.instanceId));
+        dayProj.transactions.forEach(t => {
+          if (!existing.has(t.id || t.instanceId)) {
+            dailyTotals.get(dateKey).transactionsToday.push(t);
+          }
+        });
+      });
+    });
+
+    return dailyTotals;
+  }, [accounts, transactions, currentDate, selectedAccountId]);
 
   const getDaysInMonth = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startDayOfWeek = firstDay.getDay();
+    const firstDay = new Date(Date.UTC(year, month, 1));
+    const lastDay = new Date(Date.UTC(year, month + 1, 0));
+    const daysInMonth = lastDay.getUTCDate();
+    const startDayOfWeek = firstDay.getUTCDay();
 
     const days: (Date | null)[] = [];
 
@@ -76,21 +255,42 @@ export const CalendarScreen: React.FC = () => {
 
     // Add all days in month
     for (let day = 1; day <= daysInMonth; day++) {
-      days.push(new Date(year, month, day));
+      days.push(new Date(Date.UTC(year, month, day)));
     }
 
     return days;
   };
 
   const getTransactionsForDate = (date: Date) => {
-    return transactions.filter((txn) => {
-      const txnDate = txn.date.toDate ? txn.date.toDate() : new Date(txn.date);
-      return (
-        txnDate.getDate() === date.getDate() &&
-        txnDate.getMonth() === date.getMonth() &&
-        txnDate.getFullYear() === date.getFullYear()
-      );
-    });
+    const dateKey = date.toISOString().split('T')[0];
+    const projection = monthProjections.get(dateKey);
+    return projection?.transactionsToday || [];
+  };
+
+  // Calculate available balance for a specific date
+  const calculateAvailableBalance = (targetDate: Date) => {
+    const dateKey = targetDate.toISOString().split('T')[0];
+    const projection = monthProjections.get(dateKey);
+
+    if (!projection) {
+      return {
+        projectedBalance: 0,
+        availableToSpend: 0,
+        totalCushion: 0,
+      };
+    }
+
+    const relevantAccounts = selectedAccountId === 'all'
+      ? accounts
+      : accounts.filter(acc => acc.id === selectedAccountId);
+
+    const totalCushion = relevantAccounts.reduce((sum, acc) => sum + acc.cushion, 0);
+
+    return {
+      projectedBalance: projection.totalBalance,
+      availableToSpend: projection.totalBalance - totalCushion,
+      totalCushion,
+    };
   };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
@@ -108,15 +308,17 @@ export const CalendarScreen: React.FC = () => {
     }
 
     const dayTransactions = getTransactionsForDate(date);
-    const hasTransactions = dayTransactions.length > 0;
+    const hasIncome = dayTransactions.some(t => t.amount > 0);
+    const hasExpenses = dayTransactions.some(t => t.amount < 0);
     const isSelected =
       selectedDate &&
-      selectedDate.getDate() === date.getDate() &&
-      selectedDate.getMonth() === date.getMonth();
+      selectedDate.getUTCDate() === date.getUTCDate() &&
+      selectedDate.getUTCMonth() === date.getUTCMonth();
+    const today = new Date();
     const isToday =
-      new Date().getDate() === date.getDate() &&
-      new Date().getMonth() === date.getMonth() &&
-      new Date().getFullYear() === date.getFullYear();
+      today.getUTCDate() === date.getUTCDate() &&
+      today.getUTCMonth() === date.getUTCMonth() &&
+      today.getUTCFullYear() === date.getUTCFullYear();
 
     return (
       <TouchableOpacity
@@ -135,11 +337,12 @@ export const CalendarScreen: React.FC = () => {
             isToday && styles.todayText,
           ]}
         >
-          {date.getDate()}
+          {date.getUTCDate()}
         </Text>
-        {hasTransactions && (
+        {(hasIncome || hasExpenses) && (
           <View style={styles.transactionIndicator}>
-            <View style={styles.indicatorDot} />
+            {hasIncome && <View style={[styles.indicatorDot, styles.incomeDot]} />}
+            {hasExpenses && <View style={[styles.indicatorDot, styles.expenseDot]} />}
           </View>
         )}
       </TouchableOpacity>
@@ -150,10 +353,47 @@ export const CalendarScreen: React.FC = () => {
     ? getTransactionsForDate(selectedDate)
     : [];
 
+  const selectedDateBalance = selectedDate
+    ? calculateAvailableBalance(selectedDate)
+    : null;
+
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Calendar</Text>
+      </View>
+
+      {/* Account Filter */}
+      <View style={styles.accountFilterContainer}>
+        <Text style={styles.filterLabel}>Account:</Text>
+        <View style={styles.scrollWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={true}
+            style={styles.accountScroll}
+            contentContainerStyle={styles.scrollContent}
+          >
+            <TouchableOpacity
+              style={[styles.accountChip, selectedAccountId === 'all' && styles.accountChipActive]}
+              onPress={() => setSelectedAccountId('all')}
+            >
+              <Text style={[styles.accountChipText, selectedAccountId === 'all' && styles.accountChipTextActive]}>
+                All Accounts
+              </Text>
+            </TouchableOpacity>
+            {accounts.map((account) => (
+              <TouchableOpacity
+                key={account.id}
+                style={[styles.accountChip, selectedAccountId === account.id && styles.accountChipActive]}
+                onPress={() => setSelectedAccountId(account.id)}
+              >
+                <Text style={[styles.accountChipText, selectedAccountId === account.id && styles.accountChipTextActive]}>
+                  {account.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
       </View>
 
       {/* Month Navigation */}
@@ -199,20 +439,51 @@ export const CalendarScreen: React.FC = () => {
               year: 'numeric',
             })}
           </Text>
+
+          {/* Daily Balance Summary */}
+          {selectedDateBalance && (
+            <View style={styles.balanceSummary}>
+              <View style={styles.balanceRow}>
+                <Text style={styles.balanceLabel}>Projected Balance:</Text>
+                <Text style={styles.balanceValue}>
+                  ${selectedDateBalance.projectedBalance.toFixed(2)}
+                </Text>
+              </View>
+              <View style={styles.balanceRow}>
+                <Text style={styles.balanceLabel}>Cushion:</Text>
+                <Text style={styles.balanceValue}>
+                  ${selectedDateBalance.totalCushion.toFixed(2)}
+                </Text>
+              </View>
+              <View style={[styles.balanceRow, styles.availableRow]}>
+                <Text style={styles.availableLabel}>Available to Spend:</Text>
+                <Text
+                  style={[
+                    styles.availableValue,
+                    selectedDateBalance.availableToSpend < 0 && styles.negativeBalance,
+                  ]}
+                >
+                  ${selectedDateBalance.availableToSpend.toFixed(2)}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          <Text style={styles.transactionsSectionTitle}>Transactions</Text>
           <ScrollView style={styles.transactionsList}>
             {selectedDateTransactions.length === 0 ? (
               <Text style={styles.noTransactions}>No transactions on this date</Text>
             ) : (
               selectedDateTransactions.map((txn) => (
-                <View key={txn.id} style={styles.transactionItem}>
-                  <Text style={styles.transactionName}>{txn.name}</Text>
+                <View key={txn.id || txn.instanceId} style={styles.transactionItem}>
+                  <Text style={styles.transactionName}>{txn.description || txn.name || 'Unnamed'}</Text>
                   <Text
                     style={[
                       styles.transactionAmount,
                       txn.type === 'income' ? styles.incomeAmount : styles.expenseAmount,
                     ]}
                   >
-                    {txn.type === 'income' ? '+' : '-'}${txn.amount.toFixed(2)}
+                    {txn.type === 'income' ? '+' : '-'}${Math.abs(txn.amount).toFixed(2)}
                   </Text>
                 </View>
               ))
@@ -220,7 +491,7 @@ export const CalendarScreen: React.FC = () => {
           </ScrollView>
         </View>
       )}
-    </View>
+    </ScrollView>
   );
 };
 
@@ -233,8 +504,52 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 60,
     backgroundColor: brandColors.white,
+  },
+  accountFilterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: brandColors.white,
     borderBottomWidth: 1,
     borderBottomColor: brandColors.lightGray,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: brandColors.textDark,
+    marginRight: 12,
+    minWidth: 70,
+  },
+  scrollWrapper: {
+    flex: 1,
+  },
+  accountScroll: {
+    flexGrow: 0,
+  },
+  scrollContent: {
+    paddingRight: 16,
+  },
+  accountChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: brandColors.backgroundOffWhite,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: brandColors.lightGray,
+  },
+  accountChipActive: {
+    backgroundColor: brandColors.primaryBlue,
+    borderColor: brandColors.primaryBlue,
+  },
+  accountChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: brandColors.textDark,
+  },
+  accountChipTextActive: {
+    color: brandColors.white,
   },
   title: {
     fontSize: 28,
@@ -312,12 +627,19 @@ const styles = StyleSheet.create({
   transactionIndicator: {
     position: 'absolute',
     bottom: 4,
+    flexDirection: 'row',
+    gap: 2,
   },
   indicatorDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
+  },
+  incomeDot: {
     backgroundColor: brandColors.green,
+  },
+  expenseDot: {
+    backgroundColor: brandColors.red,
   },
   loadingContainer: {
     flex: 1,
@@ -333,6 +655,55 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: brandColors.textDark,
     marginBottom: 12,
+  },
+  balanceSummary: {
+    backgroundColor: brandColors.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: brandColors.lightGray,
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  balanceLabel: {
+    fontSize: 14,
+    color: brandColors.textGray,
+  },
+  balanceValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: brandColors.textDark,
+  },
+  availableRow: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: brandColors.lightGray,
+    marginBottom: 0,
+  },
+  availableLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: brandColors.textDark,
+  },
+  availableValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: brandColors.green,
+  },
+  negativeBalance: {
+    color: brandColors.red,
+  },
+  transactionsSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: brandColors.textGray,
+    marginBottom: 8,
+    textTransform: 'uppercase',
   },
   transactionsList: {
     flex: 1,

@@ -57,13 +57,17 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 }) => {
   const { user } = useAuth();
   const [type, setType] = useState<'income' | 'expense'>('expense');
-  const [description, setDescription] = useState('');
+  const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('Uncategorized');
   const [isRecurring, setIsRecurring] = useState(false);
   const [frequency, setFrequency] = useState<'weekly' | 'biweekly' | 'monthly'>('monthly');
-  const [dayOfMonth, setDayOfMonth] = useState('1');
   const [nextDate, setNextDate] = useState('');
+  const [transactionDate, setTransactionDate] = useState(() => {
+    // Initialize with today's date in YYYY-MM-DD format in UTC
+    const today = new Date();
+    return `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, '0')}-${String(today.getUTCDate()).padStart(2, '0')}`;
+  });
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [saving, setSaving] = useState(false);
@@ -91,8 +95,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   }, [user, visible]);
 
   const handleSave = async () => {
-    if (!description.trim()) {
-      Alert.alert('Required', 'Please enter a description');
+    if (!name.trim()) {
+      Alert.alert('Required', 'Please enter a transaction name');
       return;
     }
 
@@ -107,19 +111,16 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       return;
     }
 
-    // Validate recurring transaction fields
+    // Validate date fields
     if (isRecurring) {
-      if (frequency === 'monthly') {
-        const day = parseInt(dayOfMonth);
-        if (!day || day < 1 || day > 31) {
-          Alert.alert('Invalid Input', 'Please enter a day between 1 and 31');
-          return;
-        }
-      } else {
-        if (!nextDate.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
-          Alert.alert('Invalid Date', 'Please enter a valid date in YYYY-MM-DD format');
-          return;
-        }
+      if (!nextDate.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
+        Alert.alert('Invalid Date', 'Please enter a valid date in YYYY-MM-DD format');
+        return;
+      }
+    } else {
+      if (!transactionDate.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(transactionDate)) {
+        Alert.alert('Invalid Date', 'Please enter a valid date in YYYY-MM-DD format');
+        return;
       }
     }
 
@@ -127,12 +128,11 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setSaving(true);
 
       const transactionData: any = {
-        name: description.trim(),
-        description: description.trim(),
-        amount: parseFloat(amount),
+        description: name.trim(),
+        amount: type === 'expense' ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount)),
         type,
         ...(type === 'expense' && { category }),
-        date: firestore.Timestamp.now(),
+        date: isRecurring ? nextDate : transactionDate,
         isRecurring,
         createdAt: firestore.FieldValue.serverTimestamp(),
       };
@@ -142,14 +142,12 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         transactionData.accountId = selectedAccountId;
       }
 
-      // Add recurring fields
+      // Add recurring fields in recurringDetails object (matching web app structure)
       if (isRecurring) {
-        transactionData.frequency = frequency;
-        if (frequency === 'monthly') {
-          transactionData.day = parseInt(dayOfMonth);
-        } else {
-          transactionData.nextOccurrence = nextDate;
-        }
+        transactionData.recurringDetails = {
+          frequency: frequency,
+          nextDate: nextDate,
+        };
       }
 
       await firestore()
@@ -157,13 +155,14 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         .add(transactionData);
 
       // Reset form
-      setDescription('');
+      setName('');
       setAmount('');
       setCategory('Uncategorized');
       setIsRecurring(false);
       setFrequency('monthly');
-      setDayOfMonth('1');
       setNextDate('');
+      const today = new Date();
+      setTransactionDate(`${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, '0')}-${String(today.getUTCDate()).padStart(2, '0')}`);
       setSelectedAccountId(accounts.length === 1 ? accounts[0].id : '');
       setType('expense');
 
@@ -194,7 +193,11 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.content}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             {/* Type Selector */}
             <Text style={styles.label}>Type</Text>
             <View style={styles.segmentedControl}>
@@ -232,13 +235,13 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
               </TouchableOpacity>
             </View>
 
-            {/* Description */}
-            <Text style={styles.label}>Description</Text>
+            {/* Name */}
+            <Text style={styles.label}>Transaction Name</Text>
             <TextInput
               style={styles.input}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="e.g., Grocery shopping"
+              value={name}
+              onChangeText={setName}
+              placeholder="e.g., Rent, Paycheck, Netflix"
               placeholderTextColor={brandColors.textGray}
             />
 
@@ -348,6 +351,23 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
               </View>
             </View>
 
+            {/* One-off Transaction Date */}
+            {!isRecurring && (
+              <>
+                <Text style={styles.label}>Transaction Date (YYYY-MM-DD)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={transactionDate}
+                  onChangeText={setTransactionDate}
+                  placeholder="2025-10-18"
+                  placeholderTextColor={brandColors.textGray}
+                />
+                <Text style={styles.helperText}>
+                  Example: 2025-10-18 for October 18, 2025
+                </Text>
+              </>
+            )}
+
             {/* Recurring Options */}
             {isRecurring && (
               <>
@@ -403,33 +423,17 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                   </TouchableOpacity>
                 </View>
 
-                {frequency === 'monthly' ? (
-                  <>
-                    <Text style={styles.label}>Day of Month</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={dayOfMonth}
-                      onChangeText={setDayOfMonth}
-                      placeholder="1-31"
-                      keyboardType="numeric"
-                      placeholderTextColor={brandColors.textGray}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.label}>Next Occurrence Date (YYYY-MM-DD)</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={nextDate}
-                      onChangeText={setNextDate}
-                      placeholder="2025-01-15"
-                      placeholderTextColor={brandColors.textGray}
-                    />
-                    <Text style={styles.helperText}>
-                      Example: 2025-01-15 for January 15, 2025
-                    </Text>
-                  </>
-                )}
+                <Text style={styles.label}>Next Occurrence Date (YYYY-MM-DD)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={nextDate}
+                  onChangeText={setNextDate}
+                  placeholder="2025-01-15"
+                  placeholderTextColor={brandColors.textGray}
+                />
+                <Text style={styles.helperText}>
+                  Example: 2025-01-15 for January 15, 2025
+                </Text>
               </>
             )}
           </ScrollView>
@@ -491,7 +495,11 @@ const styles = StyleSheet.create({
     color: brandColors.textGray,
   },
   content: {
-    padding: 20,
+    paddingHorizontal: 20,
+  },
+  scrollContent: {
+    paddingTop: 20,
+    paddingBottom: 40,
   },
   label: {
     fontSize: 14,
