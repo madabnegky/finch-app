@@ -176,6 +176,15 @@ export const DashboardScreen = () => {
     endDate.setDate(today.getDate() + 60);
 
     return accounts.map(account => {
+      // Calculate actual current balance by including past transactions
+      const pastInstances = allInstances.filter(inst => {
+        const instDate = inst.date instanceof Date ? inst.date : new Date(inst.date);
+        instDate.setHours(0, 0, 0, 0);
+        return inst.accountId === account.id && instDate < today;
+      });
+
+      const actualCurrentBalance = account.currentBalance + pastInstances.reduce((sum, inst) => sum + inst.amount, 0);
+
       // Get all future instances for this account
       const accountInstances = allInstances.filter(inst => {
         const instDate = inst.date instanceof Date ? inst.date : new Date(inst.date);
@@ -186,14 +195,15 @@ export const DashboardScreen = () => {
       if (accountInstances.length === 0) {
         return {
           ...account,
-          projectedBalance: account.currentBalance,
-          availableToSpend: account.currentBalance - account.cushion,
+          currentBalance: actualCurrentBalance,
+          projectedBalance: actualCurrentBalance,
+          availableToSpend: actualCurrentBalance - account.cushion,
         };
       }
 
       // Calculate lowest projected balance for this account
-      let runningBalance = account.currentBalance;
-      let lowestBalance = account.currentBalance;
+      let runningBalance = actualCurrentBalance;
+      let lowestBalance = actualCurrentBalance;
 
       // Group by date
       const instancesByDate = new Map<string, typeof allInstances>();
@@ -221,6 +231,7 @@ export const DashboardScreen = () => {
 
       return {
         ...account,
+        currentBalance: actualCurrentBalance,
         projectedBalance: lowestBalance,
         availableToSpend: lowestBalance - account.cushion,
       };
@@ -229,7 +240,8 @@ export const DashboardScreen = () => {
 
   // Calculate 60-day outlook using generated instances
   const outlook = useMemo(() => {
-    const currentBalance = accounts.reduce((sum, acc) => sum + acc.currentBalance, 0);
+    // Use the actual current balances from accountsWithProjections
+    const currentBalance = accountsWithProjections.reduce((sum, acc) => sum + acc.currentBalance, 0);
 
     if (allInstances.length === 0 || accounts.length === 0) {
       return {
@@ -287,7 +299,7 @@ export const DashboardScreen = () => {
       projectedLow,
       projectedHigh,
     };
-  }, [accounts, allInstances]);
+  }, [accountsWithProjections, allInstances]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {

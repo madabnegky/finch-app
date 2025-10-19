@@ -127,12 +127,18 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     try {
       setSaving(true);
 
+      // Convert date string to Firestore Timestamp
+      const dateString = isRecurring ? nextDate : transactionDate;
+      const [year, month, day] = dateString.split('-').map(Number);
+      const dateObj = new Date(year, month - 1, day); // month is 0-indexed
+      dateObj.setHours(0, 0, 0, 0);
+
       const transactionData: any = {
         description: name.trim(),
         amount: type === 'expense' ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount)),
         type,
         ...(type === 'expense' && { category }),
-        date: isRecurring ? nextDate : transactionDate,
+        date: firestore.Timestamp.fromDate(dateObj),
         isRecurring,
         createdAt: firestore.FieldValue.serverTimestamp(),
       };
