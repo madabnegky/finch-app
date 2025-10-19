@@ -15,17 +15,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
-
-const brandColors = {
-  primaryBlue: '#4F46E5',
-  backgroundOffWhite: '#F8F9FA',
-  textDark: '#1F2937',
-  textGray: '#6B7280',
-  white: '#FFFFFF',
-  lightGray: '#E5E7EB',
-  green: '#10B981',
-  red: '#EF4444',
-};
+import { brandColors } from '../theme/colors';
 
 type NotificationSettings = {
   upcomingBills: boolean;
@@ -185,7 +175,7 @@ export const SettingsScreen: React.FC = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={brandColors.primaryBlue} />
+        <ActivityIndicator size="large" color={brandColors.tealPrimary} />
       </View>
     );
   }
@@ -234,7 +224,7 @@ export const SettingsScreen: React.FC = () => {
             <Switch
               value={notifications.upcomingBills}
               onValueChange={() => handleToggle('upcomingBills')}
-              trackColor={{ false: brandColors.lightGray, true: brandColors.primaryBlue }}
+              trackColor={{ false: brandColors.lightGray, true: brandColors.tealPrimary }}
               thumbColor={brandColors.white}
               disabled={saving}
             />
@@ -250,7 +240,7 @@ export const SettingsScreen: React.FC = () => {
             <Switch
               value={notifications.budgetAlerts}
               onValueChange={() => handleToggle('budgetAlerts')}
-              trackColor={{ false: brandColors.lightGray, true: brandColors.primaryBlue }}
+              trackColor={{ false: brandColors.lightGray, true: brandColors.tealPrimary }}
               thumbColor={brandColors.white}
               disabled={saving}
             />
@@ -266,7 +256,7 @@ export const SettingsScreen: React.FC = () => {
             <Switch
               value={notifications.weeklyReports}
               onValueChange={() => handleToggle('weeklyReports')}
-              trackColor={{ false: brandColors.lightGray, true: brandColors.primaryBlue }}
+              trackColor={{ false: brandColors.lightGray, true: brandColors.tealPrimary }}
               thumbColor={brandColors.white}
               disabled={saving}
             />
@@ -471,7 +461,7 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: brandColors.primaryBlue,
+    color: brandColors.tealPrimary,
   },
   dangerButton: {
     backgroundColor: brandColors.white,
@@ -553,7 +543,7 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flexDirection: 'row',
-    backgroundColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
     borderRadius: 8,
     padding: 14,
     alignItems: 'center',

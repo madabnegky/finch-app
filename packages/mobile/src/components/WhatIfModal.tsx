@@ -10,16 +10,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import firestore from '@react-native-firebase/firestore';
-
-const brandColors = {
-  primaryBlue: '#4F46E5',
-  backgroundOffWhite: '#F8F9FA',
-  textDark: '#1F2937',
-  textGray: '#6B7280',
-  white: '#FFFFFF',
-  lightGray: '#E5E7EB',
-  purple: '#9333EA',
-};
+import { brandColors } from '../theme/colors';
 
 type Account = {
   id: string;

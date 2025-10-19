@@ -11,21 +11,10 @@ import {
 import { PieChart, LineChart } from 'react-native-chart-kit';
 import firestore from '@react-native-firebase/firestore';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
-
-const brandColors = {
-  primaryBlue: '#4F46E5',
-  backgroundOffWhite: '#F8F9FA',
-  textDark: '#1F2937',
-  textGray: '#6B7280',
-  white: '#FFFFFF',
-  lightGray: '#E5E7EB',
-  green: '#10B981',
-  red: '#EF4444',
-  amber: '#F59E0B',
-};
+import { brandColors } from '../theme/colors';
 
 const CATEGORY_COLORS = [
-  '#4F46E5', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
+  '#3A6B82', '#EF4444', '#10B981', '#F5A52D', '#8B5CF6',
   '#EC4899', '#14B8A6', '#F97316', '#06B6D4', '#84CC16',
 ];
 
@@ -167,7 +156,7 @@ export const ReportsScreen: React.FC = () => {
 
       datasets.push({
         data: totalData,
-        color: () => brandColors.primaryBlue,
+        color: () => brandColors.tealPrimary,
         strokeWidth: 2,
       });
     }
@@ -207,7 +196,7 @@ export const ReportsScreen: React.FC = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={brandColors.primaryBlue} />
+        <ActivityIndicator size="large" color={brandColors.tealPrimary} />
       </View>
     );
   }
@@ -231,7 +220,7 @@ export const ReportsScreen: React.FC = () => {
                 width={screenWidth - 64}
                 height={220}
                 chartConfig={{
-                  color: () => brandColors.primaryBlue,
+                  color: () => brandColors.tealPrimary,
                 }}
                 accessor="amount"
                 backgroundColor="transparent"
@@ -280,7 +269,7 @@ export const ReportsScreen: React.FC = () => {
                   backgroundGradientFrom: brandColors.white,
                   backgroundGradientTo: brandColors.white,
                   decimalPlaces: 0,
-                  color: () => brandColors.primaryBlue,
+                  color: () => brandColors.tealPrimary,
                   labelColor: () => brandColors.textGray,
                   style: {
                     borderRadius: 16,
@@ -288,7 +277,7 @@ export const ReportsScreen: React.FC = () => {
                   propsForDots: {
                     r: '4',
                     strokeWidth: '2',
-                    stroke: brandColors.primaryBlue,
+                    stroke: brandColors.tealPrimary,
                   },
                 }}
                 bezier

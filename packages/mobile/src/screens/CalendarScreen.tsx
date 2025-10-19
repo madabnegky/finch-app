@@ -10,17 +10,7 @@ import {
 import firestore from '@react-native-firebase/firestore';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import { getInstancesInRange } from '../utils/transactionInstances';
-
-const brandColors = {
-  primaryBlue: '#4F46E5',
-  backgroundOffWhite: '#F8F9FA',
-  textDark: '#1F2937',
-  textGray: '#6B7280',
-  white: '#FFFFFF',
-  lightGray: '#E5E7EB',
-  green: '#10B981',
-  red: '#EF4444',
-};
+import { brandColors } from '../theme/colors';
 
 type Transaction = {
   id: string;
@@ -421,7 +411,7 @@ export const CalendarScreen: React.FC = () => {
       {/* Calendar Grid */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={brandColors.primaryBlue} />
+          <ActivityIndicator size="large" color={brandColors.tealPrimary} />
         </View>
       ) : (
         <View style={styles.calendarGrid}>
@@ -540,8 +530,8 @@ const styles = StyleSheet.create({
     borderColor: brandColors.lightGray,
   },
   accountChipActive: {
-    backgroundColor: brandColors.primaryBlue,
-    borderColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
+    borderColor: brandColors.tealPrimary,
   },
   accountChipText: {
     fontSize: 14,
@@ -568,7 +558,7 @@ const styles = StyleSheet.create({
   },
   navButtonText: {
     fontSize: 24,
-    color: brandColors.primaryBlue,
+    color: brandColors.tealPrimary,
   },
   monthTitle: {
     fontSize: 18,
@@ -605,12 +595,12 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   selectedDay: {
-    backgroundColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
     borderRadius: 8,
   },
   todayCell: {
     borderWidth: 2,
-    borderColor: brandColors.primaryBlue,
+    borderColor: brandColors.tealPrimary,
     borderRadius: 8,
   },
   dayText: {

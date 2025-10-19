@@ -11,17 +11,7 @@ import {
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
-
-const brandColors = {
-  primaryBlue: '#4F46E5',
-  backgroundOffWhite: '#F8F9FA',
-  textDark: '#1F2937',
-  textGray: '#6B7280',
-  white: '#FFFFFF',
-  lightGray: '#E5E7EB',
-  green: '#10B981',
-  red: '#EF4444',
-};
+import { brandColors } from '../theme/colors';
 
 type AddGoalModalProps = {
   visible: boolean;
@@ -248,7 +238,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 8,
-    backgroundColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
     alignItems: 'center',
   },
   saveButtonDisabled: {

@@ -15,17 +15,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import { generateTransactionInstances } from '../utils/transactionInstances';
 import { AddTransactionModal } from '../components/AddTransactionModal';
-
-const brandColors = {
-  primaryBlue: '#4F46E5',
-  backgroundOffWhite: '#F8F9FA',
-  textDark: '#1F2937',
-  textGray: '#6B7280',
-  white: '#FFFFFF',
-  lightGray: '#E5E7EB',
-  green: '#10B981',
-  red: '#EF4444',
-};
+import { brandColors } from '../theme/colors';
 
 type Transaction = {
   id: string;
@@ -558,7 +548,7 @@ export const TransactionsScreen: React.FC = () => {
       {/* Transaction List */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={brandColors.primaryBlue} />
+          <ActivityIndicator size="large" color={brandColors.tealPrimary} />
         </View>
       ) : (
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.listContent}>
@@ -623,7 +613,7 @@ export const TransactionsScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalIconContainer}>
-              <Icon name="pencil-circle-outline" size={48} color={brandColors.primaryBlue} />
+              <Icon name="pencil-circle-outline" size={48} color={brandColors.tealPrimary} />
             </View>
 
             <Text style={styles.modalTitle}>Edit Recurring Transaction</Text>
@@ -878,7 +868,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: brandColors.primaryBlue,
+    borderBottomColor: brandColors.tealPrimary,
   },
   tabText: {
     fontSize: 14,
@@ -886,7 +876,7 @@ const styles = StyleSheet.create({
     color: brandColors.textGray,
   },
   activeTabText: {
-    color: brandColors.primaryBlue,
+    color: brandColors.tealPrimary,
   },
   filterContainer: {
     padding: 16,
@@ -932,8 +922,8 @@ const styles = StyleSheet.create({
     borderColor: brandColors.lightGray,
   },
   accountChipActive: {
-    backgroundColor: brandColors.primaryBlue,
-    borderColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
+    borderColor: brandColors.tealPrimary,
   },
   accountChipText: {
     fontSize: 14,
@@ -983,7 +973,7 @@ const styles = StyleSheet.create({
   },
   transactionCategory: {
     fontSize: 12,
-    color: brandColors.primaryBlue,
+    color: brandColors.tealPrimary,
     marginTop: 2,
   },
   transactionRight: {
@@ -1106,8 +1096,8 @@ const styles = StyleSheet.create({
     borderColor: brandColors.lightGray,
   },
   choiceButtonPrimary: {
-    backgroundColor: brandColors.primaryBlue,
-    borderColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
+    borderColor: brandColors.tealPrimary,
   },
   choiceButtonText: {
     fontSize: 16,
@@ -1180,8 +1170,8 @@ const styles = StyleSheet.create({
     borderColor: brandColors.lightGray,
   },
   typeButtonActive: {
-    backgroundColor: brandColors.primaryBlue,
-    borderColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
+    borderColor: brandColors.tealPrimary,
   },
   typeButtonText: {
     fontSize: 16,
@@ -1203,8 +1193,8 @@ const styles = StyleSheet.create({
     borderColor: brandColors.lightGray,
   },
   accountOptionActive: {
-    backgroundColor: brandColors.primaryBlue,
-    borderColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
+    borderColor: brandColors.tealPrimary,
   },
   accountOptionText: {
     fontSize: 16,
@@ -1228,8 +1218,8 @@ const styles = StyleSheet.create({
     borderColor: brandColors.lightGray,
   },
   frequencyButtonActive: {
-    backgroundColor: brandColors.primaryBlue,
-    borderColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
+    borderColor: brandColors.tealPrimary,
   },
   frequencyButtonText: {
     fontSize: 14,
@@ -1245,7 +1235,7 @@ const styles = StyleSheet.create({
     borderTopColor: brandColors.lightGray,
   },
   saveButton: {
-    backgroundColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: 'center',
@@ -1262,7 +1252,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
