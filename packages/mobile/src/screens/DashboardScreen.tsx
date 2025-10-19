@@ -375,25 +375,51 @@ export const DashboardScreen = () => {
       </View>
 
       {/* Simulation Banner */}
-      {whatIfTransaction && (
-        <View style={styles.simulationBanner}>
-          <View style={styles.simulationBannerContent}>
-            <Icon name="information" size={20} color={brandColors.white} />
-            <View style={styles.simulationBannerText}>
-              <Text style={styles.simulationBannerTitle}>Simulation Mode Active</Text>
-              <Text style={styles.simulationBannerDescription}>
-                Testing: {whatIfTransaction.description} ({formatCurrency(Math.abs(whatIfTransaction.amount))})
-              </Text>
+      {whatIfTransaction && (() => {
+        // Check if simulation causes any issues (show only the most critical one)
+        const affectedAccount = accountsWithProjections.find(acc => acc.id === whatIfTransaction.accountId);
+        const negativeBalance = affectedAccount && affectedAccount.projectedBalance < 0;
+        const noAvailableFunds = affectedAccount && affectedAccount.availableToSpend <= 0;
+
+        // Prioritize: 1) Negative balance, 2) No available funds
+        let warningMessage = null;
+        if (negativeBalance) {
+          warningMessage = "⚠️ This would make your account balance negative";
+        } else if (noAvailableFunds) {
+          warningMessage = "⚠️ This would reduce available funds to $0 or below";
+        }
+
+        return (
+          <View style={[styles.simulationBanner, warningMessage && styles.simulationBannerWarning]}>
+            <View style={styles.simulationBannerContent}>
+              <Icon
+                name={warningMessage ? "alert" : "information"}
+                size={20}
+                color={brandColors.white}
+              />
+              <View style={styles.simulationBannerText}>
+                <Text style={styles.simulationBannerTitle}>
+                  {warningMessage ? "Warning: Financial Issue Detected" : "Simulation Mode Active"}
+                </Text>
+                <Text style={styles.simulationBannerDescription}>
+                  Testing: {whatIfTransaction.description} ({formatCurrency(Math.abs(whatIfTransaction.amount))})
+                </Text>
+                {warningMessage && (
+                  <Text style={styles.simulationWarningText}>
+                    {warningMessage}
+                  </Text>
+                )}
+              </View>
             </View>
+            <TouchableOpacity
+              style={styles.clearSimulationButton}
+              onPress={() => setWhatIfTransaction(null)}
+            >
+              <Text style={styles.clearSimulationButtonText}>Clear</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.clearSimulationButton}
-            onPress={() => setWhatIfTransaction(null)}
-          >
-            <Text style={styles.clearSimulationButtonText}>Clear</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        );
+      })()}
 
       {/* What If Simulation */}
       <View style={styles.section}>
@@ -1278,6 +1304,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
+  simulationBannerWarning: {
+    backgroundColor: brandColors.amber,
+  },
   simulationBannerContent: {
     flex: 1,
     flexDirection: 'row',
@@ -1308,5 +1337,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: brandColors.purple,
+  },
+  simulationWarningText: {
+    fontSize: 12,
+    color: brandColors.white,
+    fontWeight: '600',
+    marginTop: 4,
   },
 });
