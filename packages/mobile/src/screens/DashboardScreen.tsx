@@ -1,7 +1,8 @@
 // packages/mobile/src/screens/DashboardScreen.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import firestore from '@react-native-firebase/firestore';
 import { AddTransactionModal } from '../components/AddTransactionModal';
@@ -21,6 +22,7 @@ const brandColors = {
   green: '#10B981',
   red: '#EF4444',
   amber: '#F59E0B',
+  purple: '#9333EA',
 };
 
 type Account = {
@@ -63,7 +65,11 @@ export const DashboardScreen = () => {
   const [showTransfer, setShowTransfer] = useState(false);
   const [showWhatIf, setShowWhatIf] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
-  const [showActionMenu, setShowActionMenu] = useState(false);
+  const [fabExpanded, setFabExpanded] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [whatIfTransaction, setWhatIfTransaction] = useState<any>(null);
 
   // Fetch accounts and transactions from Firebase
   useEffect(() => {
@@ -127,10 +133,99 @@ export const DashboardScreen = () => {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!user || !accountToDelete) return;
+
+    setDeleting(true);
+    try {
+      await firestore()
+        .collection(`users/${user.uid}/accounts`)
+        .doc(accountToDelete.id)
+        .delete();
+
+      setShowDeleteConfirm(false);
+      setAccountToDelete(null);
+      Alert.alert('Success', 'Account deleted successfully');
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      Alert.alert('Error', 'Failed to delete account. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // Generate all transaction instances for 60 days
   const allInstances = useMemo(() => {
-    return generateTransactionInstances(transactions, 60);
-  }, [transactions]);
+    const instances = generateTransactionInstances(transactions, 60);
+
+    // Add what-if transaction if present
+    if (whatIfTransaction) {
+      instances.push(whatIfTransaction);
+    }
+
+    return instances;
+  }, [transactions, whatIfTransaction]);
+
+  // Calculate projected balances per account
+  const accountsWithProjections = useMemo(() => {
+    if (accounts.length === 0) return accounts;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(today);
+    endDate.setDate(today.getDate() + 60);
+
+    return accounts.map(account => {
+      // Get all future instances for this account
+      const accountInstances = allInstances.filter(inst => {
+        const instDate = inst.date instanceof Date ? inst.date : new Date(inst.date);
+        instDate.setHours(0, 0, 0, 0);
+        return inst.accountId === account.id && instDate >= today && instDate <= endDate;
+      });
+
+      if (accountInstances.length === 0) {
+        return {
+          ...account,
+          projectedBalance: account.currentBalance,
+          availableToSpend: account.currentBalance - account.cushion,
+        };
+      }
+
+      // Calculate lowest projected balance for this account
+      let runningBalance = account.currentBalance;
+      let lowestBalance = account.currentBalance;
+
+      // Group by date
+      const instancesByDate = new Map<string, typeof allInstances>();
+      accountInstances.forEach(inst => {
+        const instDate = inst.date instanceof Date ? inst.date : new Date(inst.date);
+        const dateKey = instDate.toISOString().split('T')[0];
+        if (!instancesByDate.has(dateKey)) {
+          instancesByDate.set(dateKey, []);
+        }
+        instancesByDate.get(dateKey)!.push(inst);
+      });
+
+      // Project day by day
+      for (let day = 0; day <= 60; day++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + day);
+        const dateKey = date.toISOString().split('T')[0];
+
+        const dayInstances = instancesByDate.get(dateKey) || [];
+        const dailyNet = dayInstances.reduce((sum, inst) => sum + inst.amount, 0);
+        runningBalance += dailyNet;
+
+        if (runningBalance < lowestBalance) lowestBalance = runningBalance;
+      }
+
+      return {
+        ...account,
+        projectedBalance: lowestBalance,
+        availableToSpend: lowestBalance - account.cushion,
+      };
+    });
+  }, [accounts, allInstances]);
 
   // Calculate 60-day outlook using generated instances
   const outlook = useMemo(() => {
@@ -149,9 +244,12 @@ export const DashboardScreen = () => {
     const endDate = new Date(today);
     endDate.setDate(today.getDate() + 60);
 
-    // Filter to future instances only
+    // Filter to future instances only (including today)
     const futureInstances = allInstances.filter(inst => {
       const instDate = inst.date instanceof Date ? inst.date : new Date(inst.date);
+      instDate.setHours(0, 0, 0, 0); // Normalize to start of day for comparison
+
+      // Include transactions from today onwards
       return instDate >= today && instDate <= endDate;
     });
 
@@ -276,39 +374,44 @@ export const DashboardScreen = () => {
         </View>
       </View>
 
-      {/* Quick Actions */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionsGrid}>
+      {/* Simulation Banner */}
+      {whatIfTransaction && (
+        <View style={styles.simulationBanner}>
+          <View style={styles.simulationBannerContent}>
+            <Icon name="information" size={20} color={brandColors.white} />
+            <View style={styles.simulationBannerText}>
+              <Text style={styles.simulationBannerTitle}>Simulation Mode Active</Text>
+              <Text style={styles.simulationBannerDescription}>
+                Testing: {whatIfTransaction.description} ({formatCurrency(Math.abs(whatIfTransaction.amount))})
+              </Text>
+            </View>
+          </View>
           <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => setShowAddTransaction(true)}
+            style={styles.clearSimulationButton}
+            onPress={() => setWhatIfTransaction(null)}
           >
-            <Text style={styles.actionButtonIcon}>💵</Text>
-            <Text style={styles.actionButtonText}>Add Transaction</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => setShowManageAccount(true)}
-          >
-            <Text style={styles.actionButtonIcon}>🏦</Text>
-            <Text style={styles.actionButtonText}>Add Account</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => setShowTransfer(true)}
-          >
-            <Text style={styles.actionButtonIcon}>💸</Text>
-            <Text style={styles.actionButtonText}>Transfer</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => setShowWhatIf(true)}
-          >
-            <Text style={styles.actionButtonIcon}>🤔</Text>
-            <Text style={styles.actionButtonText}>What If?</Text>
+            <Text style={styles.clearSimulationButtonText}>Clear</Text>
           </TouchableOpacity>
         </View>
+      )}
+
+      {/* What If Simulation */}
+      <View style={styles.section}>
+        <TouchableOpacity
+          style={styles.whatIfCard}
+          onPress={() => setShowWhatIf(true)}
+        >
+          <View style={styles.whatIfIconContainer}>
+            <Text style={styles.whatIfIcon}>🤔</Text>
+          </View>
+          <View style={styles.whatIfContent}>
+            <Text style={styles.whatIfTitle}>What If Simulation</Text>
+            <Text style={styles.whatIfDescription}>
+              Test different scenarios and see how they affect your finances
+            </Text>
+          </View>
+          <Icon name="chevron-right" size={24} color={brandColors.textGray} />
+        </TouchableOpacity>
       </View>
 
       {/* Goals & Envelopes */}
@@ -366,17 +469,37 @@ export const DashboardScreen = () => {
       )}
 
       {/* Accounts */}
-      {accounts.length > 0 && (
+      {accountsWithProjections.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Accounts</Text>
-          {accounts.map((account) => (
+          {accountsWithProjections.map((account) => (
             <View key={account.id} style={styles.accountCard}>
               <View style={styles.accountHeader}>
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.accountName}>{account.name}</Text>
                   <Text style={styles.accountType}>
                     {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
                   </Text>
+                </View>
+                <View style={styles.accountActions}>
+                  <TouchableOpacity
+                    style={styles.accountActionButton}
+                    onPress={() => {
+                      setSelectedAccount(account);
+                      setShowManageAccount(true);
+                    }}
+                  >
+                    <Icon name="pencil" size={18} color={brandColors.primaryBlue} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.accountActionButton}
+                    onPress={() => {
+                      setAccountToDelete(account);
+                      setShowDeleteConfirm(true);
+                    }}
+                  >
+                    <Icon name="delete" size={18} color={brandColors.red} />
+                  </TouchableOpacity>
                 </View>
               </View>
               <View style={styles.accountBalances}>
@@ -483,8 +606,114 @@ export const DashboardScreen = () => {
       <WhatIfModal
         visible={showWhatIf}
         onClose={() => setShowWhatIf(false)}
-        currentBalance={outlook.currentBalance}
+        onSimulate={(transaction) => {
+          setWhatIfTransaction(transaction);
+        }}
       />
+
+      {/* Delete Account Confirmation Modal */}
+      {accountToDelete && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.deleteModalContent}>
+              <Icon name="alert-circle" size={48} color={brandColors.red} />
+              <Text style={styles.deleteModalTitle}>Delete Account?</Text>
+              <Text style={styles.deleteModalMessage}>
+                Are you sure you want to delete "{accountToDelete.name}"? This action cannot be undone.
+              </Text>
+              <Text style={styles.deleteModalWarning}>
+                Note: Transactions linked to this account will remain but won't be associated with any account.
+              </Text>
+              <View style={styles.deleteModalButtons}>
+                <TouchableOpacity
+                  style={[styles.deleteModalButton, styles.cancelButton]}
+                  onPress={() => {
+                    setAccountToDelete(null);
+                    setShowDeleteConfirm(false);
+                  }}
+                  disabled={deleting}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.deleteModalButton, styles.deleteButton]}
+                  onPress={handleDeleteAccount}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <ActivityIndicator size="small" color={brandColors.white} />
+                  ) : (
+                    <Text style={styles.deleteButtonText}>Delete</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Expandable FAB */}
+      {fabExpanded && (
+        <>
+          <TouchableOpacity
+            style={styles.fabBackdrop}
+            onPress={() => setFabExpanded(false)}
+            activeOpacity={1}
+          />
+          <View style={styles.fabMenu}>
+            <TouchableOpacity
+              style={styles.fabMenuItem}
+              onPress={() => {
+                setFabExpanded(false);
+                setShowAddTransaction(true);
+              }}
+            >
+              <View style={styles.fabMenuButton}>
+                <Icon name="cash-plus" size={24} color={brandColors.white} />
+              </View>
+              <Text style={styles.fabMenuLabel}>Add Transaction</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.fabMenuItem}
+              onPress={() => {
+                setFabExpanded(false);
+                setShowManageAccount(true);
+              }}
+            >
+              <View style={styles.fabMenuButton}>
+                <Icon name="bank-plus" size={24} color={brandColors.white} />
+              </View>
+              <Text style={styles.fabMenuLabel}>Add Account</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.fabMenuItem}
+              onPress={() => {
+                setFabExpanded(false);
+                setShowTransfer(true);
+              }}
+            >
+              <View style={styles.fabMenuButton}>
+                <Icon name="bank-transfer" size={24} color={brandColors.white} />
+              </View>
+              <Text style={styles.fabMenuLabel}>Transfer</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
+      {/* Main FAB */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setFabExpanded(!fabExpanded)}
+      >
+        <Icon
+          name={fabExpanded ? 'close' : 'plus'}
+          size={28}
+          color={brandColors.white}
+        />
+      </TouchableOpacity>
     </ScrollView>
   );
 };
@@ -653,6 +882,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   accountHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
   },
   accountName: {
@@ -776,31 +1008,102 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  actionsGrid: {
+  whatIfCard: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginTop: 8,
-  },
-  actionButton: {
-    flex: 1,
-    minWidth: '47%',
-    backgroundColor: brandColors.white,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
     alignItems: 'center',
-    gap: 8,
+    backgroundColor: brandColors.white,
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: brandColors.primaryBlue,
+    gap: 16,
   },
-  actionButtonIcon: {
+  whatIfIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: brandColors.primaryBlue + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  whatIfIcon: {
     fontSize: 32,
   },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+  whatIfContent: {
+    flex: 1,
+  },
+  whatIfTitle: {
+    fontSize: 18,
+    fontWeight: '700',
     color: brandColors.textDark,
-    textAlign: 'center',
+    marginBottom: 4,
+  },
+  whatIfDescription: {
+    fontSize: 14,
+    color: brandColors.textGray,
+    lineHeight: 20,
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: brandColors.primaryBlue,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  fabBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  fabMenu: {
+    position: 'absolute',
+    right: 20,
+    bottom: 90,
+    gap: 16,
+  },
+  fabMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  fabMenuButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: brandColors.primaryBlue,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  fabMenuLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: brandColors.white,
+    backgroundColor: brandColors.primaryBlue,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -883,5 +1186,127 @@ const styles = StyleSheet.create({
     color: brandColors.white,
     fontSize: 14,
     fontWeight: '600',
+  },
+  accountActions: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  accountActionButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: brandColors.backgroundOffWhite,
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '85%',
+    maxWidth: 400,
+  },
+  deleteModalContent: {
+    backgroundColor: brandColors.white,
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    gap: 16,
+  },
+  deleteModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: brandColors.textDark,
+    textAlign: 'center',
+  },
+  deleteModalMessage: {
+    fontSize: 16,
+    color: brandColors.textDark,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  deleteModalWarning: {
+    fontSize: 14,
+    color: brandColors.textGray,
+    textAlign: 'center',
+    lineHeight: 20,
+    backgroundColor: brandColors.amber + '15',
+    padding: 12,
+    borderRadius: 8,
+  },
+  deleteModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    marginTop: 8,
+  },
+  deleteModalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: brandColors.lightGray,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: brandColors.textDark,
+  },
+  deleteButton: {
+    backgroundColor: brandColors.red,
+  },
+  deleteButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: brandColors.white,
+  },
+  simulationBanner: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    backgroundColor: brandColors.purple,
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  simulationBannerContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  simulationBannerText: {
+    flex: 1,
+  },
+  simulationBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: brandColors.white,
+    marginBottom: 4,
+  },
+  simulationBannerDescription: {
+    fontSize: 12,
+    color: brandColors.white,
+    opacity: 0.9,
+  },
+  clearSimulationButton: {
+    backgroundColor: brandColors.white,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+  },
+  clearSimulationButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: brandColors.purple,
   },
 });

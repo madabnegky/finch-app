@@ -245,6 +245,13 @@ export const SetupWizardScreen = () => {
       });
 
       await batch.commit();
+
+      // Mark setup as completed for this user
+      await firestore()
+        .collection('users')
+        .doc(user?.uid)
+        .set({ setupCompleted: true }, { merge: true });
+
       console.log('Setup completed successfully!');
 
       // Navigate to main tabs (dashboard)
