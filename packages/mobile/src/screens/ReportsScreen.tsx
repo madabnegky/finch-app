@@ -6,6 +6,7 @@ import {
   ScrollView,
   Dimensions,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { PieChart, LineChart } from 'react-native-chart-kit';
 import firestore from '@react-native-firebase/firestore';
@@ -40,6 +41,7 @@ export const ReportsScreen: React.FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const screenWidth = Dimensions.get('window').width;
 
   useEffect(() => {
@@ -72,17 +74,32 @@ export const ReportsScreen: React.FC = () => {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
+    console.log('Reports - Current month/year:', currentMonth, currentYear);
+    console.log('Reports - Total transactions:', transactions.length);
+
     const categoryTotals: { [key: string]: number } = {};
 
     transactions.forEach((txn) => {
+      console.log('Transaction:', {
+        type: txn.type,
+        amount: txn.amount,
+        date: txn.date,
+        category: txn.category,
+      });
+
       if (txn.type !== 'expense') return;
 
       const txnDate = txn.date.toDate ? txn.date.toDate() : new Date(txn.date);
+      console.log('Parsed date:', txnDate, 'Month:', txnDate.getMonth(), 'Year:', txnDate.getFullYear());
+
       if (txnDate.getMonth() === currentMonth && txnDate.getFullYear() === currentYear) {
         const category = txn.category || 'Uncategorized';
-        categoryTotals[category] = (categoryTotals[category] || 0) + txn.amount;
+        categoryTotals[category] = (categoryTotals[category] || 0) + Math.abs(txn.amount);
+        console.log('Added to category:', category, 'Amount:', Math.abs(txn.amount));
       }
     });
+
+    console.log('Category totals:', categoryTotals);
 
     return Object.entries(categoryTotals)
       .map(([name, amount], index) => ({
@@ -95,39 +112,69 @@ export const ReportsScreen: React.FC = () => {
       .sort((a, b) => b.amount - a.amount);
   };
 
-  // Calculate monthly spending trend for last 6 months
+  // Calculate monthly spending trend for last 6 months (per category)
   const getMonthlyTrend = () => {
-    const monthlyData: { [key: string]: number } = {};
     const labels: string[] = [];
+    const monthKeys: string[] = [];
 
+    // Build month labels and keys
     for (let i = 5; i >= 0; i--) {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
       const key = `${date.getFullYear()}-${date.getMonth()}`;
       const label = date.toLocaleDateString('en-US', { month: 'short' });
       labels.push(label);
-      monthlyData[key] = 0;
+      monthKeys.push(key);
     }
+
+    // Initialize data structure for each category
+    const categoryMonthlyData: { [category: string]: { [key: string]: number } } = {};
 
     transactions.forEach((txn) => {
       if (txn.type !== 'expense') return;
 
+      const category = txn.category || 'Uncategorized';
       const txnDate = txn.date.toDate ? txn.date.toDate() : new Date(txn.date);
       const key = `${txnDate.getFullYear()}-${txnDate.getMonth()}`;
-      if (monthlyData[key] !== undefined) {
-        monthlyData[key] += txn.amount;
+
+      if (monthKeys.includes(key)) {
+        if (!categoryMonthlyData[category]) {
+          categoryMonthlyData[category] = {};
+          monthKeys.forEach(mk => categoryMonthlyData[category][mk] = 0);
+        }
+        categoryMonthlyData[category][key] += Math.abs(txn.amount);
       }
     });
 
+    // Build datasets for selected categories only
+    const datasets = Array.from(selectedCategories).map((category, index) => {
+      const data = monthKeys.map(key => categoryMonthlyData[category]?.[key] || 0);
+      const categoryIndex = categoryData.findIndex(c => c.name === category);
+      const color = categoryIndex >= 0 ? categoryData[categoryIndex].color : CATEGORY_COLORS[index % CATEGORY_COLORS.length];
+
+      return {
+        data,
+        color: () => color,
+        strokeWidth: 2,
+      };
+    });
+
+    // If no categories selected, show total spending
+    if (datasets.length === 0) {
+      const totalData = monthKeys.map(key => {
+        return Object.values(categoryMonthlyData).reduce((sum, catData) => sum + (catData[key] || 0), 0);
+      });
+
+      datasets.push({
+        data: totalData,
+        color: () => brandColors.primaryBlue,
+        strokeWidth: 2,
+      });
+    }
+
     return {
       labels,
-      datasets: [
-        {
-          data: Object.values(monthlyData),
-          color: () => brandColors.primaryBlue,
-          strokeWidth: 2,
-        },
-      ],
+      datasets,
     };
   };
 
@@ -135,6 +182,27 @@ export const ReportsScreen: React.FC = () => {
   const trendData = getMonthlyTrend();
 
   const totalSpending = categoryData.reduce((sum, cat) => sum + cat.amount, 0);
+
+  // Set default selected categories (top 3 by spending) when data loads
+  useEffect(() => {
+    if (categoryData.length > 0 && selectedCategories.size === 0) {
+      const top3 = categoryData.slice(0, 3).map(c => c.name);
+      setSelectedCategories(new Set(top3));
+    }
+  }, [categoryData.length]);
+
+  // Toggle category selection
+  const toggleCategory = (categoryName: string) => {
+    setSelectedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryName)) {
+        newSet.delete(categoryName);
+      } else {
+        newSet.add(categoryName);
+      }
+      return newSet;
+    });
+  };
 
   if (loading) {
     return (
@@ -198,33 +266,66 @@ export const ReportsScreen: React.FC = () => {
 
         {/* 6-Month Spending Trend */}
         <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>6-Month Spending Trend</Text>
+          <Text style={styles.chartTitle}>6-Month Spending Trend by Category</Text>
           {trendData.datasets[0].data.every((val) => val === 0) ? (
             <Text style={styles.noDataText}>No spending data for last 6 months</Text>
           ) : (
-            <LineChart
-              data={trendData}
-              width={screenWidth - 64}
-              height={220}
-              chartConfig={{
-                backgroundColor: brandColors.white,
-                backgroundGradientFrom: brandColors.white,
-                backgroundGradientTo: brandColors.white,
-                decimalPlaces: 0,
-                color: () => brandColors.primaryBlue,
-                labelColor: () => brandColors.textGray,
-                style: {
-                  borderRadius: 16,
-                },
-                propsForDots: {
-                  r: '4',
-                  strokeWidth: '2',
-                  stroke: brandColors.primaryBlue,
-                },
-              }}
-              bezier
-              style={styles.lineChart}
-            />
+            <>
+              <LineChart
+                data={trendData}
+                width={screenWidth - 64}
+                height={220}
+                chartConfig={{
+                  backgroundColor: brandColors.white,
+                  backgroundGradientFrom: brandColors.white,
+                  backgroundGradientTo: brandColors.white,
+                  decimalPlaces: 0,
+                  color: () => brandColors.primaryBlue,
+                  labelColor: () => brandColors.textGray,
+                  style: {
+                    borderRadius: 16,
+                  },
+                  propsForDots: {
+                    r: '4',
+                    strokeWidth: '2',
+                    stroke: brandColors.primaryBlue,
+                  },
+                }}
+                bezier
+                style={styles.lineChart}
+              />
+
+              {/* Category Filter Buttons */}
+              {categoryData.length > 0 && (
+                <View style={styles.categoryFilters}>
+                  <Text style={styles.filterLabel}>Select Categories:</Text>
+                  <View style={styles.filterButtons}>
+                    {categoryData.map((cat) => {
+                      const isSelected = selectedCategories.has(cat.name);
+                      return (
+                        <TouchableOpacity
+                          key={cat.name}
+                          style={[
+                            styles.filterButton,
+                            isSelected && { backgroundColor: cat.color, borderColor: cat.color },
+                          ]}
+                          onPress={() => toggleCategory(cat.name)}
+                        >
+                          <Text
+                            style={[
+                              styles.filterButtonText,
+                              isSelected && styles.filterButtonTextActive,
+                            ]}
+                          >
+                            {cat.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+            </>
           )}
         </View>
       </ScrollView>
@@ -346,5 +447,38 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: brandColors.backgroundOffWhite,
+  },
+  categoryFilters: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: brandColors.lightGray,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: brandColors.textDark,
+    marginBottom: 12,
+  },
+  filterButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: brandColors.lightGray,
+    backgroundColor: brandColors.white,
+  },
+  filterButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: brandColors.textDark,
+  },
+  filterButtonTextActive: {
+    color: brandColors.white,
   },
 });
