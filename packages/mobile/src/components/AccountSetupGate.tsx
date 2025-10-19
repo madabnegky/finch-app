@@ -48,7 +48,11 @@ export const AccountSetupGate: React.FC<AccountSetupGateProps> = ({ children }) 
         // This allows existing users who deleted all accounts to stay on dashboard
         if (!accountsExist && !setupCompleted) {
           console.log('New user with no accounts, redirecting to setup...');
-          navigation.replace('Setup');
+          // Navigate using the root navigator (Stack) to get to Setup screen
+          const rootNav = navigation.getParent();
+          if (rootNav) {
+            rootNav.navigate('Setup' as never);
+          }
         } else if (!accountsExist && setupCompleted) {
           console.log('Existing user with no accounts, staying on dashboard');
           setHasAccounts(true); // Allow them to see dashboard even with no accounts
