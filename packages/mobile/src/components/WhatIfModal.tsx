@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,10 @@ import {
   Modal,
   TouchableOpacity,
   TextInput,
-  Alert,
   ScrollView,
 } from 'react-native';
+import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
+import firestore from '@react-native-firebase/firestore';
 
 const brandColors = {
   primaryBlue: '#4F46E5',
@@ -17,56 +18,98 @@ const brandColors = {
   textGray: '#6B7280',
   white: '#FFFFFF',
   lightGray: '#E5E7EB',
-  green: '#10B981',
-  red: '#EF4444',
-  amber: '#F59E0B',
+  purple: '#9333EA',
+};
+
+type Account = {
+  id: string;
+  name: string;
+  type: string;
 };
 
 type WhatIfModalProps = {
   visible: boolean;
   onClose: () => void;
-  currentBalance: number; // Starting balance for simulation
+  onSimulate: (transaction: any) => void;
 };
 
 export const WhatIfModal: React.FC<WhatIfModalProps> = ({
   visible,
   onClose,
-  currentBalance,
+  onSimulate,
 }) => {
-  const [scenarioName, setScenarioName] = useState('');
-  const [newIncome, setNewIncome] = useState('');
-  const [newExpense, setNewExpense] = useState('');
-  const [oneTimeIncome, setOneTimeIncome] = useState('');
-  const [oneTimeExpense, setOneTimeExpense] = useState('');
+  const { user } = useAuth();
+  const [description, setDescription] = useState('');
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState('');
+  const [accountId, setAccountId] = useState('');
+  const [accounts, setAccounts] = useState<Account[]>([]);
 
-  const calculateImpact = () => {
-    const monthlyIncome = parseFloat(newIncome) || 0;
-    const monthlyExpense = parseFloat(newExpense) || 0;
-    const oneIncome = parseFloat(oneTimeIncome) || 0;
-    const oneExpense = parseFloat(oneTimeExpense) || 0;
+  // Set default date to today
+  useEffect(() => {
+    if (visible && !date) {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      setDate(`${year}-${month}-${day}`);
+    }
+  }, [visible]);
 
-    // Calculate impact over 60 days (2 months)
-    const monthlyImpact = (monthlyIncome - monthlyExpense) * 2;
-    const oneTimeImpact = oneIncome - oneExpense;
-    const totalImpact = monthlyImpact + oneTimeImpact;
-    const projectedBalance = currentBalance + totalImpact;
+  // Fetch accounts
+  useEffect(() => {
+    if (!user || !visible) return;
 
-    return {
-      monthlyNet: monthlyIncome - monthlyExpense,
-      totalImpact,
-      projectedBalance,
-      isPositive: totalImpact >= 0,
+    const unsubscribe = firestore()
+      .collection(`users/${user.uid}/accounts`)
+      .onSnapshot((snapshot) => {
+        const accountsList = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          name: doc.data().name,
+          type: doc.data().type,
+        }));
+        setAccounts(accountsList);
+
+        // Set default account
+        if (accountsList.length > 0 && !accountId) {
+          setAccountId(accountsList[0].id);
+        }
+      });
+
+    return () => unsubscribe();
+  }, [user, visible]);
+
+  const handleSimulate = () => {
+    if (!description.trim()) {
+      return;
+    }
+
+    if (!amount || isNaN(parseFloat(amount))) {
+      return;
+    }
+
+    // Convert date string to Date object in local timezone
+    const [year, month, day] = date.split('-').map(Number);
+    const parsedDate = new Date(year, month - 1, day); // month is 0-indexed
+    parsedDate.setHours(0, 0, 0, 0);
+
+    const simulationTransaction = {
+      id: `whatif-${Date.now()}`,
+      description: description.trim(),
+      amount: -Math.abs(parseFloat(amount)), // Always expense
+      date: parsedDate,
+      accountId: accountId || (accounts[0]?.id || ''),
+      type: 'expense' as const,
+      isRecurring: false,
+      isWhatIf: true, // Flag to identify what-if transactions
     };
-  };
 
-  const impact = calculateImpact();
+    onSimulate(simulationTransaction);
 
-  const handleReset = () => {
-    setScenarioName('');
-    setNewIncome('');
-    setNewExpense('');
-    setOneTimeIncome('');
-    setOneTimeExpense('');
+    // Reset and close
+    setDescription('');
+    setAmount('');
+    onClose();
   };
 
   return (
@@ -79,7 +122,7 @@ export const WhatIfModal: React.FC<WhatIfModalProps> = ({
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
           <View style={styles.header}>
-            <Text style={styles.title}>What If? Scenario</Text>
+            <Text style={styles.title}>"What If?" Scenario</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
@@ -87,131 +130,74 @@ export const WhatIfModal: React.FC<WhatIfModalProps> = ({
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             <Text style={styles.description}>
-              Simulate how changes to your income or expenses would affect your finances over
-              the next 60 days.
+              See how a potential purchase could impact your future balance. This won't be saved
+              as a real transaction.
             </Text>
 
-            <Text style={styles.label}>Scenario Name (Optional)</Text>
+            <Text style={styles.label}>Purchase Description</Text>
             <TextInput
               style={styles.input}
-              value={scenarioName}
-              onChangeText={setScenarioName}
-              placeholder="e.g., New job, Big purchase"
+              value={description}
+              onChangeText={setDescription}
+              placeholder="e.g., New TV, Car repair"
               placeholderTextColor={brandColors.textGray}
             />
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Monthly Changes</Text>
-
-              <Text style={styles.label}>Additional Monthly Income</Text>
-              <TextInput
-                style={styles.input}
-                value={newIncome}
-                onChangeText={setNewIncome}
-                placeholder="0.00"
-                keyboardType="numeric"
-                placeholderTextColor={brandColors.textGray}
-              />
-
-              <Text style={styles.label}>Additional Monthly Expenses</Text>
-              <TextInput
-                style={styles.input}
-                value={newExpense}
-                onChangeText={setNewExpense}
-                placeholder="0.00"
-                keyboardType="numeric"
-                placeholderTextColor={brandColors.textGray}
-              />
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>One-Time Changes</Text>
-
-              <Text style={styles.label}>One-Time Income</Text>
-              <TextInput
-                style={styles.input}
-                value={oneTimeIncome}
-                onChangeText={setOneTimeIncome}
-                placeholder="0.00"
-                keyboardType="numeric"
-                placeholderTextColor={brandColors.textGray}
-              />
-
-              <Text style={styles.label}>One-Time Expense</Text>
-              <TextInput
-                style={styles.input}
-                value={oneTimeExpense}
-                onChangeText={setOneTimeExpense}
-                placeholder="0.00"
-                keyboardType="numeric"
-                placeholderTextColor={brandColors.textGray}
-              />
-            </View>
-
-            {/* Impact Summary */}
-            <View style={styles.impactCard}>
-              <Text style={styles.impactTitle}>60-Day Impact Summary</Text>
-
-              <View style={styles.impactRow}>
-                <Text style={styles.impactLabel}>Current Balance:</Text>
-                <Text style={styles.impactValue}>${currentBalance.toFixed(2)}</Text>
+            <View style={styles.row}>
+              <View style={styles.halfWidth}>
+                <Text style={styles.label}>Amount (USD)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={amount}
+                  onChangeText={setAmount}
+                  placeholder="0.00"
+                  keyboardType="numeric"
+                  placeholderTextColor={brandColors.textGray}
+                />
               </View>
 
-              <View style={styles.impactRow}>
-                <Text style={styles.impactLabel}>Monthly Net Change:</Text>
-                <Text
-                  style={[
-                    styles.impactValue,
-                    impact.monthlyNet >= 0 ? styles.positiveValue : styles.negativeValue,
-                  ]}
-                >
-                  {impact.monthlyNet >= 0 ? '+' : ''}${impact.monthlyNet.toFixed(2)}
-                </Text>
-              </View>
-
-              <View style={styles.impactRow}>
-                <Text style={styles.impactLabel}>Total 60-Day Impact:</Text>
-                <Text
-                  style={[
-                    styles.impactValue,
-                    styles.impactValueBold,
-                    impact.isPositive ? styles.positiveValue : styles.negativeValue,
-                  ]}
-                >
-                  {impact.isPositive ? '+' : ''}${impact.totalImpact.toFixed(2)}
-                </Text>
-              </View>
-
-              <View style={[styles.impactRow, styles.projectedRow]}>
-                <Text style={styles.projectedLabel}>Projected Balance:</Text>
-                <Text
-                  style={[
-                    styles.projectedValue,
-                    impact.projectedBalance >= 0
-                      ? styles.positiveValue
-                      : styles.negativeValue,
-                  ]}
-                >
-                  ${impact.projectedBalance.toFixed(2)}
-                </Text>
-              </View>
-
-              {impact.projectedBalance < 0 && (
-                <View style={styles.warningBox}>
-                  <Text style={styles.warningText}>
-                    ⚠️ Warning: This scenario would result in a negative balance
-                  </Text>
+              <View style={styles.halfWidth}>
+                <Text style={styles.label}>Account</Text>
+                <View style={styles.pickerContainer}>
+                  <TouchableOpacity
+                    style={styles.pickerButton}
+                    onPress={() => {
+                      // For now, just cycle through accounts
+                      const currentIndex = accounts.findIndex(a => a.id === accountId);
+                      const nextIndex = (currentIndex + 1) % accounts.length;
+                      if (accounts[nextIndex]) {
+                        setAccountId(accounts[nextIndex].id);
+                      }
+                    }}
+                  >
+                    <Text style={styles.pickerText}>
+                      {accounts.find(a => a.id === accountId)?.name || 'Select Account'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-              )}
+              </View>
             </View>
+
+            <Text style={styles.label}>Purchase Date</Text>
+            <TextInput
+              style={styles.input}
+              value={date}
+              onChangeText={setDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={brandColors.textGray}
+            />
           </ScrollView>
 
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
-              <Text style={styles.resetButtonText}>Reset</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.doneButton} onPress={onClose}>
-              <Text style={styles.doneButtonText}>Done</Text>
+            <TouchableOpacity
+              style={[
+                styles.simulateButton,
+                (!description.trim() || !amount) && styles.simulateButtonDisabled,
+              ]}
+              onPress={handleSimulate}
+              disabled={!description.trim() || !amount}
+            >
+              <Text style={styles.simulateButtonText}>Run Simulation</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -230,7 +216,7 @@ const styles = StyleSheet.create({
     backgroundColor: brandColors.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    maxHeight: '80%',
   },
   header: {
     flexDirection: 'row',
@@ -258,7 +244,7 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 14,
     color: brandColors.textGray,
-    marginBottom: 16,
+    marginBottom: 20,
     lineHeight: 20,
   },
   label: {
@@ -277,111 +263,41 @@ const styles = StyleSheet.create({
     color: brandColors.textDark,
     backgroundColor: brandColors.white,
   },
-  section: {
-    marginTop: 24,
-    paddingTop: 24,
-    borderTopWidth: 1,
-    borderTopColor: brandColors.lightGray,
+  row: {
+    flexDirection: 'row',
+    gap: 12,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: brandColors.textDark,
-    marginBottom: 8,
+  halfWidth: {
+    flex: 1,
   },
-  impactCard: {
-    backgroundColor: brandColors.backgroundOffWhite,
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 24,
+  pickerContainer: {
     borderWidth: 1,
     borderColor: brandColors.lightGray,
-  },
-  impactTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: brandColors.textDark,
-    marginBottom: 16,
-  },
-  impactRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  impactLabel: {
-    fontSize: 14,
-    color: brandColors.textGray,
-  },
-  impactValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: brandColors.textDark,
-  },
-  impactValueBold: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  positiveValue: {
-    color: brandColors.green,
-  },
-  negativeValue: {
-    color: brandColors.red,
-  },
-  projectedRow: {
-    marginTop: 12,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: brandColors.lightGray,
-  },
-  projectedLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: brandColors.textDark,
-  },
-  projectedValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  warningBox: {
-    backgroundColor: brandColors.red + '20',
     borderRadius: 8,
-    padding: 12,
-    marginTop: 12,
+    backgroundColor: brandColors.white,
   },
-  warningText: {
-    fontSize: 12,
-    color: brandColors.red,
-    textAlign: 'center',
+  pickerButton: {
+    padding: 12,
+  },
+  pickerText: {
+    fontSize: 16,
+    color: brandColors.textDark,
   },
   footer: {
-    flexDirection: 'row',
     padding: 20,
     borderTopWidth: 1,
     borderTopColor: brandColors.lightGray,
-    gap: 12,
   },
-  resetButton: {
-    flex: 1,
+  simulateButton: {
     paddingVertical: 14,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
+    backgroundColor: brandColors.purple,
     alignItems: 'center',
   },
-  resetButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: brandColors.textDark,
+  simulateButtonDisabled: {
+    opacity: 0.5,
   },
-  doneButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
-    backgroundColor: brandColors.primaryBlue,
-    alignItems: 'center',
-  },
-  doneButtonText: {
+  simulateButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: brandColors.white,

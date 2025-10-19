@@ -30,6 +30,13 @@ export const AccountSetupGate: React.FC<AccountSetupGateProps> = ({ children }) 
 
       try {
         const firestore = require('@react-native-firebase/firestore').default;
+
+        // Check if user has completed setup before
+        const userDocRef = firestore().collection('users').doc(user.uid);
+        const userDoc = await userDocRef.get();
+        const setupCompleted = userDoc.exists && userDoc.data()?.setupCompleted === true;
+
+        // Check for accounts
         const accountsSnapshot = await firestore()
           .collection(`users/${user.uid}/accounts`)
           .get();
@@ -37,10 +44,14 @@ export const AccountSetupGate: React.FC<AccountSetupGateProps> = ({ children }) 
         const accountsExist = !accountsSnapshot.empty;
         setHasAccounts(accountsExist);
 
-        // If no accounts, redirect to setup
-        if (!accountsExist) {
-          console.log('No accounts found, redirecting to setup...');
+        // Only redirect to setup if user has never completed setup AND has no accounts
+        // This allows existing users who deleted all accounts to stay on dashboard
+        if (!accountsExist && !setupCompleted) {
+          console.log('New user with no accounts, redirecting to setup...');
           navigation.replace('Setup');
+        } else if (!accountsExist && setupCompleted) {
+          console.log('Existing user with no accounts, staying on dashboard');
+          setHasAccounts(true); // Allow them to see dashboard even with no accounts
         }
 
         setLoading(false);

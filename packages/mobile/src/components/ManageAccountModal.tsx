@@ -26,7 +26,7 @@ const brandColors = {
 type Account = {
   id: string;
   name: string;
-  type: 'checking' | 'savings' | 'credit';
+  type: 'checking' | 'savings';
   currentBalance: number;
   cushion?: number;
 };
@@ -46,7 +46,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
 }) => {
   const { user } = useAuth();
   const [name, setName] = useState('');
-  const [type, setType] = useState<'checking' | 'savings' | 'credit'>('checking');
+  const [type, setType] = useState<'checking' | 'savings'>('checking');
   const [balance, setBalance] = useState('');
   const [cushion, setCushion] = useState('');
   const [saving, setSaving] = useState(false);
@@ -217,22 +217,6 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
                   ]}
                 >
                   Savings
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.segment,
-                  type === 'credit' && styles.segmentSelected,
-                ]}
-                onPress={() => setType('credit')}
-              >
-                <Text
-                  style={[
-                    styles.segmentText,
-                    type === 'credit' && styles.segmentTextSelected,
-                  ]}
-                >
-                  Credit
                 </Text>
               </TouchableOpacity>
             </View>
