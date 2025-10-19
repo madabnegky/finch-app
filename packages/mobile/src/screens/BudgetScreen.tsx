@@ -12,18 +12,7 @@ import {
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
-
-const brandColors = {
-  primaryBlue: '#4F46E5',
-  backgroundOffWhite: '#F8F9FA',
-  textDark: '#1F2937',
-  textGray: '#6B7280',
-  white: '#FFFFFF',
-  lightGray: '#E5E7EB',
-  green: '#10B981',
-  red: '#EF4444',
-  amber: '#F59E0B',
-};
+import { brandColors } from '../theme/colors';
 
 const EXPENSE_CATEGORIES = [
   'Housing',
@@ -251,7 +240,7 @@ export const BudgetScreen: React.FC = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={brandColors.primaryBlue} />
+        <ActivityIndicator size="large" color={brandColors.tealPrimary} />
       </View>
     );
   }
@@ -382,7 +371,7 @@ const styles = StyleSheet.create({
     color: brandColors.textDark,
   },
   addButton: {
-    backgroundColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -532,8 +521,8 @@ const styles = StyleSheet.create({
     borderColor: brandColors.lightGray,
   },
   categoryButtonSelected: {
-    backgroundColor: brandColors.primaryBlue,
-    borderColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
+    borderColor: brandColors.tealPrimary,
   },
   categoryButtonText: {
     fontSize: 14,
@@ -576,7 +565,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 8,
-    backgroundColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
     alignItems: 'center',
   },
   saveButtonDisabled: {
