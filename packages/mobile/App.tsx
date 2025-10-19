@@ -2,7 +2,11 @@
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createDrawerNavigator } from '@react-navigation/drawer';
 import { AuthProvider } from '../shared-logic/src/hooks/useAuth';
+import brandColors from './src/theme/colors';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import 'react-native-gesture-handler';
 
 // Import our screens
 import { SplashScreen } from './src/screens/SplashScreen';
@@ -17,8 +21,100 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { AccountSetupGate } from './src/components/AccountSetupGate';
 import { useAuth } from '../shared-logic/src/hooks/useAuth';
 
-// This creates the "stack" of screens
+// This creates the "stack" of screens and drawer
 const Stack = createNativeStackNavigator();
+const Drawer = createDrawerNavigator();
+
+// Main Drawer Navigator with professional hamburger menu
+function MainDrawer() {
+  return (
+    <Drawer.Navigator
+      screenOptions={{
+        drawerActiveTintColor: brandColors.orangeAccent,
+        drawerInactiveTintColor: brandColors.textGray,
+        drawerStyle: {
+          backgroundColor: brandColors.white,
+          width: 280,
+        },
+        drawerLabelStyle: {
+          fontSize: 16,
+          fontWeight: '600',
+          marginLeft: -20,
+        },
+        drawerItemStyle: {
+          marginVertical: 4,
+        },
+        headerStyle: {
+          backgroundColor: brandColors.tealDark,
+        },
+        headerTintColor: brandColors.white,
+        headerTitleStyle: {
+          fontWeight: 'bold',
+        },
+      }}
+    >
+      <Drawer.Screen
+        name="Dashboard"
+        options={{
+          drawerIcon: ({ color, size }) => (
+            <Icon name="view-dashboard" size={size} color={color} />
+          ),
+        }}
+      >
+        {() => (
+          <AccountSetupGate>
+            <DashboardScreen />
+          </AccountSetupGate>
+        )}
+      </Drawer.Screen>
+      <Drawer.Screen
+        name="Transactions"
+        component={TransactionsScreen}
+        options={{
+          drawerIcon: ({ color, size }) => (
+            <Icon name="credit-card" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
+        name="Calendar"
+        component={CalendarScreen}
+        options={{
+          drawerIcon: ({ color, size }) => (
+            <Icon name="calendar" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
+        name="Reports"
+        component={ReportsScreen}
+        options={{
+          drawerIcon: ({ color, size }) => (
+            <Icon name="chart-bar" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
+        name="Budget"
+        component={BudgetScreen}
+        options={{
+          drawerIcon: ({ color, size }) => (
+            <Icon name="wallet" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          drawerIcon: ({ color, size }) => (
+            <Icon name="cog" size={size} color={color} />
+          ),
+        }}
+      />
+    </Drawer.Navigator>
+  );
+}
 
 function AppNavigator() {
   const { user, loading } = useAuth();
@@ -38,36 +134,18 @@ function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName={user ? 'Dashboard' : 'Auth'}
+        initialRouteName={user ? 'Main' : 'Auth'}
         screenOptions={{
-          headerShown: true,
-          headerStyle: {
-            backgroundColor: '#4F46E5', // primaryBlue
-          },
-          headerTintColor: '#FFFFFF',
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
+          headerShown: false,
         }}>
         {!user ? (
           // Not authenticated - show auth screen
-          <Stack.Screen name="Auth" component={AuthScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Auth" component={AuthScreen} />
         ) : (
-          // Authenticated - show all screens as stack, Dashboard first
+          // Authenticated - show drawer and setup screen
           <>
-            <Stack.Screen name="Dashboard" options={{ title: 'Finch', headerShown: false }}>
-              {() => (
-                <AccountSetupGate>
-                  <DashboardScreen />
-                </AccountSetupGate>
-              )}
-            </Stack.Screen>
-            <Stack.Screen name="Setup" component={SetupWizardScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="Transactions" component={TransactionsScreen} options={{ title: 'Transactions' }} />
-            <Stack.Screen name="Calendar" component={CalendarScreen} options={{ title: 'Calendar' }} />
-            <Stack.Screen name="Reports" component={ReportsScreen} options={{ title: 'Reports' }} />
-            <Stack.Screen name="Budget" component={BudgetScreen} options={{ title: 'Budget' }} />
-            <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+            <Stack.Screen name="Main" component={MainDrawer} />
+            <Stack.Screen name="Setup" component={SetupWizardScreen} />
           </>
         )}
       </Stack.Navigator>
