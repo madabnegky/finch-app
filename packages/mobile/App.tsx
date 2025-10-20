@@ -6,7 +6,6 @@ import { createDrawerNavigator } from '@react-navigation/drawer';
 import { AuthProvider } from '../shared-logic/src/hooks/useAuth';
 import brandColors from './src/theme/colors';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import 'react-native-gesture-handler';
 
 // Import our screens
 import { SplashScreen } from './src/screens/SplashScreen';
@@ -39,10 +38,11 @@ function MainDrawer() {
         drawerLabelStyle: {
           fontSize: 16,
           fontWeight: '600',
-          marginLeft: -20,
+          marginLeft: 0,
         },
         drawerItemStyle: {
           marginVertical: 4,
+          paddingLeft: 8,
         },
         headerStyle: {
           backgroundColor: brandColors.tealDark,
@@ -51,6 +51,9 @@ function MainDrawer() {
         headerTitleStyle: {
           fontWeight: 'bold',
         },
+        headerShown: true,
+        drawerActiveBackgroundColor: brandColors.orangeAccent + '15',
+        swipeEnabled: true,
       }}
     >
       <Drawer.Screen
