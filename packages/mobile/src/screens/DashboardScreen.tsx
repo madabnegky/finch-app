@@ -6,7 +6,6 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import firestore from '@react-native-firebase/firestore';
 import { AddTransactionModal } from '../components/AddTransactionModal';
-import { AddGoalModal } from '../components/AddGoalModal';
 import { ManageAccountModal } from '../components/ManageAccountModal';
 import { TransferModal } from '../components/TransferModal';
 import { WhatIfModal } from '../components/WhatIfModal';
@@ -33,22 +32,13 @@ type Transaction = {
   frequency?: 'weekly' | 'biweekly' | 'monthly';
 };
 
-type Goal = {
-  id: string;
-  name: string;
-  targetAmount: number;
-  currentAmount: number;
-};
-
 export const DashboardScreen = () => {
   const navigation = useNavigation();
   const { user, signOut } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
-  const [showAddGoal, setShowAddGoal] = useState(false);
   const [showManageAccount, setShowManageAccount] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [showWhatIf, setShowWhatIf] = useState(false);
@@ -65,10 +55,23 @@ export const DashboardScreen = () => {
 
     const unsubscribeAccounts = firestore()
       .collection(`users/${user.uid}/accounts`)
-      .onSnapshot((snapshot) => {
+      .onSnapshot(async (snapshot) => {
+        // Fetch all goals to calculate total allocations per account
+        const goalsSnapshot = await firestore()
+          .collection(`users/${user.uid}/goals`)
+          .get();
+
         const accountsData = snapshot.docs.map(doc => {
           const data = doc.data();
-          const availableToSpend = (data.currentBalance || 0) - (data.cushion || 0);
+
+          // Calculate total allocated to goals for this account
+          const totalAllocatedToGoals = goalsSnapshot.docs
+            .filter(goalDoc => goalDoc.data().accountId === doc.id)
+            .reduce((sum, goalDoc) => sum + (goalDoc.data().allocatedAmount || 0), 0);
+
+          // availableToSpend = currentBalance - cushion - goalAllocations
+          const availableToSpend = (data.currentBalance || 0) - (data.cushion || 0) - totalAllocatedToGoals;
+
           return {
             id: doc.id,
             name: data.name || 'Unnamed Account',
@@ -93,20 +96,9 @@ export const DashboardScreen = () => {
         setTransactions(transactionsData);
       });
 
-    const unsubscribeGoals = firestore()
-      .collection(`users/${user.uid}/goals`)
-      .onSnapshot((snapshot) => {
-        const goalsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        } as Goal));
-        setGoals(goalsData);
-      });
-
     return () => {
       unsubscribeAccounts();
       unsubscribeTransactions();
-      unsubscribeGoals();
     };
   }, [user]);
 
@@ -402,79 +394,6 @@ export const DashboardScreen = () => {
         );
       })()}
 
-      {/* What If Simulation */}
-      <View style={styles.section}>
-        <TouchableOpacity
-          style={styles.whatIfCard}
-          onPress={() => setShowWhatIf(true)}
-        >
-          <View style={styles.whatIfIconContainer}>
-            <Text style={styles.whatIfIcon}>🤔</Text>
-          </View>
-          <View style={styles.whatIfContent}>
-            <Text style={styles.whatIfTitle}>What If Simulation</Text>
-            <Text style={styles.whatIfDescription}>
-              Test different scenarios and see how they affect your finances
-            </Text>
-          </View>
-          <Icon name="chevron-right" size={24} color={brandColors.textGray} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Goals & Envelopes */}
-      {goals.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Goals & Envelopes</Text>
-            <TouchableOpacity onPress={() => setShowAddGoal(true)}>
-              <Text style={styles.addLink}>+ Add</Text>
-            </TouchableOpacity>
-          </View>
-          {goals.map((goal) => {
-            const progress = (goal.currentAmount / goal.targetAmount) * 100;
-            return (
-              <View key={goal.id} style={styles.goalCard}>
-                <View style={styles.goalHeader}>
-                  <Text style={styles.goalName}>{goal.name}</Text>
-                  <Text style={styles.goalAmount}>
-                    {formatCurrency(goal.currentAmount)} / {formatCurrency(goal.targetAmount)}
-                  </Text>
-                </View>
-                <View style={styles.progressBarContainer}>
-                  <View
-                    style={[
-                      styles.progressBar,
-                      {
-                        width: `${Math.min(progress, 100)}%`,
-                        backgroundColor: progress >= 100 ? brandColors.green : brandColors.tealPrimary
-                      }
-                    ]}
-                  />
-                </View>
-                <Text style={styles.goalProgress}>{progress.toFixed(0)}% complete</Text>
-              </View>
-            );
-          })}
-        </View>
-      )}
-
-      {goals.length === 0 && (
-        <View style={styles.section}>
-          <View style={styles.emptyGoalsCard}>
-            <Text style={styles.emptyGoalsTitle}>Set Financial Goals</Text>
-            <Text style={styles.emptyGoalsText}>
-              Create goals to track your savings progress
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyGoalsButton}
-              onPress={() => setShowAddGoal(true)}
-            >
-              <Text style={styles.emptyGoalsButtonText}>+ Add Goal</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
       {/* Accounts */}
       {accountsWithProjections.length > 0 && (
         <View style={styles.section}>
@@ -564,7 +483,7 @@ export const DashboardScreen = () => {
       )}
 
       {/* Empty State */}
-      {accounts.length === 0 && transactions.length === 0 && goals.length === 0 && (
+      {accounts.length === 0 && transactions.length === 0 && (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateTitle}>No data yet</Text>
           <Text style={styles.emptyStateText}>
@@ -579,14 +498,6 @@ export const DashboardScreen = () => {
         onClose={() => setShowAddTransaction(false)}
         onSuccess={() => {
           console.log('Transaction added successfully!');
-        }}
-      />
-
-      <AddGoalModal
-        visible={showAddGoal}
-        onClose={() => setShowAddGoal(false)}
-        onSuccess={() => {
-          console.log('Goal added successfully!');
         }}
       />
 
@@ -705,6 +616,19 @@ export const DashboardScreen = () => {
                 <Icon name="bank-transfer" size={24} color={brandColors.white} />
               </View>
               <Text style={styles.fabMenuLabel}>Transfer</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.fabMenuItem}
+              onPress={() => {
+                setFabExpanded(false);
+                setShowWhatIf(true);
+              }}
+            >
+              <View style={styles.fabMenuButton}>
+                <Icon name="lightbulb-on" size={24} color={brandColors.white} />
+              </View>
+              <Text style={styles.fabMenuLabel}>What If?</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -1015,41 +939,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  whatIfCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: brandColors.white,
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: brandColors.tealPrimary,
-    gap: 16,
-  },
-  whatIfIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: brandColors.tealPrimary + '15',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  whatIfIcon: {
-    fontSize: 32,
-  },
-  whatIfContent: {
-    flex: 1,
-  },
-  whatIfTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: brandColors.textDark,
-    marginBottom: 4,
-  },
-  whatIfDescription: {
-    fontSize: 14,
-    color: brandColors.textGray,
-    lineHeight: 20,
-  },
   fab: {
     position: 'absolute',
     right: 20,
@@ -1111,88 +1000,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 4,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  addLink: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: brandColors.tealPrimary,
-  },
-  goalCard: {
-    backgroundColor: brandColors.white,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
-    marginBottom: 12,
-  },
-  goalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  goalName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: brandColors.textDark,
-    flex: 1,
-  },
-  goalAmount: {
-    fontSize: 14,
-    color: brandColors.textGray,
-  },
-  progressBarContainer: {
-    height: 8,
-    backgroundColor: brandColors.lightGray,
-    borderRadius: 4,
-    marginBottom: 8,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  goalProgress: {
-    fontSize: 12,
-    color: brandColors.textGray,
-    textAlign: 'right',
-  },
-  emptyGoalsCard: {
-    backgroundColor: brandColors.white,
-    padding: 24,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
-    alignItems: 'center',
-  },
-  emptyGoalsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: brandColors.textDark,
-    marginBottom: 8,
-  },
-  emptyGoalsText: {
-    fontSize: 14,
-    color: brandColors.textGray,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  emptyGoalsButton: {
-    backgroundColor: brandColors.tealPrimary,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  emptyGoalsButtonText: {
-    color: brandColors.white,
-    fontSize: 14,
-    fontWeight: '600',
   },
   accountActions: {
     flexDirection: 'row',

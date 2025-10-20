@@ -94,24 +94,30 @@ export const BudgetScreen: React.FC = () => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    endOfMonth.setHours(23, 59, 59, 999); // End of the last day of the month
 
     const unsubscribe = firestore()
       .collection(`users/${user.uid}/transactions`)
       .where('type', '==', 'expense')
       .where('date', '>=', firestore.Timestamp.fromDate(startOfMonth))
-      .where('date', '<=', firestore.Timestamp.fromDate(endOfMonth))
       .onSnapshot(
         (snapshot) => {
           if (!snapshot) {
             return;
           }
 
-          const transactions = snapshot.docs.map((doc) => doc.data()) as Transaction[];
+          // Filter transactions for current month only (filter end date in memory)
+          const transactions = snapshot.docs
+            .map((doc) => doc.data() as Transaction)
+            .filter((txn) => {
+              const txnDate = txn.date?.toDate ? txn.date.toDate() : new Date(txn.date);
+              return txnDate <= endOfMonth;
+            });
 
           const categorySpending: { [key: string]: number } = {};
           transactions.forEach((txn) => {
             const category = txn.category || 'Uncategorized';
-            categorySpending[category] = (categorySpending[category] || 0) + txn.amount;
+            categorySpending[category] = (categorySpending[category] || 0) + Math.abs(txn.amount);
           });
 
           setBudgets((prevBudgets) =>

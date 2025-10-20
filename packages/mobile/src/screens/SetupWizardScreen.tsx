@@ -254,8 +254,8 @@ export const SetupWizardScreen = () => {
 
       console.log('Setup completed successfully!');
 
-      // Navigate to main tabs (dashboard)
-      navigation.replace('Dashboard');
+      // Navigate to main drawer navigator
+      navigation.replace('Main');
     } catch (error) {
       console.error('Setup error:', error);
       Alert.alert('Error', 'Failed to complete setup. Please try again.');

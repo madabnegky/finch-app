@@ -12,6 +12,7 @@ import { SplashScreen } from './src/screens/SplashScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { SetupWizardScreen } from './src/screens/SetupWizardScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
+import { GoalsScreen } from './src/screens/GoalsScreen';
 import { TransactionsScreen } from './src/screens/TransactionsScreen';
 import { CalendarScreen } from './src/screens/CalendarScreen';
 import { ReportsScreen } from './src/screens/ReportsScreen';
@@ -59,7 +60,7 @@ function MainDrawer() {
       <Drawer.Screen
         name="Dashboard"
         options={{
-          drawerIcon: ({ color, size }) => (
+          drawerIcon: ({ color, size}) => (
             <Icon name="view-dashboard" size={size} color={color} />
           ),
         }}
@@ -70,6 +71,15 @@ function MainDrawer() {
           </AccountSetupGate>
         )}
       </Drawer.Screen>
+      <Drawer.Screen
+        name="Goals"
+        component={GoalsScreen}
+        options={{
+          drawerIcon: ({ color, size }) => (
+            <Icon name="flag-variant" size={size} color={color} />
+          ),
+        }}
+      />
       <Drawer.Screen
         name="Transactions"
         component={TransactionsScreen}
