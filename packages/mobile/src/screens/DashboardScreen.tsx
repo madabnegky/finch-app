@@ -11,19 +11,7 @@ import { ManageAccountModal } from '../components/ManageAccountModal';
 import { TransferModal } from '../components/TransferModal';
 import { WhatIfModal } from '../components/WhatIfModal';
 import { generateTransactionInstances } from '../utils/transactionInstances';
-
-const brandColors = {
-  primaryBlue: '#4F46E5',
-  backgroundOffWhite: '#F8F9FA',
-  textDark: '#1F2937',
-  textGray: '#6B7280',
-  white: '#FFFFFF',
-  lightGray: '#E5E7EB',
-  green: '#10B981',
-  red: '#EF4444',
-  amber: '#F59E0B',
-  purple: '#9333EA',
-};
+import brandColors from '../theme/colors';
 
 type Account = {
   id: string;
@@ -311,7 +299,7 @@ export const DashboardScreen = () => {
   if (loading) {
     return (
       <View style={[styles.container, styles.centerContent]}>
-        <ActivityIndicator size="large" color={brandColors.primaryBlue} />
+        <ActivityIndicator size="large" color={brandColors.tealPrimary} />
         <Text style={styles.loadingText}>Loading your dashboard...</Text>
       </View>
     );
@@ -319,25 +307,6 @@ export const DashboardScreen = () => {
 
   return (
     <ScrollView style={styles.container}>
-      {/* Navigation Buttons */}
-      <View style={styles.navContainer}>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Transactions' as never)}>
-          <Text style={styles.navButtonText}>💳 Transactions</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Calendar' as never)}>
-          <Text style={styles.navButtonText}>📅 Calendar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Reports' as never)}>
-          <Text style={styles.navButtonText}>📊 Reports</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Budget' as never)}>
-          <Text style={styles.navButtonText}>💰 Budget</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Settings' as never)}>
-          <Text style={styles.navButtonText}>⚙️ Settings</Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Welcome Message */}
       <View style={styles.welcomeContainer}>
         <Text style={styles.welcomeText}>Welcome to Finch</Text>
@@ -477,7 +446,7 @@ export const DashboardScreen = () => {
                       styles.progressBar,
                       {
                         width: `${Math.min(progress, 100)}%`,
-                        backgroundColor: progress >= 100 ? brandColors.green : brandColors.primaryBlue
+                        backgroundColor: progress >= 100 ? brandColors.green : brandColors.tealPrimary
                       }
                     ]}
                   />
@@ -527,7 +496,7 @@ export const DashboardScreen = () => {
                       setShowManageAccount(true);
                     }}
                   >
-                    <Icon name="pencil" size={18} color={brandColors.primaryBlue} />
+                    <Icon name="pencil" size={18} color={brandColors.tealPrimary} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.accountActionButton}
@@ -774,7 +743,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   navButton: {
-    backgroundColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -805,14 +774,14 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: brandColors.primaryBlue,
+    color: brandColors.tealPrimary,
   },
   signOutButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
   signOutText: {
-    color: brandColors.primaryBlue,
+    color: brandColors.tealPrimary,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1020,7 +989,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 24,
     marginBottom: 24,
     padding: 20,
-    backgroundColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
     borderRadius: 12,
   },
   upgradeTitle: {
@@ -1042,7 +1011,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   upgradeButtonText: {
-    color: brandColors.primaryBlue,
+    color: brandColors.tealPrimary,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1053,14 +1022,14 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: brandColors.primaryBlue,
+    borderColor: brandColors.tealPrimary,
     gap: 16,
   },
   whatIfIconContainer: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: brandColors.primaryBlue + '15',
+    backgroundColor: brandColors.tealPrimary + '15',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1088,7 +1057,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -1120,7 +1089,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -1133,7 +1102,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: brandColors.white,
-    backgroundColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -1152,7 +1121,7 @@ const styles = StyleSheet.create({
   addLink: {
     fontSize: 14,
     fontWeight: '600',
-    color: brandColors.primaryBlue,
+    color: brandColors.tealPrimary,
   },
   goalCard: {
     backgroundColor: brandColors.white,
@@ -1215,7 +1184,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyGoalsButton: {
-    backgroundColor: brandColors.primaryBlue,
+    backgroundColor: brandColors.tealPrimary,
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,

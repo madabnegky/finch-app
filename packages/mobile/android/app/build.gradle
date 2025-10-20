@@ -14,17 +14,21 @@ def jscFlavor = 'org.webkit:android-jsc:+'
 
 android {
     namespace "com.finchandroid"
-    compileSdkVersion 34
-    ndkVersion "23.1.7779620"
+    compileSdk rootProject.ext.compileSdkVersion
 
     buildFeatures {
         buildConfig = true
     }
 
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
     defaultConfig {
         applicationId "com.finchandroid"
-        minSdkVersion 21
-        targetSdkVersion 34
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
     }
@@ -58,11 +62,7 @@ dependencies {
     if (isGifEnabled) {
         implementation 'com.facebook.fresco:animated-gif:2.5.0'
     }
-    if (hermesEnabled.toBoolean()) {
-        implementation 'com.facebook.soloader:soloader:0.10.3'
-    } else {
-        implementation jscFlavor
-    }
+    implementation 'com.facebook.soloader:soloader:0.10.3'
 
     if (findProperty('FLIPPER_VERSION')) {
         debugImplementation("com.facebook.flipper:flipper:${findProperty('FLIPPER_VERSION')}") {
