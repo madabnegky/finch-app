@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,14 +13,24 @@ import firestore from '@react-native-firebase/firestore';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import { brandColors } from '../theme/colors';
 
-type AddGoalModalProps = {
+type Goal = {
+  id: string;
+  name: string;
+  targetAmount: number;
+  allocatedAmount: number;
+  deadline?: any;
+};
+
+type EditGoalModalProps = {
   visible: boolean;
+  goal: Goal;
   onClose: () => void;
   onSuccess?: () => void;
 };
 
-export const AddGoalModal: React.FC<AddGoalModalProps> = ({
+export const EditGoalModal: React.FC<EditGoalModalProps> = ({
   visible,
+  goal,
   onClose,
   onSuccess,
 }) => {
@@ -29,6 +39,19 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
   const [targetAmount, setTargetAmount] = useState('');
   const [deadline, setDeadline] = useState('');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (goal) {
+      setName(goal.name);
+      setTargetAmount(goal.targetAmount.toString());
+      if (goal.deadline) {
+        const deadlineDate = goal.deadline.toDate ? goal.deadline.toDate() : new Date(goal.deadline);
+        setDeadline(deadlineDate.toISOString().split('T')[0]);
+      } else {
+        setDeadline('');
+      }
+    }
+  }, [goal]);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -43,6 +66,11 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
 
     const target = parseFloat(targetAmount);
 
+    if (goal.allocatedAmount > target) {
+      Alert.alert('Invalid', 'Target amount cannot be less than already allocated amount');
+      return;
+    }
+
     // Validate deadline format if provided
     if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
       Alert.alert('Invalid Date', 'Please enter a valid date in YYYY-MM-DD format');
@@ -52,32 +80,29 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
     try {
       setSaving(true);
 
-      const goalData: any = {
+      const updateData: any = {
         name: name.trim(),
         targetAmount: target,
-        allocatedAmount: 0,
-        createdAt: firestore.FieldValue.serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
       };
 
       if (deadline) {
-        goalData.deadline = firestore.Timestamp.fromDate(new Date(deadline));
+        updateData.deadline = firestore.Timestamp.fromDate(new Date(deadline));
+      } else {
+        updateData.deadline = null;
       }
 
       await firestore()
         .collection(`users/${user?.uid}/goals`)
-        .add(goalData);
+        .doc(goal.id)
+        .update(updateData);
 
-      // Reset form
-      setName('');
-      setTargetAmount('');
-      setDeadline('');
-
-      Alert.alert('Success', 'Goal added successfully');
+      Alert.alert('Success', 'Goal updated successfully');
       onSuccess?.();
       onClose();
     } catch (error) {
-      console.error('Error saving goal:', error);
-      Alert.alert('Error', 'Failed to save goal. Please try again.');
+      console.error('Error updating goal:', error);
+      Alert.alert('Error', 'Failed to update goal. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -93,7 +118,7 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
           <View style={styles.header}>
-            <Text style={styles.title}>Add Goal / Envelope</Text>
+            <Text style={styles.title}>Edit Goal</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
@@ -127,10 +152,15 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
               placeholder="YYYY-MM-DD (e.g., 2025-12-31)"
               placeholderTextColor={brandColors.textGray}
             />
-
             <Text style={styles.helperText}>
-              Set a target date to help track your progress and stay motivated
+              Set a target date to help track your progress
             </Text>
+
+            <View style={styles.infoBox}>
+              <Text style={styles.infoText}>
+                Currently allocated: ${goal.allocatedAmount.toFixed(2)}
+              </Text>
+            </View>
           </ScrollView>
 
           <View style={styles.footer}>
@@ -147,7 +177,7 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
               disabled={saving}
             >
               <Text style={styles.saveButtonText}>
-                {saving ? 'Saving...' : 'Save'}
+                {saving ? 'Saving...' : 'Save Changes'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -213,6 +243,17 @@ const styles = StyleSheet.create({
     color: brandColors.textGray,
     marginTop: 4,
     fontStyle: 'italic',
+  },
+  infoBox: {
+    backgroundColor: brandColors.tealLight + '20',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 16,
+  },
+  infoText: {
+    fontSize: 14,
+    color: brandColors.tealDark,
+    fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',
