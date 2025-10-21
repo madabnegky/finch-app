@@ -32,24 +32,22 @@ const PlaidLink = ({ onLinkSuccess, buttonText, isWizard = false }) => {
         setIsLoading(true);
         try {
             const functions = getFunctions();
-            
-            setLoadingMessage('Saving accounts...');
+
+            setLoadingMessage('Exchanging token...');
             const exchangeToken = httpsCallable(functions, 'exchangePublicToken');
-            const exchangeResult = await exchangeToken({ public_token: public_token });
-            const { item_id } = exchangeResult.data;
+            const exchangeResult = await exchangeToken({ publicToken: public_token });
+            const { itemId, plaidAccounts, institutionName } = exchangeResult.data;
 
-            setLoadingMessage('Syncing transactions...');
-            const syncTransactions = httpsCallable(functions, 'syncTransactions');
-            await syncTransactions({ item_id: item_id });
-
-            // Reverted to call the original Plaid-powered function
-            setLoadingMessage('Analyzing recurring transactions...');
-            const identifyRecurring = httpsCallable(functions, 'identifyRecurringTransactions');
-            await identifyRecurring({ item_id: item_id });
-
-            onLinkSuccess();
+            // Pass the account selection data to parent
+            onLinkSuccess({
+                itemId,
+                plaidAccounts,
+                institutionName,
+                publicToken: public_token,
+            });
         } catch (error) {
             console.error("Error during Plaid success callback:", error);
+            alert('Failed to connect your bank account. Please try again.');
         } finally {
             setIsLoading(false);
         }

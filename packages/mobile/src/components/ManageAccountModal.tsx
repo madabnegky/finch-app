@@ -19,6 +19,8 @@ type Account = {
   type: 'checking' | 'savings';
   currentBalance: number;
   cushion?: number;
+  plaidAccountId?: string;
+  plaidItemId?: string;
 };
 
 type ManageAccountModalProps = {
@@ -147,6 +149,48 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
     );
   };
 
+  const handleUnlinkFromPlaid = async () => {
+    if (!account || !user) return;
+
+    Alert.alert(
+      'Unlink from Plaid',
+      'This will stop automatic transaction syncing. Manual transactions will continue working. Are you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unlink',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setSaving(true);
+
+              // Remove Plaid link from account
+              await firestore()
+                .collection(`users/${user.uid}/accounts`)
+                .doc(account.id)
+                .update({
+                  plaidAccountId: firestore.FieldValue.delete(),
+                  plaidItemId: firestore.FieldValue.delete(),
+                  linkedAt: firestore.FieldValue.delete(),
+                  lastPlaidBalance: firestore.FieldValue.delete(),
+                  lastBalanceSyncAt: firestore.FieldValue.delete(),
+                });
+
+              Alert.alert('Success', 'Account unlinked from Plaid. Manual transactions will continue working.');
+              onSuccess?.();
+              onClose();
+            } catch (error) {
+              console.error('Unlink error:', error);
+              Alert.alert('Error', 'Failed to unlink account. Please try again.');
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <Modal
       visible={visible}
@@ -158,7 +202,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
         <View style={styles.modalContainer}>
           <View style={styles.header}>
             <Text style={styles.title}>
-              {isEditMode ? 'Edit Account' : 'Add Account'}
+              {isEditMode ? 'Edit Account' : 'Add Manual Account'}
             </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>✕</Text>
@@ -166,6 +210,25 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            {/* Show Plaid status if account is linked */}
+            {isEditMode && account && account.plaidAccountId && (
+              <View style={styles.plaidSection}>
+                <View style={styles.plaidStatusContainer}>
+                  <Text style={styles.plaidStatusText}>🔗 Linked to Plaid</Text>
+                  <Text style={styles.plaidStatusSubtext}>
+                    Transactions sync automatically
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.unlinkButton}
+                  onPress={handleUnlinkFromPlaid}
+                  disabled={saving}
+                >
+                  <Text style={styles.unlinkButtonText}>Unlink from Plaid</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <Text style={styles.label}>Account Name</Text>
             <TextInput
               style={styles.input}
@@ -395,5 +458,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: brandColors.white,
+  },
+  plaidSection: {
+    marginBottom: 24,
+    padding: 16,
+    backgroundColor: brandColors.backgroundOffWhite,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: brandColors.lightGray,
+  },
+  plaidStatusContainer: {
+    marginBottom: 12,
+  },
+  plaidStatusText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: brandColors.tealDark,
+    marginBottom: 4,
+  },
+  plaidStatusSubtext: {
+    fontSize: 14,
+    color: brandColors.textGray,
+  },
+  unlinkButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: brandColors.white,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: brandColors.amber,
+  },
+  unlinkButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: brandColors.amber,
   },
 });

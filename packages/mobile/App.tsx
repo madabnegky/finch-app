@@ -10,7 +10,6 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 // Import our screens
 import { SplashScreen } from './src/screens/SplashScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
-import { SetupWizardScreen } from './src/screens/SetupWizardScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { GoalsScreen } from './src/screens/GoalsScreen';
 import { TransactionsScreen } from './src/screens/TransactionsScreen';
@@ -18,7 +17,6 @@ import { CalendarScreen } from './src/screens/CalendarScreen';
 import { ReportsScreen } from './src/screens/ReportsScreen';
 import { BudgetScreen } from './src/screens/BudgetScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
-import { AccountSetupGate } from './src/components/AccountSetupGate';
 import { useAuth } from '../shared-logic/src/hooks/useAuth';
 
 // This creates the "stack" of screens and drawer
@@ -59,18 +57,13 @@ function MainDrawer() {
     >
       <Drawer.Screen
         name="Dashboard"
+        component={DashboardScreen}
         options={{
           drawerIcon: ({ color, size}) => (
             <Icon name="view-dashboard" size={size} color={color} />
           ),
         }}
-      >
-        {() => (
-          <AccountSetupGate>
-            <DashboardScreen />
-          </AccountSetupGate>
-        )}
-      </Drawer.Screen>
+      />
       <Drawer.Screen
         name="Goals"
         component={GoalsScreen}
@@ -155,11 +148,8 @@ function AppNavigator() {
           // Not authenticated - show auth screen
           <Stack.Screen name="Auth" component={AuthScreen} />
         ) : (
-          // Authenticated - show drawer and setup screen
-          <>
-            <Stack.Screen name="Main" component={MainDrawer} />
-            <Stack.Screen name="Setup" component={SetupWizardScreen} />
-          </>
+          // Authenticated - show drawer
+          <Stack.Screen name="Main" component={MainDrawer} />
         )}
       </Stack.Navigator>
     </NavigationContainer>

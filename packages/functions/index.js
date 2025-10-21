@@ -26,6 +26,65 @@ const project = process.env.GCLOUD_PROJECT || 'finch-app-v2';
 const location = 'us-central1';
 const queue = 'plaid-sync-queue';
 
+// Map Plaid categories to Finch categories
+function mapPlaidCategoryToFinch(plaidCategories) {
+  if (!plaidCategories || plaidCategories.length === 0) {
+    return 'Uncategorized';
+  }
+
+  const primaryCategory = plaidCategories[0].toLowerCase();
+  const secondaryCategory = plaidCategories[1]?.toLowerCase();
+
+  // Plaid -> Finch category mappings
+  const categoryMap = {
+    // Food categories
+    'food and drink': secondaryCategory === 'groceries' ? 'Groceries' : 'Food',
+    'restaurants': 'Food',
+
+    // Transportation
+    'transportation': 'Transportation',
+    'travel': secondaryCategory?.includes('gas') ? 'Transportation' : 'Travel',
+
+    // Shopping
+    'shops': 'Shopping',
+    'general merchandise': 'Shopping',
+
+    // Housing
+    'rent and utilities': secondaryCategory?.includes('util') ? 'Utilities' : 'Housing',
+    'home improvement': 'Housing',
+
+    // Health
+    'healthcare': 'Health',
+    'medical': 'Health',
+
+    // Entertainment
+    'recreation': 'Entertainment',
+    'entertainment': 'Entertainment',
+
+    // Bills & Subscriptions
+    'service': secondaryCategory?.includes('subscr') || secondaryCategory?.includes('streaming')
+      ? 'Subscriptions'
+      : secondaryCategory?.includes('util') ? 'Utilities' : 'Uncategorized',
+    'subscription': 'Subscriptions',
+
+    // Personal
+    'personal care': 'Personal Care',
+
+    // Donations
+    'community': 'Gifts & Donations',
+    'transfer': 'Uncategorized', // Internal transfers shouldn't be categorized as expenses
+  };
+
+  // Try exact match on primary category
+  for (const [plaidCat, finchCat] of Object.entries(categoryMap)) {
+    if (primaryCategory.includes(plaidCat) || plaidCat.includes(primaryCategory)) {
+      return finchCat;
+    }
+  }
+
+  return 'Uncategorized';
+}
+
 exports.generateProjections = functions.https.onRequest(async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -528,7 +587,7 @@ exports.syncTransactions = functions.https.onCall(async (data, context) => {
           description: plaidTxn.name,
           amount,
           type: amount >= 0 ? 'income' : 'expense',
-          category: plaidTxn.category?.[0] || 'Other',
+          category: mapPlaidCategoryToFinch(plaidTxn.category),
           date: admin.firestore.Timestamp.fromDate(txnDate),
           isPending: plaidTxn.pending,
           source: 'plaid',
@@ -711,7 +770,7 @@ exports.identifyRecurringTransactions = functions.https.onCall(async (data, cont
           occurrenceCount: transactions.length,
           isVariableAmount,
           nextDate: toDateInputString(nextDate),
-          category: transactions[0].category?.[0] || 'Other',
+          category: mapPlaidCategoryToFinch(transactions[0].category),
         });
 
         functions.logger.info(`Detected recurring pattern: ${merchant} (${frequency})`, {
@@ -987,7 +1046,7 @@ exports.processSyncTask = functions.https.onRequest(async (req, res) => {
           description: plaidTxn.name,
           amount,
           type: amount >= 0 ? 'income' : 'expense',
-          category: plaidTxn.category?.[0] || 'Other',
+          category: mapPlaidCategoryToFinch(plaidTxn.category),
           date: admin.firestore.Timestamp.fromDate(txnDate),
           isPending: plaidTxn.pending,
           source: 'plaid',
