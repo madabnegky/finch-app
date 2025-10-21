@@ -1,16 +1,15 @@
 // packages/mobile/src/screens/DashboardScreen.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TourGuideZone, useTourGuideController } from 'rn-tourguide';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import firestore from '@react-native-firebase/firestore';
 import { AddTransactionModal } from '../components/AddTransactionModal';
 import { ManageAccountModal } from '../components/ManageAccountModal';
 import { TransferModal } from '../components/TransferModal';
 import { WhatIfModal } from '../components/WhatIfModal';
-import { OnboardingOverlay } from '../components/OnboardingOverlay';
 import { PlaidAccountPicker } from '../components/PlaidAccountPicker';
 import { usePlaidLink } from '../components/PlaidLinkHandler';
 import { generateTransactionInstances } from '../utils/transactionInstances';
@@ -55,7 +54,6 @@ export const DashboardScreen = () => {
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [whatIfTransaction, setWhatIfTransaction] = useState<any>(null);
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Plaid state - managed at Dashboard level
   const [triggerPlaid, setTriggerPlaid] = useState(false);
@@ -118,91 +116,8 @@ export const DashboardScreen = () => {
     };
   }, [user]);
 
-  // Check if user should see onboarding
-  useEffect(() => {
-    const checkOnboarding = async () => {
-      if (!user || loading) return;
+  // TODO: Implement better onboarding with rn-tourguide
 
-      try {
-        // Check AsyncStorage first (works for both guest and authenticated users)
-        const hasSeenOnboarding = await AsyncStorage.getItem('hasSeenOnboarding');
-
-        if (hasSeenOnboarding === 'true') {
-          // User has already seen the onboarding, don't show again
-          return;
-        }
-
-        // For authenticated users, also check Firestore
-        if (!user.isAnonymous) {
-          const userDocRef = firestore().collection('users').doc(user.uid);
-          const userDoc = await userDocRef.get();
-          const hasCompletedOnboarding = userDoc.exists() && userDoc.data()?.hasCompletedOnboarding === true;
-
-          if (hasCompletedOnboarding) {
-            // Mark in AsyncStorage too
-            await AsyncStorage.setItem('hasSeenOnboarding', 'true');
-            return;
-          }
-        }
-
-        // Show onboarding if user hasn't completed it AND has no accounts/transactions
-        const shouldShowOnboarding = accounts.length === 0 && transactions.length === 0;
-
-        if (shouldShowOnboarding) {
-          // Small delay to ensure UI is ready
-          setTimeout(() => {
-            setShowOnboarding(true);
-          }, 500);
-        }
-      } catch (error) {
-        console.error('Error checking onboarding status:', error);
-      }
-    };
-
-    checkOnboarding();
-  }, [user, loading, accounts.length, transactions.length]);
-
-  const handleOnboardingComplete = async () => {
-    setShowOnboarding(false);
-
-    try {
-      // Always save to AsyncStorage (works for all users)
-      await AsyncStorage.setItem('hasSeenOnboarding', 'true');
-
-      // For authenticated users, also save to Firestore
-      if (user && !user.isAnonymous) {
-        await firestore()
-          .collection('users')
-          .doc(user.uid)
-          .set({ hasCompletedOnboarding: true }, { merge: true });
-      }
-
-      console.log('Onboarding marked as completed');
-    } catch (error) {
-      console.error('Error saving onboarding completion:', error);
-    }
-  };
-
-  const handleOnboardingSkip = async () => {
-    setShowOnboarding(false);
-
-    try {
-      // Always save to AsyncStorage (works for all users)
-      await AsyncStorage.setItem('hasSeenOnboarding', 'true');
-
-      // For authenticated users, also save to Firestore
-      if (user && !user.isAnonymous) {
-        await firestore()
-          .collection('users')
-          .doc(user.uid)
-          .set({ hasCompletedOnboarding: true }, { merge: true });
-      }
-
-      console.log('Onboarding skipped and marked as completed');
-    } catch (error) {
-      console.error('Error saving onboarding skip:', error);
-    }
-  };
 
   // Plaid handlers
   const handlePlaidSuccess = async (publicToken: string) => {
@@ -1039,12 +954,7 @@ export const DashboardScreen = () => {
         />
       </TouchableOpacity>
 
-      {/* Onboarding Overlay */}
-      <OnboardingOverlay
-        visible={showOnboarding}
-        onComplete={handleOnboardingComplete}
-        onSkip={handleOnboardingSkip}
-      />
+      {/* TODO: Add rn-tourguide onboarding here */}
 
       {/* Plaid Account Picker - shown after Plaid success */}
       {plaidData && (
