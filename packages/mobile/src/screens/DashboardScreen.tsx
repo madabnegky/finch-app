@@ -3,14 +3,19 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import firestore from '@react-native-firebase/firestore';
 import { AddTransactionModal } from '../components/AddTransactionModal';
 import { ManageAccountModal } from '../components/ManageAccountModal';
 import { TransferModal } from '../components/TransferModal';
 import { WhatIfModal } from '../components/WhatIfModal';
+import { OnboardingOverlay } from '../components/OnboardingOverlay';
+import { PlaidAccountPicker } from '../components/PlaidAccountPicker';
+import { usePlaidLink } from '../components/PlaidLinkHandler';
 import { generateTransactionInstances } from '../utils/transactionInstances';
 import brandColors from '../theme/colors';
+import functions from '@react-native-firebase/functions';
 
 type Account = {
   id: string;
@@ -19,6 +24,8 @@ type Account = {
   currentBalance: number;
   cushion: number;
   availableToSpend: number;
+  plaidAccountId?: string;
+  plaidItemId?: string;
 };
 
 type Transaction = {
@@ -48,6 +55,13 @@ export const DashboardScreen = () => {
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [whatIfTransaction, setWhatIfTransaction] = useState<any>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Plaid state - managed at Dashboard level
+  const [triggerPlaid, setTriggerPlaid] = useState(false);
+  const [plaidLoading, setPlaidLoading] = useState(false);
+  const [showPlaidPicker, setShowPlaidPicker] = useState(false);
+  const [plaidData, setPlaidData] = useState<any>(null);
 
   // Fetch accounts and transactions from Firebase
   useEffect(() => {
@@ -79,6 +93,8 @@ export const DashboardScreen = () => {
             currentBalance: data.currentBalance || 0,
             cushion: data.cushion || 0,
             availableToSpend,
+            plaidAccountId: data.plaidAccountId,
+            plaidItemId: data.plaidItemId,
           };
         });
         setAccounts(accountsData);
@@ -102,6 +118,254 @@ export const DashboardScreen = () => {
     };
   }, [user]);
 
+  // Check if user should see onboarding
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      if (!user || loading) return;
+
+      try {
+        // Check AsyncStorage first (works for both guest and authenticated users)
+        const hasSeenOnboarding = await AsyncStorage.getItem('hasSeenOnboarding');
+
+        if (hasSeenOnboarding === 'true') {
+          // User has already seen the onboarding, don't show again
+          return;
+        }
+
+        // For authenticated users, also check Firestore
+        if (!user.isAnonymous) {
+          const userDocRef = firestore().collection('users').doc(user.uid);
+          const userDoc = await userDocRef.get();
+          const hasCompletedOnboarding = userDoc.exists() && userDoc.data()?.hasCompletedOnboarding === true;
+
+          if (hasCompletedOnboarding) {
+            // Mark in AsyncStorage too
+            await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+            return;
+          }
+        }
+
+        // Show onboarding if user hasn't completed it AND has no accounts/transactions
+        const shouldShowOnboarding = accounts.length === 0 && transactions.length === 0;
+
+        if (shouldShowOnboarding) {
+          // Small delay to ensure UI is ready
+          setTimeout(() => {
+            setShowOnboarding(true);
+          }, 500);
+        }
+      } catch (error) {
+        console.error('Error checking onboarding status:', error);
+      }
+    };
+
+    checkOnboarding();
+  }, [user, loading, accounts.length, transactions.length]);
+
+  const handleOnboardingComplete = async () => {
+    setShowOnboarding(false);
+
+    try {
+      // Always save to AsyncStorage (works for all users)
+      await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+
+      // For authenticated users, also save to Firestore
+      if (user && !user.isAnonymous) {
+        await firestore()
+          .collection('users')
+          .doc(user.uid)
+          .set({ hasCompletedOnboarding: true }, { merge: true });
+      }
+
+      console.log('Onboarding marked as completed');
+    } catch (error) {
+      console.error('Error saving onboarding completion:', error);
+    }
+  };
+
+  const handleOnboardingSkip = async () => {
+    setShowOnboarding(false);
+
+    try {
+      // Always save to AsyncStorage (works for all users)
+      await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+
+      // For authenticated users, also save to Firestore
+      if (user && !user.isAnonymous) {
+        await firestore()
+          .collection('users')
+          .doc(user.uid)
+          .set({ hasCompletedOnboarding: true }, { merge: true });
+      }
+
+      console.log('Onboarding skipped and marked as completed');
+    } catch (error) {
+      console.error('Error saving onboarding skip:', error);
+    }
+  };
+
+  // Plaid handlers
+  const handlePlaidSuccess = async (publicToken: string) => {
+    console.log('🟢 DashboardScreen: Plaid success, exchanging token...');
+    setTriggerPlaid(false);
+
+    try {
+      setPlaidLoading(true);
+
+      // Exchange public token for access token and account list
+      const exchangeToken = functions().httpsCallable('exchangePublicToken');
+      const exchangeResult = await exchangeToken({ publicToken });
+
+      const { itemId, plaidAccounts, institutionName } = exchangeResult.data as any;
+
+      console.log(`🟢 DashboardScreen: Got ${plaidAccounts.length} accounts from ${institutionName}`);
+
+      // Save Plaid data and show picker
+      setPlaidData({
+        itemId,
+        plaidAccounts,
+        institutionName,
+      });
+
+      setPlaidLoading(false);
+      setShowPlaidPicker(true);
+    } catch (error: any) {
+      console.error('Token exchange error:', error);
+      Alert.alert('Error', 'Failed to connect to your bank. Please try again.');
+      setPlaidLoading(false);
+    }
+  };
+
+  const handlePlaidExit = () => {
+    console.log('❌ DashboardScreen: Plaid exited');
+    setPlaidLoading(false);
+    setTriggerPlaid(false);
+  };
+
+  const handlePlaidReset = () => {
+    setTriggerPlaid(false);
+  };
+
+  // Initialize Plaid link handler
+  usePlaidLink({
+    trigger: triggerPlaid,
+    onSuccess: handlePlaidSuccess,
+    onExit: handlePlaidExit,
+    onReset: handlePlaidReset,
+  });
+
+  const handleAddAccountWithPlaid = () => {
+    console.log('🟢 DashboardScreen: Starting Plaid flow');
+    setFabExpanded(false);
+    setTriggerPlaid(true);
+  };
+
+  const handlePlaidAccountsSelected = async (selectedAccounts: any[]) => {
+    try {
+      console.log(`🟢 DashboardScreen: Processing ${selectedAccounts.length} selected accounts`);
+
+      if (!user) {
+        Alert.alert('Error', 'User not authenticated');
+        return;
+      }
+
+      // Create all selected accounts in Firestore
+      for (const selection of selectedAccounts) {
+        const { plaidAccountId, account, cushion } = selection;
+
+        // Create the account in Firestore first and get the document ID
+        const accountRef = await firestore()
+          .collection(`users/${user.uid}/accounts`)
+          .add({
+            name: account.name || account.officialName,
+            type: account.subtype || 'checking',
+            currentBalance: account.currentBalance || 0,
+            cushion: cushion || 0,
+            plaidAccountId,
+            plaidItemId: plaidData.itemId,
+            linkedAt: firestore.FieldValue.serverTimestamp(),
+            lastPlaidBalance: account.currentBalance || 0,
+            lastBalanceSyncAt: firestore.FieldValue.serverTimestamp(),
+            createdAt: firestore.FieldValue.serverTimestamp(),
+          });
+
+        console.log(`✅ Created account ${accountRef.id} for ${account.name}`);
+
+        // Try to sync transactions (non-blocking - accounts will still be created if this fails)
+        try {
+          const syncTransactions = functions().httpsCallable('syncTransactions');
+          await syncTransactions({
+            itemId: plaidData.itemId,
+            accountId: accountRef.id, // Use Firestore document ID, not Plaid account ID
+          });
+          console.log(`✅ Synced transactions for account ${accountRef.id}`);
+        } catch (syncError) {
+          console.warn(`⚠️ Failed to sync transactions for ${accountRef.id}:`, syncError);
+          // Continue anyway - the account is created, just no transactions yet
+        }
+
+        // Try to identify recurring transactions (non-blocking)
+        try {
+          const identifyRecurring = functions().httpsCallable('identifyRecurringTransactions');
+          await identifyRecurring({
+            itemId: plaidData.itemId,
+            accountId: accountRef.id, // Use Firestore document ID, not Plaid account ID
+          });
+          console.log(`✅ Identified recurring transactions for account ${accountRef.id}`);
+        } catch (recurringError) {
+          console.warn(`⚠️ Failed to identify recurring transactions for ${accountRef.id}:`, recurringError);
+          // Continue anyway
+        }
+      }
+
+      setShowPlaidPicker(false);
+      setPlaidData(null);
+
+      Alert.alert(
+        'Success!',
+        `${selectedAccounts.length} account${selectedAccounts.length > 1 ? 's' : ''} added successfully!`
+      );
+    } catch (error) {
+      console.error('Error creating Plaid accounts:', error);
+      Alert.alert('Error', 'Failed to add accounts. Please try again.');
+    }
+  };
+
+  const handleUnlinkAccountFromPlaid = async (account: Account) => {
+    if (!user) return;
+
+    Alert.alert(
+      'Unlink from Plaid',
+      `This will stop automatic transaction syncing for ${account.name}. Manual transactions will continue working. Are you sure?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unlink',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await firestore()
+                .collection(`users/${user.uid}/accounts`)
+                .doc(account.id)
+                .update({
+                  plaidAccountId: firestore.FieldValue.delete(),
+                  plaidItemId: firestore.FieldValue.delete(),
+                  linkedAt: firestore.FieldValue.delete(),
+                  lastPlaidBalance: firestore.FieldValue.delete(),
+                  lastBalanceSyncAt: firestore.FieldValue.delete(),
+                });
+
+              Alert.alert('Success', 'Account unlinked from Plaid.');
+            } catch (error) {
+              console.error('Unlink error:', error);
+              Alert.alert('Error', 'Failed to unlink account. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -116,22 +380,95 @@ export const DashboardScreen = () => {
   const handleDeleteAccount = async () => {
     if (!user || !accountToDelete) return;
 
-    setDeleting(true);
-    try {
-      await firestore()
-        .collection(`users/${user.uid}/accounts`)
-        .doc(accountToDelete.id)
-        .delete();
+    // Count associated transactions
+    const associatedTransactions = transactions.filter(t => t.accountId === accountToDelete.id);
+    const recurringCount = associatedTransactions.filter(t => t.isRecurring).length;
+    const regularCount = associatedTransactions.filter(t => !t.isRecurring).length;
 
-      setShowDeleteConfirm(false);
-      setAccountToDelete(null);
-      Alert.alert('Success', 'Account deleted successfully');
-    } catch (error) {
-      console.error('Error deleting account:', error);
-      Alert.alert('Error', 'Failed to delete account. Please try again.');
-    } finally {
-      setDeleting(false);
-    }
+    // Show detailed warning
+    Alert.alert(
+      'Delete Account?',
+      `Deleting "${accountToDelete.name}" will also permanently delete:\n\n` +
+      `• ${regularCount} transaction${regularCount !== 1 ? 's' : ''}\n` +
+      `• ${recurringCount} recurring transaction${recurringCount !== 1 ? 's' : ''}\n` +
+      `• All future projected transactions\n` +
+      `• Any goal allocations from this account\n\n` +
+      `This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => {
+            setShowDeleteConfirm(false);
+            setAccountToDelete(null);
+          },
+        },
+        {
+          text: 'Delete Everything',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              const batch = firestore().batch();
+
+              // Delete the account
+              const accountRef = firestore()
+                .collection(`users/${user.uid}/accounts`)
+                .doc(accountToDelete.id);
+              batch.delete(accountRef);
+
+              // Delete all associated transactions
+              const transactionsSnapshot = await firestore()
+                .collection(`users/${user.uid}/transactions`)
+                .where('accountId', '==', accountToDelete.id)
+                .get();
+
+              transactionsSnapshot.docs.forEach(doc => {
+                batch.delete(doc.ref);
+              });
+
+              // Delete all allocation history for this account
+              const allocationsSnapshot = await firestore()
+                .collection(`users/${user.uid}/allocationHistory`)
+                .where('accountId', '==', accountToDelete.id)
+                .get();
+
+              allocationsSnapshot.docs.forEach(doc => {
+                batch.delete(doc.ref);
+              });
+
+              // Update goals to remove allocated amounts from this account
+              const goalsSnapshot = await firestore()
+                .collection(`users/${user.uid}/goals`)
+                .where('accountId', '==', accountToDelete.id)
+                .get();
+
+              goalsSnapshot.docs.forEach(doc => {
+                batch.update(doc.ref, {
+                  accountId: firestore.FieldValue.delete(),
+                  allocatedAmount: 0,
+                });
+              });
+
+              // Commit all deletes
+              await batch.commit();
+
+              setShowDeleteConfirm(false);
+              setAccountToDelete(null);
+              Alert.alert(
+                'Account Deleted',
+                `${accountToDelete.name} and ${associatedTransactions.length} associated transaction${associatedTransactions.length !== 1 ? 's' : ''} have been deleted.`
+              );
+            } catch (error) {
+              console.error('Error deleting account:', error);
+              Alert.alert('Error', 'Failed to delete account. Please try again.');
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Generate all transaction instances for 60 days
@@ -298,7 +635,8 @@ export const DashboardScreen = () => {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
+      <ScrollView style={styles.scrollView}>
       {/* Welcome Message */}
       <View style={styles.welcomeContainer}>
         <Text style={styles.welcomeText}>Welcome to Finch</Text>
@@ -408,6 +746,24 @@ export const DashboardScreen = () => {
                   </Text>
                 </View>
                 <View style={styles.accountActions}>
+                  {account.plaidAccountId ? (
+                    <TouchableOpacity
+                      style={[styles.accountActionButton, styles.plaidButton]}
+                      onPress={() => handleUnlinkAccountFromPlaid(account)}
+                    >
+                      <Icon name="link-variant-off" size={18} color={brandColors.amber} />
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.accountActionButton, styles.plaidButton]}
+                      onPress={() => {
+                        setSelectedAccount(account);
+                        setShowManageAccount(true);
+                      }}
+                    >
+                      <Icon name="link-variant-plus" size={18} color={brandColors.tealPrimary} />
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity
                     style={styles.accountActionButton}
                     onPress={() => {
@@ -454,9 +810,34 @@ export const DashboardScreen = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Activity</Text>
           {transactions.slice(0, 10).map((transaction) => {
-            const txnDate = transaction.date instanceof Date
-              ? transaction.date
-              : (transaction.date?.toDate ? transaction.date.toDate() : new Date(transaction.date));
+            // Handle multiple date formats from Firestore and Plaid
+            let txnDate;
+            try {
+              if (transaction.date instanceof Date) {
+                txnDate = transaction.date;
+              } else if (transaction.date?.toDate) {
+                // Firestore Timestamp
+                txnDate = transaction.date.toDate();
+              } else if (typeof transaction.date === 'string') {
+                // ISO string or date string from Plaid
+                txnDate = new Date(transaction.date);
+              } else if (typeof transaction.date === 'number') {
+                // Unix timestamp
+                txnDate = new Date(transaction.date);
+              } else {
+                // Fallback to today
+                txnDate = new Date();
+              }
+
+              // Validate the date is valid
+              if (isNaN(txnDate.getTime())) {
+                txnDate = new Date();
+              }
+            } catch (error) {
+              console.warn('Error parsing transaction date:', transaction.date, error);
+              txnDate = new Date();
+            }
+
             return (
               <View key={transaction.id} style={styles.transactionItem}>
                 <View style={styles.transactionLeft}>
@@ -570,6 +951,8 @@ export const DashboardScreen = () => {
         </View>
       )}
 
+      </ScrollView>
+
       {/* Expandable FAB */}
       {fabExpanded && (
         <>
@@ -594,15 +977,25 @@ export const DashboardScreen = () => {
 
             <TouchableOpacity
               style={styles.fabMenuItem}
+              onPress={handleAddAccountWithPlaid}
+            >
+              <View style={styles.fabMenuButton}>
+                <Icon name="bank-plus" size={24} color={brandColors.white} />
+              </View>
+              <Text style={styles.fabMenuLabel}>Add Account (Plaid)</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.fabMenuItem}
               onPress={() => {
                 setFabExpanded(false);
                 setShowManageAccount(true);
               }}
             >
               <View style={styles.fabMenuButton}>
-                <Icon name="bank-plus" size={24} color={brandColors.white} />
+                <Icon name="bank" size={24} color={brandColors.white} />
               </View>
-              <Text style={styles.fabMenuLabel}>Add Account</Text>
+              <Text style={styles.fabMenuLabel}>Add Manual Account</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -645,7 +1038,28 @@ export const DashboardScreen = () => {
           color={brandColors.white}
         />
       </TouchableOpacity>
-    </ScrollView>
+
+      {/* Onboarding Overlay */}
+      <OnboardingOverlay
+        visible={showOnboarding}
+        onComplete={handleOnboardingComplete}
+        onSkip={handleOnboardingSkip}
+      />
+
+      {/* Plaid Account Picker - shown after Plaid success */}
+      {plaidData && (
+        <PlaidAccountPicker
+          visible={showPlaidPicker}
+          institutionName={plaidData.institutionName}
+          plaidAccounts={plaidData.plaidAccounts}
+          onSelect={handlePlaidAccountsSelected}
+          onCancel={() => {
+            setShowPlaidPicker(false);
+            setPlaidData(null);
+          }}
+        />
+      )}
+    </View>
   );
 };
 
@@ -653,6 +1067,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: brandColors.backgroundOffWhite,
+  },
+  scrollView: {
+    flex: 1,
   },
   centerContent: {
     justifyContent: 'center',
@@ -1010,6 +1427,11 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 6,
     backgroundColor: brandColors.backgroundOffWhite,
+  },
+  plaidButton: {
+    backgroundColor: brandColors.white,
+    borderWidth: 1,
+    borderColor: brandColors.lightGray,
   },
   modalOverlay: {
     position: 'absolute',
