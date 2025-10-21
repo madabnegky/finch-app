@@ -7,6 +7,13 @@ import { TourGuideProvider } from 'rn-tourguide';
 import { AuthProvider } from '../shared-logic/src/hooks/useAuth';
 import brandColors from './src/theme/colors';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {
+  registerDeviceForNotifications,
+  setupForegroundNotificationHandler,
+  setupBackgroundNotificationHandler,
+  setupNotificationOpenHandler,
+  setupTokenRefreshHandler,
+} from './src/services/notificationService';
 
 // Import our screens
 import { SplashScreen } from './src/screens/SplashScreen';
@@ -131,6 +138,31 @@ function AppNavigator() {
     console.log('AppNavigator - Auth state:', { user: user?.uid || 'null', loading });
   }, [user, loading]);
 
+  // Setup push notifications when user logs in
+  useEffect(() => {
+    if (!user) return;
+
+    console.log('📱 Setting up push notifications for user:', user.uid);
+
+    // Register device and request permissions
+    registerDeviceForNotifications(user.uid);
+
+    // Setup notification handlers
+    const unsubscribeForeground = setupForegroundNotificationHandler();
+    const unsubscribeTokenRefresh = setupTokenRefreshHandler(user.uid);
+    const unsubscribeNotificationOpen = setupNotificationOpenHandler((notification) => {
+      console.log('User tapped notification:', notification);
+      // You can add navigation logic here based on notification data
+    });
+
+    // Cleanup on unmount or user change
+    return () => {
+      unsubscribeForeground();
+      unsubscribeTokenRefresh();
+      unsubscribeNotificationOpen();
+    };
+  }, [user]);
+
   if (loading) {
     console.log('AppNavigator - Showing loading screen');
     return <SplashScreen />;
@@ -156,6 +188,9 @@ function AppNavigator() {
     </NavigationContainer>
   );
 }
+
+// Setup background notification handler (runs outside React lifecycle)
+setupBackgroundNotificationHandler();
 
 function App(): React.JSX.Element {
   return (
