@@ -74,6 +74,9 @@ importers:
       '@react-native-firebase/functions':
         specifier: ^23.4.1
         version: 23.4.1(@react-native-firebase/app@23.4.1(@react-native-async-storage/async-storage@2.2.0(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0)))(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0))(react@18.2.0))
+      '@react-native-firebase/messaging':
+        specifier: ^23.4.1
+        version: 23.4.1(@react-native-firebase/app@23.4.1(@react-native-async-storage/async-storage@2.2.0(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0)))(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0))(react@18.2.0))
       '@react-native-google-signin/google-signin':
         specifier: ^16.0.0
         version: 16.0.0(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0))(react@18.2.0)
@@ -2055,6 +2058,15 @@ packages:
     resolution: {integrity: sha512-FkUGNv1gzyntIEn54j1W+3Oy8rDMDhxuGTAM10i74eIHjyk+J7T6ua/HfqkBxkX7A1AM1B/yTPxIuK497USaCQ==}
     peerDependencies:
       '@react-native-firebase/app': 23.4.1
+
+  '@react-native-firebase/messaging@23.4.1':
+    resolution: {integrity: sha512-KeSfDMIz7rKu1zx3z1yCvfCB9FYaB6dt5ls5J5x4vZov+YeRvgAmHvoNrwRpgDUAM/AchU8aEI1M5LkrDx0p/Q==}
+    peerDependencies:
+      '@react-native-firebase/app': 23.4.1
+      expo: '>=47.0.0'
+    peerDependenciesMeta:
+      expo:
+        optional: true
 
   '@react-native-google-signin/google-signin@16.0.0':
     resolution: {integrity: sha512-jVuzPo8odREekFc0b4RK3YsqCvedtLIM2P6NSszFr9cYyhKrUNikffPapL6LmkL9qkb8K6pDeb5CXg4qALOc0g==}
@@ -10040,6 +10052,10 @@ snapshots:
       - react-native
 
   '@react-native-firebase/functions@23.4.1(@react-native-firebase/app@23.4.1(@react-native-async-storage/async-storage@2.2.0(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0)))(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0))(react@18.2.0))':
+    dependencies:
+      '@react-native-firebase/app': 23.4.1(@react-native-async-storage/async-storage@2.2.0(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0)))(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0))(react@18.2.0)
+
+  '@react-native-firebase/messaging@23.4.1(@react-native-firebase/app@23.4.1(@react-native-async-storage/async-storage@2.2.0(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0)))(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0))(react@18.2.0))':
     dependencies:
       '@react-native-firebase/app': 23.4.1(@react-native-async-storage/async-storage@2.2.0(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0)))(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0))(react@18.2.0)
 
