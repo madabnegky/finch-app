@@ -1,9 +1,30 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const { getNextOccurrence, startOfDay, toDateInputString, parseDateString } = require("./dateUtils");
+const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
+const { encrypt, decrypt } = require('./encryption');
+const { CloudTasksClient } = require('@google-cloud/tasks');
 
 admin.initializeApp();
 const db = admin.firestore();
+
+// Initialize Plaid client
+const plaidConfig = new Configuration({
+  basePath: PlaidEnvironments[functions.config().plaid?.env || 'sandbox'],
+  baseOptions: {
+    headers: {
+      'PLAID-CLIENT-ID': functions.config().plaid?.client_id,
+      'PLAID-SECRET': functions.config().plaid?.secret,
+    },
+  },
+});
+const plaidClient = new PlaidApi(plaidConfig);
+
+// Initialize Cloud Tasks client
+const tasksClient = new CloudTasksClient();
+const project = process.env.GCLOUD_PROJECT || 'finch-app-v2';
+const location = 'us-central1';
+const queue = 'plaid-sync-queue';
 
 exports.generateProjections = functions.https.onRequest(async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
@@ -156,3 +177,857 @@ exports.detectRecurringTransactions = functions.firestore
 
         return null;
     });
+
+// ============================================================================
+// PLAID INTEGRATION CLOUD FUNCTIONS
+// ============================================================================
+
+/**
+ * Creates a Plaid Link token for initiating the account linking flow
+ * @param {string} userId - Firebase user ID
+ * @param {string} accountId - (Optional) Existing account ID to link
+ */
+exports.createLinkToken = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const userId = context.auth.uid;
+  const accountId = data?.accountId; // Optional: only needed for update mode
+
+  try {
+    const request = {
+      user: {
+        client_user_id: userId,
+      },
+      client_name: 'Finch',
+      products: ['auth', 'transactions'],
+      country_codes: ['US'],
+      language: 'en',
+      webhook: `https://us-central1-finch-app-v2.cloudfunctions.net/plaidWebhook`,
+      // No redirect_uri needed - Plaid React Native SDK handles OAuth automatically
+    };
+
+    const response = await plaidClient.linkTokenCreate(request);
+
+    functions.logger.info(`Created link token for user ${userId}`, { accountId });
+
+    return {
+      link_token: response.data.link_token,
+      expiration: response.data.expiration,
+    };
+  } catch (error) {
+    functions.logger.error('Error creating link token:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to create link token', error.message);
+  }
+});
+
+/**
+ * Exchanges public token for access token and fetches account information
+ * @param {string} publicToken - Plaid public token from Link flow
+ */
+exports.exchangePublicToken = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const userId = context.auth.uid;
+  const { publicToken } = data;
+
+  if (!publicToken) {
+    throw new functions.https.HttpsError('invalid-argument', 'publicToken is required');
+  }
+
+  try {
+    // Exchange public token for access token
+    const exchangeResponse = await plaidClient.itemPublicTokenExchange({
+      public_token: publicToken,
+    });
+
+    const accessToken = exchangeResponse.data.access_token;
+    const itemId = exchangeResponse.data.item_id;
+
+    // Get institution info
+    const itemResponse = await plaidClient.itemGet({
+      access_token: accessToken,
+    });
+    const institutionId = itemResponse.data.item.institution_id;
+
+    const institutionResponse = await plaidClient.institutionsGetById({
+      institution_id: institutionId,
+      country_codes: ['US'],
+    });
+    const institutionName = institutionResponse.data.institution.name;
+
+    // Get accounts
+    const accountsResponse = await plaidClient.accountsGet({
+      access_token: accessToken,
+    });
+
+    // Store Plaid item in Firestore with encrypted access token
+    const encryptedAccessToken = encrypt(accessToken);
+
+    await db.collection(`users/${userId}/plaidItems`).doc(itemId).set({
+      accessToken: encryptedAccessToken, // Encrypted for security
+      institutionId,
+      institutionName,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
+      status: 'active',
+      webhookUrl: `https://us-central1-finch-app-v2.cloudfunctions.net/plaidWebhook`,
+    });
+
+    functions.logger.info(`Exchanged token for user ${userId}, item ${itemId}`, {
+      institutionName,
+      accountCount: accountsResponse.data.accounts.length,
+    });
+
+    // Return available accounts for user to select
+    return {
+      itemId,
+      institutionName,
+      plaidAccounts: accountsResponse.data.accounts.map(account => ({
+        plaidAccountId: account.account_id,
+        name: account.name,
+        officialName: account.official_name,
+        type: account.type,
+        subtype: account.subtype,
+        mask: account.mask,
+        currentBalance: account.balances.current,
+        availableBalance: account.balances.available,
+      })),
+    };
+  } catch (error) {
+    functions.logger.error('Error exchanging public token:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to exchange token', error.message);
+  }
+});
+
+/**
+ * Links a Finch account to a Plaid account and updates balance
+ * @param {string} accountId - Finch account ID
+ * @param {string} itemId - Plaid item ID
+ * @param {string} plaidAccountId - Plaid account ID to link
+ */
+exports.linkAccountToPlaid = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const userId = context.auth.uid;
+  const { accountId, itemId, plaidAccountId } = data;
+
+  if (!accountId || !itemId || !plaidAccountId) {
+    throw new functions.https.HttpsError('invalid-argument', 'accountId, itemId, and plaidAccountId are required');
+  }
+
+  try {
+    // Get Plaid item
+    const plaidItemDoc = await db.collection(`users/${userId}/plaidItems`).doc(itemId).get();
+    if (!plaidItemDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Plaid item not found');
+    }
+
+    const encryptedAccessToken = plaidItemDoc.data().accessToken;
+    const accessToken = decrypt(encryptedAccessToken);
+
+    // Get current balance from Plaid
+    const accountsResponse = await plaidClient.accountsBalanceGet({
+      access_token: accessToken,
+    });
+
+    const plaidAccount = accountsResponse.data.accounts.find(acc => acc.account_id === plaidAccountId);
+    if (!plaidAccount) {
+      throw new functions.https.HttpsError('not-found', 'Plaid account not found');
+    }
+
+    const newBalance = plaidAccount.balances.current || plaidAccount.balances.available || 0;
+
+    // Get existing Finch account
+    const accountDoc = await db.collection(`users/${userId}/accounts`).doc(accountId).get();
+    if (!accountDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Finch account not found');
+    }
+
+    const oldBalance = accountDoc.data().currentBalance || 0;
+
+    // Update Finch account with Plaid info
+    await db.collection(`users/${userId}/accounts`).doc(accountId).update({
+      plaidAccountId,
+      plaidItemId: itemId,
+      linkedAt: admin.firestore.FieldValue.serverTimestamp(),
+      currentBalance: newBalance,
+      lastPlaidBalance: newBalance,
+      lastBalanceSyncAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Create a notification about balance change
+    if (Math.abs(newBalance - oldBalance) > 0.01) {
+      await db.collection(`users/${userId}/notifications`).add({
+        type: 'balance_reconciliation',
+        accountId,
+        accountName: accountDoc.data().name,
+        oldBalance,
+        newBalance,
+        difference: newBalance - oldBalance,
+        message: `Your ${accountDoc.data().name} balance was updated from $${oldBalance.toFixed(2)} to $${newBalance.toFixed(2)} based on your bank.`,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+      });
+    }
+
+    functions.logger.info(`Linked account ${accountId} to Plaid account ${plaidAccountId}`, {
+      oldBalance,
+      newBalance,
+      difference: newBalance - oldBalance,
+    });
+
+    return {
+      success: true,
+      oldBalance,
+      newBalance,
+      difference: newBalance - oldBalance,
+    };
+  } catch (error) {
+    functions.logger.error('Error linking account to Plaid:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to link account', error.message);
+  }
+});
+
+/**
+ * Syncs transactions from Plaid with smart deduplication
+ * @param {string} itemId - Plaid item ID
+ * @param {string} accountId - Finch account ID
+ * @param {string} startDate - (Optional) Start date for transaction sync (YYYY-MM-DD)
+ * @param {string} endDate - (Optional) End date for transaction sync (YYYY-MM-DD)
+ */
+exports.syncTransactions = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const userId = context.auth.uid;
+  const { itemId, accountId, startDate, endDate } = data;
+
+  if (!itemId || !accountId) {
+    throw new functions.https.HttpsError('invalid-argument', 'itemId and accountId are required');
+  }
+
+  try {
+    // Get Plaid item
+    const plaidItemDoc = await db.collection(`users/${userId}/plaidItems`).doc(itemId).get();
+    if (!plaidItemDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Plaid item not found');
+    }
+
+    const encryptedAccessToken = plaidItemDoc.data().accessToken;
+    const accessToken = decrypt(encryptedAccessToken);
+
+    // Get account to find linkedAt timestamp
+    const accountDoc = await db.collection(`users/${userId}/accounts`).doc(accountId).get();
+    const linkedAt = accountDoc.data()?.linkedAt?.toDate();
+    const plaidAccountId = accountDoc.data()?.plaidAccountId;
+
+    if (!plaidAccountId) {
+      throw new functions.https.HttpsError('failed-precondition', 'Account is not linked to Plaid');
+    }
+
+    // Default to last 2 years for pattern detection
+    const end = endDate || toDateInputString(new Date());
+    const start = startDate || (() => {
+      const twoYearsAgo = new Date();
+      twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+      return toDateInputString(twoYearsAgo);
+    })();
+
+    // Fetch transactions from Plaid
+    let allTransactions = [];
+    let hasMore = true;
+    let offset = 0;
+
+    while (hasMore) {
+      const response = await plaidClient.transactionsGet({
+        access_token: accessToken,
+        start_date: start,
+        end_date: end,
+        options: {
+          account_ids: [plaidAccountId],
+          count: 500,
+          offset: offset,
+        },
+      });
+
+      allTransactions = allTransactions.concat(response.data.transactions);
+      hasMore = allTransactions.length < response.data.total_transactions;
+      offset += response.data.transactions.length;
+    }
+
+    functions.logger.info(`Fetched ${allTransactions.length} transactions from Plaid`, { itemId, accountId });
+
+    // Get existing transactions for deduplication
+    const existingTransactionsSnapshot = await db.collection(`users/${userId}/transactions`)
+      .where('accountId', '==', accountId)
+      .get();
+
+    const existingTransactions = existingTransactionsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    let newTransactionCount = 0;
+    let deduplicatedCount = 0;
+
+    // Process each Plaid transaction
+    for (const plaidTxn of allTransactions) {
+      const txnDate = parseDateString(plaidTxn.date);
+      const amount = -plaidTxn.amount; // Plaid uses negative for debits, we use positive for expenses
+
+      // Check if this transaction already exists
+      const existing = existingTransactions.find(t => t.plaidTransactionId === plaidTxn.transaction_id);
+
+      if (existing) {
+        // Update if pending status changed
+        if (existing.isPending !== plaidTxn.pending) {
+          await db.collection(`users/${userId}/transactions`).doc(existing.id).update({
+            isPending: plaidTxn.pending,
+          });
+        }
+        continue;
+      }
+
+      // Check for potential duplicate (same account, similar date/amount)
+      const potentialDuplicate = existingTransactions.find(t => {
+        if (t.plaidTransactionId || t.accountId !== accountId) return false;
+
+        const existingDate = t.date?.toDate ? t.date.toDate() : parseDateString(t.date);
+        if (!existingDate) return false;
+
+        const daysDiff = Math.abs((txnDate - existingDate) / (1000 * 60 * 60 * 24));
+        const amountDiff = Math.abs(t.amount - amount);
+
+        return daysDiff <= 2 && amountDiff <= 1.0;
+      });
+
+      if (potentialDuplicate && potentialDuplicate.isRecurring) {
+        // Mark recurring transaction as fulfilled
+        await db.collection(`users/${userId}/transactions`).doc(potentialDuplicate.id).update({
+          fulfilledRecurringId: plaidTxn.transaction_id,
+          fulfilledAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        deduplicatedCount++;
+        functions.logger.info(`Deduplicated transaction ${plaidTxn.transaction_id} with recurring ${potentialDuplicate.id}`);
+      }
+
+      // Only store transactions dated after account link (but we fetched historical for pattern detection)
+      if (linkedAt && txnDate >= linkedAt) {
+        await db.collection(`users/${userId}/transactions`).add({
+          accountId,
+          plaidTransactionId: plaidTxn.transaction_id,
+          plaidCategory: plaidTxn.category ? plaidTxn.category.join(' > ') : null,
+          merchantName: plaidTxn.merchant_name || plaidTxn.name,
+          description: plaidTxn.name,
+          amount,
+          type: amount >= 0 ? 'income' : 'expense',
+          category: plaidTxn.category?.[0] || 'Other',
+          date: admin.firestore.Timestamp.fromDate(txnDate),
+          isPending: plaidTxn.pending,
+          source: 'plaid',
+          isRecurring: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        newTransactionCount++;
+      }
+    }
+
+    // Update last synced timestamp
+    await db.collection(`users/${userId}/plaidItems`).doc(itemId).update({
+      lastSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    functions.logger.info(`Sync complete: ${newTransactionCount} new, ${deduplicatedCount} deduplicated`, {
+      itemId,
+      accountId,
+    });
+
+    return {
+      success: true,
+      transactionCount: newTransactionCount,
+      deduplicatedCount,
+      totalFetched: allTransactions.length,
+    };
+  } catch (error) {
+    functions.logger.error('Error syncing transactions:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to sync transactions', error.message);
+  }
+});
+
+/**
+ * Identifies recurring transactions from Plaid historical data
+ * @param {string} itemId - Plaid item ID
+ * @param {string} accountId - Finch account ID
+ */
+exports.identifyRecurringTransactions = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const userId = context.auth.uid;
+  const { itemId, accountId } = data;
+
+  if (!itemId || !accountId) {
+    throw new functions.https.HttpsError('invalid-argument', 'itemId and accountId are required');
+  }
+
+  try {
+    // Get Plaid item
+    const plaidItemDoc = await db.collection(`users/${userId}/plaidItems`).doc(itemId).get();
+    if (!plaidItemDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Plaid item not found');
+    }
+
+    const encryptedAccessToken = plaidItemDoc.data().accessToken;
+    const accessToken = decrypt(encryptedAccessToken);
+    const accountDoc = await db.collection(`users/${userId}/accounts`).doc(accountId).get();
+    const plaidAccountId = accountDoc.data()?.plaidAccountId;
+
+    // Fetch 2 years of transactions for pattern detection
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+
+    const start = toDateInputString(twoYearsAgo);
+    const end = toDateInputString(new Date());
+
+    let allTransactions = [];
+    let hasMore = true;
+    let offset = 0;
+
+    while (hasMore) {
+      const response = await plaidClient.transactionsGet({
+        access_token: accessToken,
+        start_date: start,
+        end_date: end,
+        options: {
+          account_ids: [plaidAccountId],
+          count: 500,
+          offset: offset,
+        },
+      });
+
+      allTransactions = allTransactions.concat(response.data.transactions);
+      hasMore = allTransactions.length < response.data.total_transactions;
+      offset += response.data.transactions.length;
+    }
+
+    // Group transactions by merchant/description
+    const groupedByMerchant = {};
+
+    allTransactions.forEach(txn => {
+      const key = (txn.merchant_name || txn.name).toLowerCase().trim();
+      if (!groupedByMerchant[key]) {
+        groupedByMerchant[key] = [];
+      }
+      groupedByMerchant[key].push(txn);
+    });
+
+    const recurringPatterns = [];
+
+    // Analyze each group for recurring patterns
+    for (const [merchant, transactions] of Object.entries(groupedByMerchant)) {
+      if (transactions.length < 2) continue; // Need at least 2 occurrences
+
+      // Sort by date
+      transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // Calculate average amount (handle variable bills)
+      const amounts = transactions.map(t => Math.abs(t.amount));
+      const avgAmount = amounts.reduce((sum, amt) => sum + amt, 0) / amounts.length;
+      const amountVariance = amounts.reduce((sum, amt) => sum + Math.abs(amt - avgAmount), 0) / amounts.length;
+      const isVariableAmount = (amountVariance / avgAmount) > 0.1; // 10% variance threshold
+
+      // Calculate intervals between transactions
+      const intervals = [];
+      for (let i = 1; i < transactions.length; i++) {
+        const days = (new Date(transactions[i].date) - new Date(transactions[i - 1].date)) / (1000 * 60 * 60 * 24);
+        intervals.push(days);
+      }
+
+      const avgInterval = intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length;
+
+      // Determine frequency
+      let frequency = null;
+      let confidenceScore = 0;
+
+      if (avgInterval >= 330 && avgInterval <= 395) {
+        // Annual (e.g., Prime membership)
+        if (transactions.length >= 2) {
+          frequency = 'yearly';
+          confidenceScore = 0.85;
+        }
+      } else if (avgInterval >= 28 && avgInterval <= 31) {
+        // Monthly
+        if (transactions.length >= 3) {
+          frequency = 'monthly';
+          confidenceScore = transactions.length >= 6 ? 0.95 : 0.80;
+        }
+      } else if (avgInterval >= 13 && avgInterval <= 15) {
+        // Biweekly
+        if (transactions.length >= 4) {
+          frequency = 'biweekly';
+          confidenceScore = 0.90;
+        }
+      } else if (avgInterval >= 6 && avgInterval <= 8) {
+        // Weekly
+        if (transactions.length >= 4) {
+          frequency = 'weekly';
+          confidenceScore = 0.90;
+        }
+      }
+
+      if (frequency && confidenceScore >= 0.75) {
+        // Calculate next occurrence date
+        const lastDate = new Date(transactions[transactions.length - 1].date);
+        const nextDate = new Date(lastDate);
+
+        switch (frequency) {
+          case 'weekly':
+            nextDate.setDate(lastDate.getDate() + 7);
+            break;
+          case 'biweekly':
+            nextDate.setDate(lastDate.getDate() + 14);
+            break;
+          case 'monthly':
+            nextDate.setMonth(lastDate.getMonth() + 1);
+            break;
+          case 'yearly':
+            nextDate.setFullYear(lastDate.getFullYear() + 1);
+            break;
+        }
+
+        recurringPatterns.push({
+          merchant: transactions[0].merchant_name || transactions[0].name,
+          amount: -avgAmount, // Convert back to our sign convention
+          frequency,
+          confidenceScore,
+          occurrenceCount: transactions.length,
+          isVariableAmount,
+          nextDate: toDateInputString(nextDate),
+          category: transactions[0].category?.[0] || 'Other',
+        });
+
+        functions.logger.info(`Detected recurring pattern: ${merchant} (${frequency})`, {
+          occurrences: transactions.length,
+          confidence: confidenceScore,
+        });
+      }
+    }
+
+    // Check if recurring transactions already exist in Finch before creating
+    const existingRecurringSnapshot = await db.collection(`users/${userId}/transactions`)
+      .where('accountId', '==', accountId)
+      .where('isRecurring', '==', true)
+      .get();
+
+    const existingRecurring = existingRecurringSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    let createdCount = 0;
+
+    for (const pattern of recurringPatterns) {
+      // Check if similar recurring transaction already exists
+      const alreadyExists = existingRecurring.some(existing => {
+        const descMatch = existing.description?.toLowerCase().includes(pattern.merchant.toLowerCase()) ||
+                          pattern.merchant.toLowerCase().includes(existing.description?.toLowerCase());
+        const amountMatch = Math.abs(existing.amount - pattern.amount) <= 1.0;
+        const freqMatch = existing.recurringDetails?.frequency === pattern.frequency;
+        return descMatch && amountMatch && freqMatch;
+      });
+
+      if (!alreadyExists) {
+        await db.collection(`users/${userId}/transactions`).add({
+          accountId,
+          description: pattern.merchant,
+          amount: pattern.amount,
+          type: pattern.amount >= 0 ? 'income' : 'expense',
+          category: pattern.category,
+          isRecurring: true,
+          recurringDetails: {
+            frequency: pattern.frequency,
+            nextDate: admin.firestore.Timestamp.fromDate(parseDateString(pattern.nextDate)),
+            isVariableAmount: pattern.isVariableAmount,
+            detectedFromPlaid: true,
+            confidenceScore: pattern.confidenceScore,
+            occurrenceCount: pattern.occurrenceCount,
+          },
+          source: 'plaid_recurring_detection',
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        createdCount++;
+      }
+    }
+
+    functions.logger.info(`Recurring detection complete: ${recurringPatterns.length} patterns found, ${createdCount} created`, {
+      itemId,
+      accountId,
+    });
+
+    return {
+      success: true,
+      patternsFound: recurringPatterns.length,
+      recurringCreated: createdCount,
+      patterns: recurringPatterns,
+    };
+  } catch (error) {
+    functions.logger.error('Error identifying recurring transactions:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to identify recurring transactions', error.message);
+  }
+});
+
+/**
+ * Webhook endpoint for Plaid real-time notifications
+ */
+exports.plaidWebhook = functions.https.onRequest(async (req, res) => {
+  const { webhook_type, webhook_code, item_id } = req.body;
+
+  functions.logger.info(`Plaid webhook received: ${webhook_type} - ${webhook_code}`, { item_id });
+
+  try {
+    if (webhook_type === 'TRANSACTIONS') {
+      if (webhook_code === 'DEFAULT_UPDATE' || webhook_code === 'INITIAL_UPDATE') {
+        // Find the user and account associated with this item
+        const plaidItemsSnapshot = await db.collectionGroup('plaidItems')
+          .where(admin.firestore.FieldPath.documentId(), '==', item_id)
+          .get();
+
+        if (plaidItemsSnapshot.empty) {
+          functions.logger.warn(`Plaid item ${item_id} not found in database`);
+          res.status(200).send('OK');
+          return;
+        }
+
+        const plaidItemDoc = plaidItemsSnapshot.docs[0];
+        const userId = plaidItemDoc.ref.parent.parent.id; // Get user ID from path
+
+        // Find associated account
+        const accountsSnapshot = await db.collection(`users/${userId}/accounts`)
+          .where('plaidItemId', '==', item_id)
+          .get();
+
+        if (!accountsSnapshot.empty) {
+          const accountId = accountsSnapshot.docs[0].id;
+
+          functions.logger.info(`Triggering background sync for item ${item_id}, account ${accountId}`);
+
+          // Create a Cloud Task to process the sync asynchronously
+          // This prevents webhook timeout and ensures reliable processing
+          const queuePath = tasksClient.queuePath(project, location, queue);
+
+          const url = `https://${location}-${project}.cloudfunctions.net/processSyncTask`;
+          const payload = JSON.stringify({
+            userId,
+            itemId: item_id,
+            accountId,
+          });
+
+          const task = {
+            httpRequest: {
+              httpMethod: 'POST',
+              url,
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: Buffer.from(payload).toString('base64'),
+            },
+          };
+
+          try {
+            await tasksClient.createTask({ parent: queuePath, task });
+            functions.logger.info(`Created sync task for account ${accountId}`);
+          } catch (taskError) {
+            functions.logger.error('Failed to create sync task:', taskError);
+            // Don't fail the webhook - we'll sync next time
+          }
+        }
+      }
+    } else if (webhook_type === 'ITEM') {
+      if (webhook_code === 'ERROR' || webhook_code === 'PENDING_EXPIRATION') {
+        // Update item status
+        const plaidItemsSnapshot = await db.collectionGroup('plaidItems')
+          .where(admin.firestore.FieldPath.documentId(), '==', item_id)
+          .get();
+
+        if (!plaidItemsSnapshot.empty) {
+          await plaidItemsSnapshot.docs[0].ref.update({
+            status: 'login_required',
+          });
+        }
+      }
+    }
+
+    res.status(200).send('OK');
+  } catch (error) {
+    functions.logger.error('Error processing webhook:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+/**
+ * Process sync task triggered by Cloud Tasks from webhook
+ * This runs asynchronously to avoid webhook timeouts
+ */
+exports.processSyncTask = functions.https.onRequest(async (req, res) => {
+  try {
+    const { userId, itemId, accountId } = req.body;
+
+    if (!userId || !itemId || !accountId) {
+      functions.logger.error('Missing required parameters in sync task');
+      res.status(400).send('Bad Request');
+      return;
+    }
+
+    functions.logger.info(`Processing sync task for user ${userId}, account ${accountId}`);
+
+    // Get Plaid item
+    const plaidItemDoc = await db.collection(`users/${userId}/plaidItems`).doc(itemId).get();
+    if (!plaidItemDoc.exists) {
+      functions.logger.warn(`Plaid item ${itemId} not found`);
+      res.status(404).send('Not Found');
+      return;
+    }
+
+    const encryptedAccessToken = plaidItemDoc.data().accessToken;
+    const accessToken = decrypt(encryptedAccessToken);
+
+    // Get account to find plaidAccountId and linkedAt
+    const accountDoc = await db.collection(`users/${userId}/accounts`).doc(accountId).get();
+    if (!accountDoc.exists) {
+      functions.logger.warn(`Account ${accountId} not found`);
+      res.status(404).send('Not Found');
+      return;
+    }
+
+    const linkedAt = accountDoc.data()?.linkedAt?.toDate();
+    const plaidAccountId = accountDoc.data()?.plaidAccountId;
+
+    if (!plaidAccountId) {
+      functions.logger.warn(`Account ${accountId} is not linked to Plaid`);
+      res.status(400).send('Account not linked');
+      return;
+    }
+
+    // Sync transactions (last 30 days for real-time updates)
+    const today = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+
+    const start = toDateInputString(thirtyDaysAgo);
+    const end = toDateInputString(today);
+
+    let allTransactions = [];
+    let hasMore = true;
+    let offset = 0;
+
+    while (hasMore) {
+      const response = await plaidClient.transactionsGet({
+        access_token: accessToken,
+        start_date: start,
+        end_date: end,
+        options: {
+          account_ids: [plaidAccountId],
+          count: 500,
+          offset: offset,
+        },
+      });
+
+      allTransactions = allTransactions.concat(response.data.transactions);
+      hasMore = allTransactions.length < response.data.total_transactions;
+      offset += response.data.transactions.length;
+    }
+
+    functions.logger.info(`Fetched ${allTransactions.length} transactions from webhook sync`);
+
+    // Get existing transactions for deduplication
+    const existingTransactionsSnapshot = await db.collection(`users/${userId}/transactions`)
+      .where('accountId', '==', accountId)
+      .get();
+
+    const existingTransactions = existingTransactionsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    let newTransactionCount = 0;
+
+    // Process each Plaid transaction
+    for (const plaidTxn of allTransactions) {
+      const txnDate = parseDateString(plaidTxn.date);
+      const amount = -plaidTxn.amount;
+
+      // Check if this transaction already exists
+      const existing = existingTransactions.find(t => t.plaidTransactionId === plaidTxn.transaction_id);
+
+      if (existing) {
+        // Update if pending status changed
+        if (existing.isPending !== plaidTxn.pending) {
+          await db.collection(`users/${userId}/transactions`).doc(existing.id).update({
+            isPending: plaidTxn.pending,
+          });
+        }
+        continue;
+      }
+
+      // Only store transactions dated after account link
+      if (linkedAt && txnDate >= linkedAt) {
+        await db.collection(`users/${userId}/transactions`).add({
+          accountId,
+          plaidTransactionId: plaidTxn.transaction_id,
+          plaidCategory: plaidTxn.category ? plaidTxn.category.join(' > ') : null,
+          merchantName: plaidTxn.merchant_name || plaidTxn.name,
+          description: plaidTxn.name,
+          amount,
+          type: amount >= 0 ? 'income' : 'expense',
+          category: plaidTxn.category?.[0] || 'Other',
+          date: admin.firestore.Timestamp.fromDate(txnDate),
+          isPending: plaidTxn.pending,
+          source: 'plaid',
+          isRecurring: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        newTransactionCount++;
+      }
+    }
+
+    // Update last synced timestamp
+    await db.collection(`users/${userId}/plaidItems`).doc(itemId).update({
+      lastSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Update account balance
+    const balanceResponse = await plaidClient.accountsBalanceGet({
+      access_token: accessToken,
+    });
+    const plaidAccount = balanceResponse.data.accounts.find(acc => acc.account_id === plaidAccountId);
+    if (plaidAccount) {
+      const newBalance = plaidAccount.balances.current || plaidAccount.balances.available || 0;
+      await db.collection(`users/${userId}/accounts`).doc(accountId).update({
+        currentBalance: newBalance,
+        lastPlaidBalance: newBalance,
+        lastBalanceSyncAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    functions.logger.info(`Sync task complete: ${newTransactionCount} new transactions`, {
+      itemId,
+      accountId,
+    });
+
+    res.status(200).json({
+      success: true,
+      transactionCount: newTransactionCount,
+    });
+  } catch (error) {
+    functions.logger.error('Error processing sync task:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});

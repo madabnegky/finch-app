@@ -64,6 +64,8 @@ dependencies {
     }
     implementation 'com.facebook.soloader:soloader:0.10.3'
 
+    // Plaid Link SDK is now auto-linked via react-native-plaid-link-sdk
+
     if (findProperty('FLIPPER_VERSION')) {
         debugImplementation("com.facebook.flipper:flipper:${findProperty('FLIPPER_VERSION')}") {
             exclude group: 'com.facebook.fbjni'

@@ -8,10 +8,15 @@ import {
   TextInput,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '../types/navigation';
+import { create, open, LinkSuccess, LinkExit, LinkTokenConfiguration } from 'react-native-plaid-link-sdk';
+import { PlaidAccountPicker } from '../components/PlaidAccountPicker';
+import firestore from '@react-native-firebase/firestore';
+import functions from '@react-native-firebase/functions';
 
 const brandColors = {
   primaryBlue: '#4F46E5',
@@ -65,6 +70,11 @@ export const SetupWizardScreen = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Plaid-related state
+  const [plaidLoading, setPlaidLoading] = useState(false);
+  const [showAccountPicker, setShowAccountPicker] = useState(false);
+  const [plaidData, setPlaidData] = useState<any>(null);
+
   const { user } = useAuth();
   const navigation = useNavigation<NavigationProp>();
 
@@ -91,6 +101,13 @@ export const SetupWizardScreen = () => {
       Alert.alert('Selection Required', 'Please choose a setup method');
       return;
     }
+
+    // If Plaid is selected in step 1, trigger Plaid flow instead of advancing
+    if (step === 1 && setupMethod === 'plaid') {
+      handlePlaidSetup();
+      return;
+    }
+
     if (step === 2 && accounts.length === 0) {
       Alert.alert('Account Required', 'Please add at least one account');
       return;
@@ -188,6 +205,131 @@ export const SetupWizardScreen = () => {
     setTransactionAccountId(accounts.length === 1 ? accounts[0].name : '');
   };
 
+  // Plaid Integration Handlers
+  const handlePlaidSetup = async () => {
+    try {
+      setPlaidLoading(true);
+
+      // Create link token
+      const createLinkToken = functions().httpsCallable('createLinkToken');
+      const tokenResult = await createLinkToken();
+      const { link_token } = tokenResult.data;
+
+      // Initialize Plaid Link session using official SDK
+      const config: LinkTokenConfiguration = {
+        token: link_token,
+      };
+
+      // Create the Plaid Link session
+      create(config);
+
+      // Open Plaid Link with callbacks
+      open({
+        onSuccess: async (success: LinkSuccess) => {
+          try {
+            // Exchange public token
+            const exchangeToken = functions().httpsCallable('exchangePublicToken');
+            const exchangeResult = await exchangeToken({ publicToken: success.publicToken });
+
+            const { itemId, plaidAccounts, institutionName } = exchangeResult.data;
+
+            // Show account picker
+            setPlaidData({
+              itemId,
+              plaidAccounts,
+              institutionName,
+            });
+            setShowAccountPicker(true);
+          } catch (error: any) {
+            console.error('Token exchange error:', error);
+            Alert.alert('Error', 'Failed to connect to your bank. Please try again.');
+          } finally {
+            setPlaidLoading(false);
+          }
+        },
+        onExit: (exit: LinkExit) => {
+          console.log('Plaid Link exited:', exit);
+          setPlaidLoading(false);
+          if (exit.error) {
+            Alert.alert('Error', exit.error.displayMessage || 'Failed to connect to your bank.');
+          }
+        },
+      });
+    } catch (error: any) {
+      console.error('Plaid setup error:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      Alert.alert('Error', `Failed to create link token: ${error.message || 'Unknown error'}`);
+      setPlaidLoading(false);
+    }
+  };
+
+  const handleAccountSelection = async (plaidAccountId: string, selectedAccount: any) => {
+    try {
+      setShowAccountPicker(false);
+      setLoading(true);
+
+      if (!user) {
+        Alert.alert('Error', 'User not authenticated');
+        return;
+      }
+
+      // Create a new account in Firestore
+      const accountRef = await firestore()
+        .collection(`users/${user.uid}/accounts`)
+        .add({
+          name: selectedAccount.name || selectedAccount.officialName,
+          type: selectedAccount.subtype || 'checking',
+          currentBalance: selectedAccount.currentBalance,
+          cushion: 0,
+          plaidAccountId,
+          plaidItemId: plaidData.itemId,
+          linkedAt: firestore.FieldValue.serverTimestamp(),
+          lastPlaidBalance: selectedAccount.currentBalance,
+          lastBalanceSyncAt: firestore.FieldValue.serverTimestamp(),
+          createdAt: firestore.FieldValue.serverTimestamp(),
+        });
+
+      // Sync transactions
+      const syncTransactions = functions().httpsCallable('syncTransactions');
+      await syncTransactions({
+        itemId: plaidData.itemId,
+        accountId: accountRef.id,
+      });
+
+      // Identify recurring transactions
+      const identifyRecurring = functions().httpsCallable('identifyRecurringTransactions');
+      await identifyRecurring({
+        itemId: plaidData.itemId,
+        accountId: accountRef.id,
+      });
+
+      // Mark setup as complete
+      await firestore().collection('users').doc(user.uid).set(
+        {
+          setupComplete: true,
+          setupCompletedAt: firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      Alert.alert(
+        'Success!',
+        'Your account has been connected and transactions are syncing.',
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.navigate('Dashboard'),
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Account selection error:', error);
+      Alert.alert('Error', 'Failed to link account. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFinishSetup = async () => {
     try {
       setLoading(true);
@@ -277,11 +419,13 @@ export const SetupWizardScreen = () => {
         ]}
         onPress={() => setSetupMethod('plaid')}
       >
-        <Text style={styles.methodTitle}>Plaid (Recommended)</Text>
+        <Text style={styles.methodTitle}>🏦 Plaid (Recommended)</Text>
         <Text style={styles.methodDescription}>
-          Connect your bank accounts securely
+          Connect your bank accounts securely and automatically sync transactions
         </Text>
-        <Text style={styles.comingSoonBadge}>Coming Soon</Text>
+        {plaidLoading && (
+          <ActivityIndicator style={{ marginTop: 8 }} color={brandColors.primaryBlue} />
+        )}
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -652,8 +796,11 @@ export const SetupWizardScreen = () => {
           <TouchableOpacity
             style={[styles.nextButton, step === 1 && styles.fullWidth]}
             onPress={handleNextStep}
+            disabled={plaidLoading}
           >
-            <Text style={styles.nextButtonText}>Next</Text>
+            <Text style={styles.nextButtonText}>
+              {plaidLoading ? 'Connecting...' : 'Next'}
+            </Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
@@ -667,6 +814,19 @@ export const SetupWizardScreen = () => {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Plaid Account Picker Modal */}
+      {plaidData && (
+        <PlaidAccountPicker
+          visible={showAccountPicker}
+          institutionName={plaidData.institutionName}
+          plaidAccounts={plaidData.plaidAccounts}
+          manualAccountName="New Account"
+          manualAccountBalance={0}
+          onSelect={handleAccountSelection}
+          onCancel={() => setShowAccountPicker(false)}
+        />
+      )}
     </View>
   );
 };
