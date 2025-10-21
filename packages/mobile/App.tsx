@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator } from '@react-navigation/drawer';
+import { TourGuideProvider } from 'rn-tourguide';
 import { AuthProvider } from '../shared-logic/src/hooks/useAuth';
 import brandColors from './src/theme/colors';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -158,9 +159,14 @@ function AppNavigator() {
 
 function App(): React.JSX.Element {
   return (
-    <AuthProvider>
-      <AppNavigator />
-    </AuthProvider>
+    <TourGuideProvider
+      androidStatusBarVisible={true}
+      backdropColor="rgba(0, 0, 0, 0.8)"
+    >
+      <AuthProvider>
+        <AppNavigator />
+      </AuthProvider>
+    </TourGuideProvider>
   );
 }
 
