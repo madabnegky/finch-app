@@ -1,4 +1,5 @@
 // packages/mobile/src/screens/GoalsScreen.tsx
+// Redesigned in Executive+ Style
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -17,6 +18,7 @@ import { AddGoalModal } from '../components/AddGoalModal';
 import { EditGoalModal } from '../components/EditGoalModal';
 import { AllocateFundsModal } from '../components/AllocateFundsModal';
 import { DeallocateFundsModal } from '../components/DeallocateFundsModal';
+import FinchLogo from '../components/FinchLogo';
 import brandColors from '../theme/colors';
 
 type Account = {
@@ -82,20 +84,15 @@ export const GoalsScreen = () => {
     const unsubscribeAccounts = firestore()
       .collection(`users/${user.uid}/accounts`)
       .onSnapshot(async (snapshot) => {
-        // Fetch all goals to calculate total allocations per account
         const goalsSnapshot = await firestore()
           .collection(`users/${user.uid}/goals`)
           .get();
 
         const accountsData = snapshot.docs.map(doc => {
           const data = doc.data();
-
-          // Calculate total allocated to goals for this account
           const totalAllocatedToGoals = goalsSnapshot.docs
             .filter(goalDoc => goalDoc.data().accountId === doc.id)
             .reduce((sum, goalDoc) => sum + (goalDoc.data().allocatedAmount || 0), 0);
-
-          // availableToSpend = currentBalance - cushion - goalAllocations
           const availableToSpend = (data.currentBalance || 0) - (data.cushion || 0) - totalAllocatedToGoals;
 
           return {
@@ -193,18 +190,15 @@ export const GoalsScreen = () => {
       }
 
       const newAllocatedAmount = (goal.allocatedAmount || 0) + amountToAllocate;
-
       const batch = firestore().batch();
 
-      // Update goal only - do NOT touch account balance
       const goalRef = firestore().collection(`users/${user.uid}/goals`).doc(goal.id);
       batch.update(goalRef, {
         allocatedAmount: newAllocatedAmount,
-        accountId: accountId, // Track which account this goal is linked to
+        accountId: accountId,
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
 
-      // Add allocation history
       const historyRef = firestore().collection(`users/${user.uid}/allocationHistory`).doc();
       batch.set(historyRef, {
         goalId: goal.id,
@@ -218,7 +212,6 @@ export const GoalsScreen = () => {
       });
 
       await batch.commit();
-
       setShowAllocate(false);
       setSelectedGoal(null);
       Alert.alert('Success', `Allocated ${formatCurrency(amountToAllocate)} to ${goal.name}`);
@@ -239,17 +232,14 @@ export const GoalsScreen = () => {
       }
 
       const newAllocatedAmount = (goal.allocatedAmount || 0) - amountToDeallocate;
-
       const batch = firestore().batch();
 
-      // Update goal only - do NOT touch account balance
       const goalRef = firestore().collection(`users/${user.uid}/goals`).doc(goal.id);
       batch.update(goalRef, {
         allocatedAmount: newAllocatedAmount,
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
 
-      // Add allocation history
       const historyRef = firestore().collection(`users/${user.uid}/allocationHistory`).doc();
       batch.set(historyRef, {
         goalId: goal.id,
@@ -263,7 +253,6 @@ export const GoalsScreen = () => {
       });
 
       await batch.commit();
-
       setShowDeallocate(false);
       setSelectedGoal(null);
       Alert.alert('Success', `Removed ${formatCurrency(amountToDeallocate)} from ${goal.name}`);
@@ -301,7 +290,7 @@ export const GoalsScreen = () => {
 
   const getDeadlineColor = (daysUntil: number | null) => {
     if (daysUntil === null) return brandColors.textGray;
-    if (daysUntil < 0) return brandColors.red;
+    if (daysUntil < 0) return brandColors.error;
     if (daysUntil <= 30) return brandColors.orangeAccent;
     return brandColors.tealPrimary;
   };
@@ -320,43 +309,85 @@ export const GoalsScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Summary Card */}
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryTitle}>Total Goals Progress</Text>
-        <Text style={styles.summaryAmount}>
-          {formatCurrency(totalAllocated)} <Text style={styles.summaryTarget}>of {formatCurrency(totalTarget)}</Text>
-        </Text>
-        <View style={styles.progressBarContainer}>
-          <View style={[styles.progressBar, { width: `${Math.min(overallProgress, 100)}%` }]} />
+      {/* CUSTOM HEADER */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity
+              style={styles.menuButton}
+              onPress={() => (navigation as any).openDrawer()}
+            >
+              <Icon name="menu" size={24} color={brandColors.textDark} />
+            </TouchableOpacity>
+            <View style={styles.logoContainer}>
+              <FinchLogo size={32} />
+            </View>
+            <View>
+              <Text style={styles.headerTitle}>Goals</Text>
+              <Text style={styles.headerSubtitle}>Save for Your Future</Text>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.headerButton}>
+            <Icon name="information-outline" size={24} color={brandColors.textDark} />
+          </TouchableOpacity>
         </View>
-        <Text style={styles.progressText}>{overallProgress.toFixed(1)}% Complete</Text>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {goals.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Icon name="flag-variant-outline" size={64} color={brandColors.lightGray} />
-            <Text style={styles.emptyStateTitle}>No Goals Yet</Text>
-            <Text style={styles.emptyStateText}>
-              Create your first goal to start saving towards something special!
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* SUMMARY CARD */}
+        <View style={styles.section}>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryLabel}>TOTAL PROGRESS</Text>
+            <Text style={styles.summaryAmount}>
+              {formatCurrency(totalAllocated)}
             </Text>
-          </View>
-        ) : (
-          goals.map((goal) => {
-            const progress = (goal.allocatedAmount / goal.targetAmount) * 100;
-            const isExpanded = expandedGoalId === goal.id;
-            const daysUntil = getDaysUntilDeadline(goal.deadline);
-            const deadlineColor = getDeadlineColor(daysUntil);
-            const history = allocationHistory[goal.id] || [];
+            <Text style={styles.summaryTarget}>of {formatCurrency(totalTarget)} target</Text>
 
-            return (
-              <View key={goal.id} style={styles.goalCard}>
-                <TouchableOpacity onPress={() => toggleGoalExpansion(goal.id)} activeOpacity={0.7}>
-                  <View style={styles.goalHeader}>
-                    <View style={styles.goalTitleRow}>
-                      <Text style={styles.goalName}>{goal.name}</Text>
+            <View style={styles.progressBarOuter}>
+              <View style={[styles.progressBarFill, { width: `${Math.min(overallProgress, 100)}%` }]} />
+            </View>
+            <Text style={styles.progressPercent}>{overallProgress.toFixed(0)}% Complete</Text>
+          </View>
+        </View>
+
+        {/* GOALS LIST */}
+        <View style={styles.section}>
+          {goals.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconContainer}>
+                <Icon name="flag-variant-outline" size={48} color={brandColors.textGray} />
+              </View>
+              <Text style={styles.emptyStateTitle}>No Goals Yet</Text>
+              <Text style={styles.emptyStateText}>
+                Create your first goal to start saving towards something special!
+              </Text>
+            </View>
+          ) : (
+            goals.map((goal) => {
+              const progress = goal.targetAmount > 0 ? (goal.allocatedAmount / goal.targetAmount) * 100 : 0;
+              const isExpanded = expandedGoalId === goal.id;
+              const daysUntil = getDaysUntilDeadline(goal.deadline);
+              const deadlineColor = getDeadlineColor(daysUntil);
+              const history = allocationHistory[goal.id] || [];
+
+              return (
+                <View key={goal.id} style={styles.goalCard}>
+                  <TouchableOpacity onPress={() => toggleGoalExpansion(goal.id)} activeOpacity={0.7}>
+                    <View style={styles.goalHeader}>
+                      <View style={styles.goalTitleRow}>
+                        <View style={styles.goalIconContainer}>
+                          <Icon name="flag-variant" size={20} color={brandColors.orangeAccent} />
+                        </View>
+                        <Text style={styles.goalName}>{goal.name}</Text>
+                        <Icon
+                          name={isExpanded ? "chevron-up" : "chevron-down"}
+                          size={20}
+                          color={brandColors.textGray}
+                        />
+                      </View>
+
                       {goal.deadline && (
-                        <View style={[styles.deadlineBadge, { backgroundColor: deadlineColor + '20' }]}>
+                        <View style={[styles.deadlineBadge, { backgroundColor: deadlineColor + '10' }]}>
                           <Icon name="calendar-clock" size={14} color={deadlineColor} />
                           <Text style={[styles.deadlineText, { color: deadlineColor }]}>
                             {daysUntil !== null && daysUntil < 0
@@ -369,31 +400,37 @@ export const GoalsScreen = () => {
                           </Text>
                         </View>
                       )}
-                    </View>
-                    <View style={styles.goalAmountRow}>
-                      <Text style={styles.goalAmount}>{formatCurrency(goal.allocatedAmount || 0)}</Text>
-                      <Text style={styles.goalTarget}> of {formatCurrency(goal.targetAmount)}</Text>
-                    </View>
-                    <View style={styles.goalProgressContainer}>
-                      <View style={[styles.goalProgressBar, { width: `${Math.min(progress, 100)}%` }]} />
-                    </View>
-                    <Text style={styles.goalProgressText}>{progress.toFixed(1)}% Complete</Text>
-                  </View>
 
-                  {/* Action Buttons */}
+                      <View style={styles.goalAmounts}>
+                        <Text style={styles.goalSaved}>{formatCurrency(goal.allocatedAmount || 0)}</Text>
+                        <Text style={styles.goalOf}> of </Text>
+                        <Text style={styles.goalTarget}>{formatCurrency(goal.targetAmount)}</Text>
+                      </View>
+
+                      <View style={styles.goalProgressBar}>
+                        <View style={[styles.goalProgressFill, {
+                          width: `${Math.min(progress, 100)}%`,
+                          backgroundColor: progress >= 100 ? brandColors.success : brandColors.tealPrimary
+                        }]} />
+                      </View>
+                      <Text style={styles.goalProgressText}>{progress.toFixed(0)}% Complete</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* ACTION BUTTONS */}
                   <View style={styles.goalActions}>
                     <TouchableOpacity
-                      style={styles.actionButton}
+                      style={[styles.goalActionButton, styles.goalActionPrimary]}
                       onPress={(e) => {
                         e.stopPropagation();
                         handleAllocate(goal);
                       }}
                     >
-                      <Icon name="plus-circle" size={20} color={brandColors.tealPrimary} />
-                      <Text style={styles.actionButtonText}>Add Funds</Text>
+                      <Icon name="plus-circle" size={18} color={brandColors.white} />
+                      <Text style={styles.goalActionTextPrimary}>Add Funds</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={styles.actionButton}
+                      style={[styles.goalActionButton, styles.goalActionSecondary]}
                       onPress={(e) => {
                         e.stopPropagation();
                         handleDeallocate(goal);
@@ -402,82 +439,88 @@ export const GoalsScreen = () => {
                     >
                       <Icon
                         name="minus-circle"
-                        size={20}
-                        color={(goal.allocatedAmount || 0) > 0 ? brandColors.orangeAccent : brandColors.lightGray}
+                        size={18}
+                        color={(goal.allocatedAmount || 0) > 0 ? brandColors.tealPrimary : brandColors.lightGray}
                       />
-                      <Text
-                        style={[
-                          styles.actionButtonText,
-                          (goal.allocatedAmount || 0) === 0 && styles.actionButtonTextDisabled,
-                        ]}
-                      >
-                        Remove Funds
+                      <Text style={[
+                        styles.goalActionTextSecondary,
+                        (goal.allocatedAmount || 0) === 0 && styles.goalActionTextDisabled
+                      ]}>
+                        Remove
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={styles.actionButton}
+                      style={styles.goalActionIconButton}
                       onPress={(e) => {
                         e.stopPropagation();
                         handleEditGoal(goal);
                       }}
                     >
-                      <Icon name="pencil" size={20} color={brandColors.textGray} />
-                      <Text style={styles.actionButtonText}>Edit</Text>
+                      <Icon name="pencil" size={18} color={brandColors.textGray} />
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={styles.actionButton}
+                      style={styles.goalActionIconButton}
                       onPress={(e) => {
                         e.stopPropagation();
                         handleDeleteGoal(goal);
                       }}
                     >
-                      <Icon name="delete" size={20} color={brandColors.red} />
-                      <Text style={[styles.actionButtonText, { color: brandColors.red }]}>Delete</Text>
+                      <Icon name="delete" size={18} color={brandColors.error} />
                     </TouchableOpacity>
                   </View>
-                </TouchableOpacity>
 
-                {/* Expanded: Allocation History */}
-                {isExpanded && (
-                  <View style={styles.historySection}>
-                    <Text style={styles.historyTitle}>Allocation History</Text>
-                    {history.length === 0 ? (
-                      <Text style={styles.historyEmpty}>No allocations yet</Text>
-                    ) : (
-                      history.map((item) => (
-                        <View key={item.id} style={styles.historyItem}>
-                          <Icon
-                            name={item.type === 'allocate' ? 'plus-circle' : 'minus-circle'}
-                            size={20}
-                            color={item.type === 'allocate' ? brandColors.tealPrimary : brandColors.orangeAccent}
-                          />
-                          <View style={styles.historyDetails}>
-                            <Text style={styles.historyAmount}>
-                              {item.type === 'allocate' ? '+' : '-'}
-                              {formatCurrency(Math.abs(item.amount))}
-                            </Text>
-                            <Text style={styles.historyMeta}>
-                              {item.accountName} • {formatDate(item.timestamp)}
-                            </Text>
+                  {/* EXPANDED: ALLOCATION HISTORY */}
+                  {isExpanded && (
+                    <View style={styles.historySection}>
+                      <Text style={styles.historyTitle}>ALLOCATION HISTORY</Text>
+                      {history.length === 0 ? (
+                        <Text style={styles.historyEmpty}>No allocations yet</Text>
+                      ) : (
+                        history.map((item) => (
+                          <View key={item.id} style={styles.historyItem}>
+                            <View style={[
+                              styles.historyIcon,
+                              { backgroundColor: item.type === 'allocate' ? brandColors.success + '15' : brandColors.error + '15' }
+                            ]}>
+                              <Icon
+                                name={item.type === 'allocate' ? 'plus' : 'minus'}
+                                size={16}
+                                color={item.type === 'allocate' ? brandColors.success : brandColors.error}
+                              />
+                            </View>
+                            <View style={styles.historyDetails}>
+                              <Text style={styles.historyAmount}>
+                                {item.type === 'allocate' ? '+' : '-'}
+                                {formatCurrency(Math.abs(item.amount))}
+                              </Text>
+                              <Text style={styles.historyMeta}>
+                                {item.accountName} • {formatDate(item.timestamp)}
+                              </Text>
+                            </View>
+                            <View style={styles.historyRight}>
+                              <Text style={styles.historyBalanceLabel}>Balance</Text>
+                              <Text style={styles.historyBalance}>{formatCurrency(item.balanceAfter)}</Text>
+                            </View>
                           </View>
-                          <Text style={styles.historyBalance}>{formatCurrency(item.balanceAfter)}</Text>
-                        </View>
-                      ))
-                    )}
-                  </View>
-                )}
-              </View>
-            );
-          })
-        )}
+                        ))
+                      )}
+                    </View>
+                  )}
+                </View>
+              );
+            })
+          )}
+        </View>
+
+        <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Floating Action Button */}
+      {/* FLOATING ACTION BUTTON */}
       <TouchableOpacity style={styles.fab} onPress={() => setShowAddGoal(true)}>
         <Icon name="plus" size={28} color={brandColors.white} />
       </TouchableOpacity>
 
-      {/* Modals */}
+      {/* MODALS */}
       <AddGoalModal
         visible={showAddGoal}
         onClose={() => setShowAddGoal(false)}
@@ -537,175 +580,292 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: brandColors.backgroundOffWhite,
   },
+
+  // Header
+  header: {
+    backgroundColor: brandColors.white,
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: brandColors.border,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  menuButton: {
+    padding: 8,
+    marginRight: 4,
+  },
+  logoContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: brandColors.orangeAccent + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: brandColors.textDark,
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: brandColors.textGray,
+    marginTop: 2,
+  },
+  headerButton: {
+    padding: 8,
+  },
+
+  // Section
+  section: {
+    paddingHorizontal: 20,
+    marginTop: 24,
+  },
+
+  // Summary Card
   summaryCard: {
     backgroundColor: brandColors.white,
     padding: 20,
-    marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: brandColors.lightGray,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  summaryTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+  summaryLabel: {
+    fontSize: 11,
+    fontWeight: '700',
     color: brandColors.textGray,
-    marginBottom: 8,
-  },
-  summaryAmount: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: brandColors.tealDark,
+    letterSpacing: 1.2,
     marginBottom: 12,
   },
+  summaryAmount: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: brandColors.tealPrimary,
+    letterSpacing: -1.5,
+    marginBottom: 6,
+  },
   summaryTarget: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: brandColors.textGray,
+    marginBottom: 20,
+  },
+  progressBarOuter: {
+    height: 10,
+    backgroundColor: brandColors.lightGray,
+    borderRadius: 5,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: brandColors.tealPrimary,
+    borderRadius: 5,
+  },
+  progressPercent: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: brandColors.tealPrimary,
+  },
+
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: brandColors.lightGray + '50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: brandColors.textDark,
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: brandColors.textGray,
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 40,
+  },
+
+  // Goal Card
+  goalCard: {
+    backgroundColor: brandColors.white,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  goalHeader: {
+    marginBottom: 16,
+  },
+  goalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  goalIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: brandColors.orangeAccent + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  goalName: {
+    flex: 1,
     fontSize: 18,
+    fontWeight: '700',
+    color: brandColors.textDark,
+  },
+  deadlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    marginTop: 8,
+    marginBottom: 12,
+    alignSelf: 'flex-start',
+  },
+  deadlineText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  goalAmounts: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 12,
+  },
+  goalSaved: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: brandColors.textDark,
+  },
+  goalOf: {
+    fontSize: 14,
+    fontWeight: '500',
     color: brandColors.textGray,
   },
-  progressBarContainer: {
+  goalTarget: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: brandColors.textGray,
+  },
+  goalProgressBar: {
     height: 8,
     backgroundColor: brandColors.lightGray,
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 8,
   },
-  progressBar: {
+  goalProgressFill: {
     height: '100%',
-    backgroundColor: brandColors.tealPrimary,
     borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 12,
-    color: brandColors.textGray,
-  },
-  scrollView: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyStateTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: brandColors.textDark,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: brandColors.textGray,
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
-  goalCard: {
-    backgroundColor: brandColors.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  goalHeader: {
-    marginBottom: 12,
-  },
-  goalTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  goalName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: brandColors.textDark,
-    flex: 1,
-  },
-  deadlineBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  deadlineText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  goalAmountRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: 8,
-  },
-  goalAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: brandColors.tealDark,
-  },
-  goalTarget: {
-    fontSize: 14,
-    color: brandColors.textGray,
-  },
-  goalProgressContainer: {
-    height: 6,
-    backgroundColor: brandColors.lightGray,
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginBottom: 4,
-  },
-  goalProgressBar: {
-    height: '100%',
-    backgroundColor: brandColors.tealPrimary,
-    borderRadius: 3,
   },
   goalProgressText: {
     fontSize: 12,
+    fontWeight: '600',
     color: brandColors.textGray,
   },
+
+  // Goal Actions
   goalActions: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
-    marginTop: 8,
-    paddingTop: 12,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: brandColors.lightGray,
+    borderTopColor: brandColors.border,
   },
-  actionButton: {
+  goalActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: brandColors.backgroundOffWhite,
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
   },
-  actionButtonText: {
+  goalActionPrimary: {
+    backgroundColor: brandColors.tealPrimary,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  goalActionSecondary: {
+    backgroundColor: brandColors.white,
+    borderWidth: 1.5,
+    borderColor: brandColors.tealPrimary,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  goalActionTextPrimary: {
     fontSize: 14,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '700',
+    color: brandColors.white,
   },
-  actionButtonTextDisabled: {
+  goalActionTextSecondary: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: brandColors.tealPrimary,
+  },
+  goalActionTextDisabled: {
     color: brandColors.lightGray,
   },
+  goalActionIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: brandColors.backgroundOffWhite,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // History
   historySection: {
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: brandColors.lightGray,
+    borderTopColor: brandColors.border,
   },
   historyTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: brandColors.textDark,
+    fontSize: 11,
+    fontWeight: '700',
+    color: brandColors.textGray,
+    letterSpacing: 1,
     marginBottom: 12,
   },
   historyEmpty: {
     fontSize: 14,
+    fontWeight: '500',
     color: brandColors.textGray,
     fontStyle: 'italic',
   },
@@ -713,28 +873,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: brandColors.lightGray + '50',
+    borderBottomColor: brandColors.border + '50',
+  },
+  historyIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   historyDetails: {
     flex: 1,
   },
   historyAmount: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: brandColors.textDark,
+    marginBottom: 2,
   },
   historyMeta: {
     fontSize: 12,
+    fontWeight: '500',
     color: brandColors.textGray,
-    marginTop: 2,
+  },
+  historyRight: {
+    alignItems: 'flex-end',
+  },
+  historyBalanceLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: brandColors.textGray,
+    marginBottom: 2,
   },
   historyBalance: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: brandColors.tealDark,
+    fontSize: 15,
+    fontWeight: '700',
+    color: brandColors.tealPrimary,
   },
+
+  // FAB
   fab: {
     position: 'absolute',
     bottom: 24,
@@ -742,7 +921,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: brandColors.tealPrimary,
+    backgroundColor: brandColors.orangeAccent,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

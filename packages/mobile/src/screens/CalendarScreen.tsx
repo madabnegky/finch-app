@@ -7,10 +7,14 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import firestore from '@react-native-firebase/firestore';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import { getInstancesInRange } from '../utils/transactionInstances';
-import { brandColors } from '../theme/colors';
+import FinchLogo from '../components/FinchLogo';
+import brandColors from '../theme/colors';
+import { actionIcons, categoryIcons } from '../theme/icons';
 
 type Transaction = {
   id: string;
@@ -19,6 +23,9 @@ type Transaction = {
   type: 'income' | 'expense';
   date: any;
   accountId?: string;
+  category?: string;
+  description?: string;
+  instanceId?: string;
 };
 
 type Account = {
@@ -29,33 +36,24 @@ type Account = {
 };
 
 export const CalendarScreen: React.FC = () => {
+  const navigation = useNavigation();
   const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [rawTransactions, setRawTransactions] = useState<Transaction[]>([]); // Series + one-time
+  const [rawTransactions, setRawTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
   // Generate instances for the current month view + all past transactions
-  // We need past transactions for accurate balance calculations
   const transactions = useMemo(() => {
     const startOfMonth = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), 1));
     const endOfMonth = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth() + 1, 0));
 
-    console.log(`[CALENDAR] currentDate: ${currentDate.toISOString()}, startOfMonth: ${startOfMonth.toISOString()}, endOfMonth: ${endOfMonth.toISOString()}`);
-
-    // For balance calculations, we need all instances from way in the past to end of current month
-    // Generate instances for 2 years back to cover all possible past transactions
     const twoYearsAgo = new Date();
     twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
 
-    console.log(`[CALENDAR] Calling getInstancesInRange with twoYearsAgo: ${twoYearsAgo.toISOString()}, endOfMonth: ${endOfMonth.toISOString()}`);
     const instances = getInstancesInRange(rawTransactions, twoYearsAgo, endOfMonth);
-    console.log(`[CALENDAR] Generated ${instances.length} instances from ${rawTransactions.length} raw transactions`);
-    const testRentInstances = instances.filter(i => (i.description || '').toLowerCase().includes('rent'));
-    console.log(`  - TestRent instances: ${testRentInstances.length}`);
-    testRentInstances.forEach(i => console.log(`    - Date: ${i.date}, amount: ${i.amount}, accountId: ${i.accountId}`));
     return instances;
   }, [rawTransactions, currentDate]);
 
@@ -88,8 +86,7 @@ export const CalendarScreen: React.FC = () => {
         }
       );
 
-    // Fetch ALL transactions (series + one-time), not just current month
-    // Instance generation will handle filtering by date
+    // Fetch ALL transactions
     const unsubscribeTransactions = firestore()
       .collection(`users/${user.uid}/transactions`)
       .onSnapshot(
@@ -105,8 +102,6 @@ export const CalendarScreen: React.FC = () => {
             ...doc.data(),
           })) as Transaction[];
 
-          console.log(`[CALENDAR] Loaded ${txns.length} raw transactions from Firestore`);
-          txns.forEach(t => console.log(`  - ${t.description || 'no desc'}, amount: ${t.amount}, accountId: ${t.accountId}, isRecurring: ${t.isRecurring}`));
           setRawTransactions(txns);
           setLoading(false);
         },
@@ -123,7 +118,7 @@ export const CalendarScreen: React.FC = () => {
     };
   }, [user]);
 
-  // Generate projections for the current month (mimicking Cloud Function logic)
+  // Generate projections for the current month
   const monthProjections = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -131,42 +126,29 @@ export const CalendarScreen: React.FC = () => {
     const startOfMonth = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), 1));
     const endOfMonth = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth() + 1, 0));
 
-    // Filter accounts based on selection
     const relevantAccounts = selectedAccountId === 'all'
       ? accounts
       : accounts.filter(acc => acc.id === selectedAccountId);
 
-    // Calculate starting balance for each account (current balance is already the "starting" balance)
-    // We need to add all PAST instances (before start of month) to get the balance at start of month
     const accountProjections = relevantAccounts.map(account => {
-      // Start with account's current balance
       let startingBalance = account.currentBalance;
 
-      // Get all past instances for this account (before start of month)
       const pastInstances = transactions.filter(inst => {
         const instDate = inst.date instanceof Date ? inst.date : new Date(inst.date);
         return inst.accountId === account.id && instDate < startOfMonth;
       });
 
-      // Add past transactions to starting balance
       startingBalance += pastInstances.reduce((sum, inst) => sum + inst.amount, 0);
 
-      // Group future instances by date for this account
       const futureInstancesByDate = new Map();
-      console.log(`[PROJECTION] Filtering ${transactions.length} transactions for account ${account.id}, startOfMonth: ${startOfMonth.toISOString()}, endOfMonth: ${endOfMonth.toISOString()}`);
       transactions.forEach(inst => {
         const instDate = inst.date instanceof Date ? inst.date : new Date(inst.date);
         const matchesAccount = inst.accountId === account.id;
         const afterStart = instDate >= startOfMonth;
         const beforeEnd = instDate <= endOfMonth;
 
-        if ((inst.description || '').toLowerCase().includes('rent')) {
-          console.log(`[PROJECTION] TestRent check: instDate=${instDate.toISOString()}, accountId=${inst.accountId}, matchesAccount=${matchesAccount}, afterStart=${afterStart}, beforeEnd=${beforeEnd}`);
-        }
-
         if (matchesAccount && afterStart && beforeEnd) {
           const dateKey = instDate.toISOString().split('T')[0];
-          console.log(`[PROJECTION] Adding to futureInstancesByDate: ${inst.description || inst.name}, dateKey=${dateKey}, amount=${inst.amount}, accountId=${inst.accountId}`);
           if (!futureInstancesByDate.has(dateKey)) {
             futureInstancesByDate.set(dateKey, []);
           }
@@ -174,7 +156,6 @@ export const CalendarScreen: React.FC = () => {
         }
       });
 
-      // Build day-by-day projections with running balance
       const projections = [];
       let currentBalance = startingBalance;
 
@@ -183,10 +164,6 @@ export const CalendarScreen: React.FC = () => {
         const dateKey = date.toISOString().split('T')[0];
 
         const transactionsToday = futureInstancesByDate.get(dateKey) || [];
-        if (transactionsToday.length > 0) {
-          console.log(`[PROJECTION] Day ${day} (${dateKey}): ${transactionsToday.length} transactions`);
-          transactionsToday.forEach(t => console.log(`  - ${t.description || t.name}: ${t.amount}`));
-        }
         const dailyNet = transactionsToday.reduce((sum, t) => sum + t.amount, 0);
         currentBalance += dailyNet;
 
@@ -215,7 +192,6 @@ export const CalendarScreen: React.FC = () => {
         }
         dailyTotals.get(dateKey).totalBalance += dayProj.balance;
 
-        // Add transactions without duplicates
         const existing = new Set(dailyTotals.get(dateKey).transactionsToday.map(t => t.id || t.instanceId));
         dayProj.transactions.forEach(t => {
           if (!existing.has(t.id || t.instanceId)) {
@@ -238,12 +214,10 @@ export const CalendarScreen: React.FC = () => {
 
     const days: (Date | null)[] = [];
 
-    // Add empty slots for days before month starts
     for (let i = 0; i < startDayOfWeek; i++) {
       days.push(null);
     }
 
-    // Add all days in month
     for (let day = 1; day <= daysInMonth; day++) {
       days.push(new Date(Date.UTC(year, month, day)));
     }
@@ -257,7 +231,6 @@ export const CalendarScreen: React.FC = () => {
     return projection?.transactionsToday || [];
   };
 
-  // Calculate available balance for a specific date
   const calculateAvailableBalance = (targetDate: Date) => {
     const dateKey = targetDate.toISOString().split('T')[0];
     const projection = monthProjections.get(dateKey);
@@ -290,6 +263,12 @@ export const CalendarScreen: React.FC = () => {
       return newDate;
     });
     setSelectedDate(null);
+  };
+
+  const getCategoryIcon = (category?: string): string => {
+    if (!category) return categoryIcons.uncategorized;
+    const normalized = category.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    return categoryIcons[normalized as keyof typeof categoryIcons] || categoryIcons.uncategorized;
   };
 
   const renderDay = (date: Date | null, index: number) => {
@@ -347,21 +326,39 @@ export const CalendarScreen: React.FC = () => {
     ? calculateAvailableBalance(selectedDate)
     : null;
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  };
+
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
+      {/* CUSTOM HEADER */}
       <View style={styles.header}>
-        <Text style={styles.title}>Calendar</Text>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => (navigation as any).openDrawer()}
+          >
+            <Icon name="menu" size={24} color={brandColors.textDark} />
+          </TouchableOpacity>
+          <View style={styles.logoContainer}>
+            <FinchLogo size={32} />
+          </View>
+          <View>
+            <Text style={styles.headerTitle}>Calendar</Text>
+            <Text style={styles.headerSubtitle}>Balance Projections</Text>
+          </View>
+        </View>
       </View>
 
-      {/* Account Filter */}
-      <View style={styles.accountFilterContainer}>
-        <Text style={styles.filterLabel}>Account:</Text>
-        <View style={styles.scrollWrapper}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* ACCOUNT FILTER */}
+        <View style={styles.accountFilterSection}>
+          <Text style={styles.filterLabel}>View Account</Text>
           <ScrollView
             horizontal
-            showsHorizontalScrollIndicator={true}
-            style={styles.accountScroll}
-            contentContainerStyle={styles.scrollContent}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.accountScrollContent}
           >
             <TouchableOpacity
               style={[styles.accountChip, selectedAccountId === 'all' && styles.accountChipActive]}
@@ -384,104 +381,144 @@ export const CalendarScreen: React.FC = () => {
             ))}
           </ScrollView>
         </View>
-      </View>
 
-      {/* Month Navigation */}
-      <View style={styles.monthNav}>
-        <TouchableOpacity onPress={() => navigateMonth('prev')} style={styles.navButton}>
-          <Text style={styles.navButtonText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.monthTitle}>
-          {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-        </Text>
-        <TouchableOpacity onPress={() => navigateMonth('next')} style={styles.navButton}>
-          <Text style={styles.navButtonText}>→</Text>
-        </TouchableOpacity>
-      </View>
+        {/* CALENDAR CARD */}
+        <View style={styles.section}>
+          <View style={styles.calendarCard}>
+            {/* Month Navigation */}
+            <View style={styles.monthNav}>
+              <TouchableOpacity onPress={() => navigateMonth('prev')} style={styles.navButton}>
+                <Icon name={actionIcons.chevronLeft} size={24} color={brandColors.tealPrimary} />
+              </TouchableOpacity>
+              <Text style={styles.monthTitle}>
+                {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </Text>
+              <TouchableOpacity onPress={() => navigateMonth('next')} style={styles.navButton}>
+                <Icon name={actionIcons.chevronRight} size={24} color={brandColors.tealPrimary} />
+              </TouchableOpacity>
+            </View>
 
-      {/* Day of Week Headers */}
-      <View style={styles.weekHeader}>
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-          <View key={day} style={styles.weekDayCell}>
-            <Text style={styles.weekDayText}>{day}</Text>
+            {/* Day of Week Headers */}
+            <View style={styles.weekHeader}>
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => (
+                <View key={`header-${idx}`} style={styles.weekDayCell}>
+                  <Text style={styles.weekDayText}>{day}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Calendar Grid */}
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={brandColors.tealPrimary} />
+              </View>
+            ) : (
+              <View style={styles.calendarGrid}>
+                {getDaysInMonth().map((date, index) => renderDay(date, index))}
+              </View>
+            )}
           </View>
-        ))}
-      </View>
-
-      {/* Calendar Grid */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={brandColors.tealPrimary} />
         </View>
-      ) : (
-        <View style={styles.calendarGrid}>
-          {getDaysInMonth().map((date, index) => renderDay(date, index))}
-        </View>
-      )}
 
-      {/* Selected Date Transactions */}
-      {selectedDate && (
-        <View style={styles.transactionsContainer}>
-          <Text style={styles.transactionsTitle}>
-            {selectedDate.toLocaleDateString('en-US', {
-              month: 'long',
-              day: 'numeric',
-              year: 'numeric',
-            })}
-          </Text>
-
-          {/* Daily Balance Summary */}
-          {selectedDateBalance && (
-            <View style={styles.balanceSummary}>
-              <View style={styles.balanceRow}>
-                <Text style={styles.balanceLabel}>Projected Balance:</Text>
-                <Text style={styles.balanceValue}>
-                  ${selectedDateBalance.projectedBalance.toFixed(2)}
+        {/* SELECTED DATE DETAILS */}
+        {selectedDate && (
+          <View style={styles.section}>
+            <View style={styles.dateDetailsCard}>
+              <View style={styles.dateHeader}>
+                <Icon name="calendar-check" size={24} color={brandColors.tealPrimary} />
+                <Text style={styles.dateTitle}>
+                  {selectedDate.toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
                 </Text>
               </View>
-              <View style={styles.balanceRow}>
-                <Text style={styles.balanceLabel}>Cushion:</Text>
-                <Text style={styles.balanceValue}>
-                  ${selectedDateBalance.totalCushion.toFixed(2)}
+
+              {/* Balance Summary */}
+              {selectedDateBalance && (
+                <View style={styles.balanceSummaryContainer}>
+                  <View style={styles.balanceRow}>
+                    <View style={styles.balanceItem}>
+                      <Text style={styles.balanceLabel}>Projected Balance</Text>
+                      <Text style={styles.balanceValue}>
+                        {formatCurrency(selectedDateBalance.projectedBalance)}
+                      </Text>
+                    </View>
+                    <View style={styles.balanceDivider} />
+                    <View style={styles.balanceItem}>
+                      <Text style={styles.balanceLabel}>Cushion</Text>
+                      <Text style={styles.balanceValue}>
+                        {formatCurrency(selectedDateBalance.totalCushion)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.availableRow}>
+                    <Text style={styles.availableLabel}>Available to Spend</Text>
+                    <Text
+                      style={[
+                        styles.availableValue,
+                        { color: selectedDateBalance.availableToSpend < 0 ? brandColors.error : brandColors.success }
+                      ]}
+                    >
+                      {formatCurrency(selectedDateBalance.availableToSpend)}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Transactions */}
+              <View style={styles.transactionsSection}>
+                <Text style={styles.transactionsSectionTitle}>
+                  Transactions ({selectedDateTransactions.length})
                 </Text>
-              </View>
-              <View style={[styles.balanceRow, styles.availableRow]}>
-                <Text style={styles.availableLabel}>Available to Spend:</Text>
-                <Text
-                  style={[
-                    styles.availableValue,
-                    selectedDateBalance.availableToSpend < 0 && styles.negativeBalance,
-                  ]}
-                >
-                  ${selectedDateBalance.availableToSpend.toFixed(2)}
-                </Text>
+                {selectedDateTransactions.length === 0 ? (
+                  <View style={styles.noTransactionsContainer}>
+                    <Icon name="calendar-blank" size={48} color={brandColors.textGray} />
+                    <Text style={styles.noTransactionsText}>No transactions on this date</Text>
+                  </View>
+                ) : (
+                  selectedDateTransactions.map((txn) => (
+                    <View key={txn.id || txn.instanceId} style={styles.transactionItem}>
+                      <View style={styles.transactionLeft}>
+                        <View style={[
+                          styles.transactionIconContainer,
+                          { backgroundColor: txn.type === 'income' ? brandColors.success + '15' : brandColors.error + '15' }
+                        ]}>
+                          <Icon
+                            name={getCategoryIcon(txn.category)}
+                            size={20}
+                            color={txn.type === 'income' ? brandColors.success : brandColors.error}
+                          />
+                        </View>
+                        <View style={styles.transactionInfo}>
+                          <Text style={styles.transactionName}>{txn.description || txn.name || 'Unnamed'}</Text>
+                          {txn.category && (
+                            <Text style={styles.transactionCategory}>{txn.category}</Text>
+                          )}
+                        </View>
+                      </View>
+                      <Text
+                        style={[
+                          styles.transactionAmount,
+                          { color: txn.type === 'income' ? brandColors.success : brandColors.error }
+                        ]}
+                      >
+                        {txn.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(txn.amount))}
+                      </Text>
+                    </View>
+                  ))
+                )}
               </View>
             </View>
-          )}
+          </View>
+        )}
 
-          <Text style={styles.transactionsSectionTitle}>Transactions</Text>
-          <ScrollView style={styles.transactionsList}>
-            {selectedDateTransactions.length === 0 ? (
-              <Text style={styles.noTransactions}>No transactions on this date</Text>
-            ) : (
-              selectedDateTransactions.map((txn) => (
-                <View key={txn.id || txn.instanceId} style={styles.transactionItem}>
-                  <Text style={styles.transactionName}>{txn.description || txn.name || 'Unnamed'}</Text>
-                  <Text
-                    style={[
-                      styles.transactionAmount,
-                      txn.type === 'income' ? styles.incomeAmount : styles.expenseAmount,
-                    ]}
-                  >
-                    {txn.type === 'income' ? '+' : '-'}${Math.abs(txn.amount).toFixed(2)}
-                  </Text>
-                </View>
-              ))
-            )}
-          </ScrollView>
-        </View>
-      )}
-    </ScrollView>
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </View>
   );
 };
 
@@ -490,87 +527,124 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: brandColors.backgroundOffWhite,
   },
+
+  // Header
   header: {
-    padding: 20,
-    paddingTop: 60,
     backgroundColor: brandColors.white,
+    paddingTop: 60,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: brandColors.border,
   },
-  accountFilterContainer: {
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: brandColors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: brandColors.lightGray,
+    gap: 12,
+  },
+  menuButton: {
+    padding: 4,
+  },
+  logoContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: brandColors.tealPrimary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: brandColors.textDark,
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: brandColors.textGray,
+    marginTop: 2,
+  },
+
+  // Scroll View
+  scrollView: {
+    flex: 1,
+  },
+
+  // Section
+  section: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+
+  // Account Filter
+  accountFilterSection: {
+    marginTop: 16,
+    paddingHorizontal: 20,
   },
   filterLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: brandColors.textDark,
-    marginRight: 12,
-    minWidth: 70,
+    marginBottom: 12,
   },
-  scrollWrapper: {
-    flex: 1,
-  },
-  accountScroll: {
-    flexGrow: 0,
-  },
-  scrollContent: {
-    paddingRight: 16,
+  accountScrollContent: {
+    gap: 8,
+    paddingBottom: 4,
   },
   accountChip: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: brandColors.backgroundOffWhite,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: brandColors.white,
+    borderWidth: 2,
+    borderColor: brandColors.border,
   },
   accountChipActive: {
-    backgroundColor: brandColors.tealPrimary,
-    borderColor: brandColors.tealPrimary,
+    backgroundColor: brandColors.orangeAccent,
+    borderColor: brandColors.orangeAccent,
   },
   accountChipText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: brandColors.textDark,
   },
   accountChipTextActive: {
     color: brandColors.white,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: brandColors.textDark,
+
+  // Calendar Card
+  calendarCard: {
+    backgroundColor: brandColors.white,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   monthNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: brandColors.white,
+    marginBottom: 20,
   },
   navButton: {
     padding: 8,
   },
-  navButtonText: {
-    fontSize: 24,
-    color: brandColors.tealPrimary,
-  },
   monthTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
     color: brandColors.textDark,
+    letterSpacing: -0.3,
   },
   weekHeader: {
     flexDirection: 'row',
-    backgroundColor: brandColors.white,
+    marginBottom: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: brandColors.lightGray,
-    paddingVertical: 8,
+    borderBottomColor: brandColors.border,
   },
   weekDayCell: {
     flex: 1,
@@ -578,14 +652,13 @@ const styles = StyleSheet.create({
   },
   weekDayText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: brandColors.textGray,
+    textTransform: 'uppercase',
   },
   calendarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    backgroundColor: brandColors.white,
-    padding: 4,
   },
   dayCell: {
     width: '14.28%',
@@ -593,32 +666,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 4,
+    position: 'relative',
   },
   selectedDay: {
-    backgroundColor: brandColors.tealPrimary,
-    borderRadius: 8,
+    backgroundColor: brandColors.orangeAccent,
+    borderRadius: 12,
   },
   todayCell: {
     borderWidth: 2,
     borderColor: brandColors.tealPrimary,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   dayText: {
     fontSize: 14,
+    fontWeight: '600',
     color: brandColors.textDark,
   },
   selectedDayText: {
     color: brandColors.white,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   todayText: {
-    fontWeight: 'bold',
+    fontWeight: '700',
+    color: brandColors.tealPrimary,
   },
   transactionIndicator: {
     position: 'absolute',
-    bottom: 4,
+    bottom: 6,
     flexDirection: 'row',
-    gap: 2,
+    gap: 3,
   },
   indicatorDot: {
     width: 4,
@@ -626,105 +702,151 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   incomeDot: {
-    backgroundColor: brandColors.green,
+    backgroundColor: brandColors.success,
   },
   expenseDot: {
-    backgroundColor: brandColors.red,
+    backgroundColor: brandColors.error,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  transactionsContainer: {
-    flex: 1,
-    padding: 16,
-  },
-  transactionsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: brandColors.textDark,
-    marginBottom: 12,
-  },
-  balanceSummary: {
+
+  // Date Details Card
+  dateDetailsCard: {
     backgroundColor: brandColors.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  dateHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+  },
+  dateTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+    color: brandColors.textDark,
+  },
+
+  // Balance Summary
+  balanceSummaryContainer: {
+    marginBottom: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: brandColors.border,
   },
   balanceRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 16,
   },
-  balanceLabel: {
-    fontSize: 14,
-    color: brandColors.textGray,
-  },
-  balanceValue: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: brandColors.textDark,
-  },
-  availableRow: {
-    marginTop: 8,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: brandColors.lightGray,
-    marginBottom: 0,
-  },
-  availableLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: brandColors.textDark,
-  },
-  availableValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: brandColors.green,
-  },
-  negativeBalance: {
-    color: brandColors.red,
-  },
-  transactionsSectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: brandColors.textGray,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  transactionsList: {
+  balanceItem: {
     flex: 1,
   },
-  transactionItem: {
-    backgroundColor: brandColors.white,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
+  balanceLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: brandColors.textGray,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  balanceValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: brandColors.textDark,
+  },
+  balanceDivider: {
+    width: 1,
+    backgroundColor: brandColors.border,
+    marginHorizontal: 16,
+  },
+  availableRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: brandColors.backgroundOffWhite,
+    padding: 16,
+    borderRadius: 12,
+  },
+  availableLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: brandColors.textDark,
+  },
+  availableValue: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+
+  // Transactions Section
+  transactionsSection: {
+  },
+  transactionsSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: brandColors.textGray,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  noTransactionsContainer: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  noTransactionsText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: brandColors.textGray,
+    marginTop: 12,
+  },
+  transactionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: brandColors.border,
+  },
+  transactionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  transactionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  transactionInfo: {
+    flex: 1,
   },
   transactionName: {
     fontSize: 14,
+    fontWeight: '600',
     color: brandColors.textDark,
+    marginBottom: 2,
+  },
+  transactionCategory: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: brandColors.textGray,
   },
   transactionAmount: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 12,
   },
-  incomeAmount: {
-    color: brandColors.green,
-  },
-  expenseAmount: {
-    color: brandColors.red,
-  },
-  noTransactions: {
-    fontSize: 14,
-    color: brandColors.textGray,
-    textAlign: 'center',
-    marginTop: 20,
+
+  // Loading
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
   },
 });

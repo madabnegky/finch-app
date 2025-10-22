@@ -8,7 +8,9 @@ import {
   TextInput,
   ScrollView,
   Alert,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import firestore from '@react-native-firebase/firestore';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import { brandColors } from '../theme/colors';
@@ -52,12 +54,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const [category, setCategory] = useState('Uncategorized');
   const [isRecurring, setIsRecurring] = useState(false);
   const [frequency, setFrequency] = useState<'weekly' | 'biweekly' | 'monthly'>('monthly');
-  const [nextDate, setNextDate] = useState('');
-  const [transactionDate, setTransactionDate] = useState(() => {
-    // Initialize with today's date in YYYY-MM-DD format in UTC
-    const today = new Date();
-    return `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, '0')}-${String(today.getUTCDate()).padStart(2, '0')}`;
-  });
+  const [nextDate, setNextDate] = useState(new Date());
+  const [transactionDate, setTransactionDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showNextDatePicker, setShowNextDatePicker] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [saving, setSaving] = useState(false);
@@ -101,26 +101,11 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       return;
     }
 
-    // Validate date fields
-    if (isRecurring) {
-      if (!nextDate.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
-        Alert.alert('Invalid Date', 'Please enter a valid date in YYYY-MM-DD format');
-        return;
-      }
-    } else {
-      if (!transactionDate.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(transactionDate)) {
-        Alert.alert('Invalid Date', 'Please enter a valid date in YYYY-MM-DD format');
-        return;
-      }
-    }
-
     try {
       setSaving(true);
 
-      // Convert date string to Firestore Timestamp
-      const dateString = isRecurring ? nextDate : transactionDate;
-      const [year, month, day] = dateString.split('-').map(Number);
-      const dateObj = new Date(year, month - 1, day); // month is 0-indexed
+      // Use the Date objects directly
+      const dateObj = isRecurring ? new Date(nextDate) : new Date(transactionDate);
       dateObj.setHours(0, 0, 0, 0);
 
       const transactionData: any = {
@@ -140,9 +125,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
       // Add recurring fields in recurringDetails object (matching web app structure)
       if (isRecurring) {
+        const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
         transactionData.recurringDetails = {
           frequency: frequency,
-          nextDate: nextDate,
+          nextDate: nextDateStr,
         };
       }
 
@@ -156,9 +142,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setCategory('Uncategorized');
       setIsRecurring(false);
       setFrequency('monthly');
-      setNextDate('');
-      const today = new Date();
-      setTransactionDate(`${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, '0')}-${String(today.getUTCDate()).padStart(2, '0')}`);
+      setNextDate(new Date());
+      setTransactionDate(new Date());
       setSelectedAccountId(accounts.length === 1 ? accounts[0].id : '');
       setType('expense');
 
@@ -350,17 +335,36 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             {/* One-off Transaction Date */}
             {!isRecurring && (
               <>
-                <Text style={styles.label}>Transaction Date (YYYY-MM-DD)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={transactionDate}
-                  onChangeText={setTransactionDate}
-                  placeholder="2025-10-18"
-                  placeholderTextColor={brandColors.textGray}
-                />
-                <Text style={styles.helperText}>
-                  Example: 2025-10-18 for October 18, 2025
-                </Text>
+                <Text style={styles.label}>Transaction Date</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <Text style={styles.dateButtonText}>
+                    {transactionDate.toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })}
+                  </Text>
+                  <Text style={styles.dateButtonIcon}>📅</Text>
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    testID="dateTimePicker"
+                    value={transactionDate}
+                    mode="date"
+                    is24Hour={true}
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={(event, selectedDate) => {
+                      setShowDatePicker(Platform.OS === 'ios');
+                      if (event.type === 'set' && selectedDate) {
+                        setTransactionDate(selectedDate);
+                      }
+                    }}
+                  />
+                )}
               </>
             )}
 
@@ -419,17 +423,36 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.label}>Next Occurrence Date (YYYY-MM-DD)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={nextDate}
-                  onChangeText={setNextDate}
-                  placeholder="2025-01-15"
-                  placeholderTextColor={brandColors.textGray}
-                />
-                <Text style={styles.helperText}>
-                  Example: 2025-01-15 for January 15, 2025
-                </Text>
+                <Text style={styles.label}>Next Occurrence Date</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowNextDatePicker(true)}
+                >
+                  <Text style={styles.dateButtonText}>
+                    {nextDate.toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })}
+                  </Text>
+                  <Text style={styles.dateButtonIcon}>📅</Text>
+                </TouchableOpacity>
+                {showNextDatePicker && (
+                  <DateTimePicker
+                    testID="nextDateTimePicker"
+                    value={nextDate}
+                    mode="date"
+                    is24Hour={true}
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={(event, selectedDate) => {
+                      setShowNextDatePicker(Platform.OS === 'ios');
+                      if (event.type === 'set' && selectedDate) {
+                        setNextDate(selectedDate);
+                      }
+                    }}
+                  />
+                )}
               </>
             )}
           </ScrollView>
@@ -630,5 +653,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: brandColors.white,
+  },
+  dateButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: brandColors.white,
+    borderWidth: 1,
+    borderColor: brandColors.lightGray,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  dateButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: brandColors.textDark,
+  },
+  dateButtonIcon: {
+    fontSize: 20,
   },
 });

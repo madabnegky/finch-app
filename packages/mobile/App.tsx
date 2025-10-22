@@ -19,6 +19,7 @@ import {
 import { SplashScreen } from './src/screens/SplashScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
+import { DashboardConcept4 } from './src/screens/DashboardConcept4';
 import { GoalsScreen } from './src/screens/GoalsScreen';
 import { TransactionsScreen } from './src/screens/TransactionsScreen';
 import { CalendarScreen } from './src/screens/CalendarScreen';
@@ -26,6 +27,7 @@ import { ReportsScreen } from './src/screens/ReportsScreen';
 import { BudgetScreen } from './src/screens/BudgetScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { useAuth } from '../shared-logic/src/hooks/useAuth';
+import CustomDrawer from './src/components/CustomDrawer';
 
 // This creates the "stack" of screens and drawer
 const Stack = createNativeStackNavigator();
@@ -35,6 +37,7 @@ const Drawer = createDrawerNavigator();
 function MainDrawer() {
   return (
     <Drawer.Navigator
+      drawerContent={(props) => <CustomDrawer {...props} />}
       screenOptions={{
         drawerActiveTintColor: brandColors.orangeAccent,
         drawerInactiveTintColor: brandColors.textGray,
@@ -65,8 +68,9 @@ function MainDrawer() {
     >
       <Drawer.Screen
         name="Dashboard"
-        component={DashboardScreen}
+        component={DashboardConcept4}
         options={{
+          headerShown: false,
           drawerIcon: ({ color, size}) => (
             <Icon name="view-dashboard" size={size} color={color} />
           ),
@@ -76,6 +80,7 @@ function MainDrawer() {
         name="Goals"
         component={GoalsScreen}
         options={{
+          headerShown: false,
           drawerIcon: ({ color, size }) => (
             <Icon name="flag-variant" size={size} color={color} />
           ),
@@ -85,6 +90,7 @@ function MainDrawer() {
         name="Transactions"
         component={TransactionsScreen}
         options={{
+          headerShown: false,
           drawerIcon: ({ color, size }) => (
             <Icon name="credit-card" size={size} color={color} />
           ),
@@ -94,6 +100,7 @@ function MainDrawer() {
         name="Calendar"
         component={CalendarScreen}
         options={{
+          headerShown: false,
           drawerIcon: ({ color, size }) => (
             <Icon name="calendar" size={size} color={color} />
           ),
@@ -103,6 +110,7 @@ function MainDrawer() {
         name="Reports"
         component={ReportsScreen}
         options={{
+          headerShown: false,
           drawerIcon: ({ color, size }) => (
             <Icon name="chart-bar" size={size} color={color} />
           ),
@@ -112,6 +120,7 @@ function MainDrawer() {
         name="Budget"
         component={BudgetScreen}
         options={{
+          headerShown: false,
           drawerIcon: ({ color, size }) => (
             <Icon name="wallet" size={size} color={color} />
           ),
@@ -121,6 +130,7 @@ function MainDrawer() {
         name="Settings"
         component={SettingsScreen}
         options={{
+          headerShown: false,
           drawerIcon: ({ color, size }) => (
             <Icon name="cog" size={size} color={color} />
           ),

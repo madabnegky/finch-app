@@ -62,6 +62,9 @@ importers:
       '@react-native-async-storage/async-storage':
         specifier: ^2.2.0
         version: 2.2.0(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0))
+      '@react-native-community/datetimepicker':
+        specifier: ^8.4.5
+        version: 8.4.5(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0))(react@18.2.0)
       '@react-native-firebase/app':
         specifier: ^23.4.1
         version: 23.4.1(@react-native-async-storage/async-storage@2.2.0(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0)))(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0))(react@18.2.0)

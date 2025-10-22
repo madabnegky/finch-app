@@ -1,3 +1,5 @@
+// packages/mobile/src/screens/TransactionsScreen.tsx
+// Redesigned in Executive+ Style with Full Backend Integration
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
@@ -10,12 +12,14 @@ import {
   Modal,
   Alert,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import firestore from '@react-native-firebase/firestore';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import { generateTransactionInstances } from '../utils/transactionInstances';
 import { AddTransactionModal } from '../components/AddTransactionModal';
-import { brandColors } from '../theme/colors';
+import FinchLogo from '../components/FinchLogo';
+import brandColors from '../theme/colors';
 
 type Transaction = {
   id: string;
@@ -43,6 +47,7 @@ type Account = {
 };
 
 export const TransactionsScreen: React.FC = () => {
+  const navigation = useNavigation();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history' | 'recurring'>('upcoming');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -184,6 +189,10 @@ export const TransactionsScreen: React.FC = () => {
     if (!timestamp) return '';
     const date = timestamp instanceof Date ? timestamp : (timestamp.toDate ? timestamp.toDate() : new Date(timestamp));
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
 
   const toDateInputString = (date: Date) => {
@@ -404,56 +413,6 @@ export const TransactionsScreen: React.FC = () => {
     }
   };
 
-  const renderTransaction = (txn: Transaction) => {
-    const displayName = txn.description || txn.name || 'Unnamed Transaction';
-    const displayAmount = Math.abs(txn.amount || 0);
-    const frequency = txn.recurringDetails?.frequency || txn.frequency;
-
-    return (
-      <View key={txn.instanceId || txn.id} style={styles.transactionCard}>
-        <View style={styles.transactionLeft}>
-          <View style={styles.transactionHeader}>
-            <Text style={styles.transactionName}>{displayName}</Text>
-            {txn.isInstance && (
-              <Icon name="repeat" size={14} color={brandColors.textGray} style={{ marginLeft: 6 }} />
-            )}
-          </View>
-          <Text style={styles.transactionDate}>
-            {formatDate(txn.date)}
-            {txn.isRecurring && frequency && ` • ${frequency}`}
-          </Text>
-          {txn.category && <Text style={styles.transactionCategory}>{txn.category}</Text>}
-        </View>
-
-        <View style={styles.transactionRight}>
-          <Text
-            style={[
-              styles.transactionAmount,
-              txn.type === 'income' ? styles.incomeAmount : styles.expenseAmount,
-            ]}
-          >
-            {txn.type === 'income' ? '+' : '-'}${displayAmount.toFixed(2)}
-          </Text>
-
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => handleEditPress(txn)}
-            >
-              <Icon name="pencil" size={18} color={brandColors.textGray} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => handleDeletePress(txn)}
-            >
-              <Icon name="trash-can-outline" size={18} color={brandColors.red} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  };
-
   const getDeleteModalMessage = () => {
     if (!transactionToDelete) return '';
 
@@ -468,42 +427,72 @@ export const TransactionsScreen: React.FC = () => {
     }
   };
 
+  const getCategoryIcon = (category?: string, type?: string) => {
+    if (!category) return type === 'income' ? 'cash-plus' : 'cash-minus';
+
+    const categoryLower = category.toLowerCase();
+    if (categoryLower.includes('rent') || categoryLower.includes('home')) return 'home';
+    if (categoryLower.includes('food') || categoryLower.includes('groceries')) return 'food';
+    if (categoryLower.includes('transport') || categoryLower.includes('car')) return 'car';
+    if (categoryLower.includes('entertainment')) return 'movie';
+    if (categoryLower.includes('health')) return 'medical-bag';
+    if (categoryLower.includes('utilities') || categoryLower.includes('electric')) return 'lightning-bolt';
+    if (categoryLower.includes('shopping')) return 'shopping';
+
+    return type === 'income' ? 'cash-plus' : 'cash-minus';
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={brandColors.tealPrimary} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
+      {/* CUSTOM HEADER */}
       <View style={styles.header}>
-        <Text style={styles.title}>Transactions</Text>
+        <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity
+              style={styles.menuButton}
+              onPress={() => (navigation as any).openDrawer()}
+            >
+              <Icon name="menu" size={24} color={brandColors.textDark} />
+            </TouchableOpacity>
+            <View style={styles.logoContainer}>
+              <FinchLogo size={32} />
+            </View>
+            <View>
+              <Text style={styles.headerTitle}>Transactions</Text>
+              <Text style={styles.headerSubtitle}>Track Your Spending</Text>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.searchButton}>
+            <Icon name="magnify" size={24} color={brandColors.textDark} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Tabs */}
+      {/* TABS */}
       <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'upcoming' && styles.activeTab]}
-          onPress={() => setActiveTab('upcoming')}
-        >
-          <Text style={[styles.tabText, activeTab === 'upcoming' && styles.activeTabText]}>
-            Upcoming
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'history' && styles.activeTab]}
-          onPress={() => setActiveTab('history')}
-        >
-          <Text style={[styles.tabText, activeTab === 'history' && styles.activeTabText]}>
-            History
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'recurring' && styles.activeTab]}
-          onPress={() => setActiveTab('recurring')}
-        >
-          <Text style={[styles.tabText, activeTab === 'recurring' && styles.activeTabText]}>
-            Recurring
-          </Text>
-        </TouchableOpacity>
+        {(['upcoming', 'history', 'recurring'] as const).map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tab, activeTab === tab && styles.activeTab]}
+            onPress={() => setActiveTab(tab)}
+          >
+            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* Search and Account Filter */}
-      <View style={styles.filterContainer}>
+      {/* FILTERS */}
+      <View style={styles.filterSection}>
         <TextInput
           style={styles.searchInput}
           placeholder="Search transactions..."
@@ -512,163 +501,234 @@ export const TransactionsScreen: React.FC = () => {
           placeholderTextColor={brandColors.textGray}
         />
 
-        <View style={styles.accountFilterContainer}>
-          <Text style={styles.filterLabel}>Account:</Text>
-          <View style={styles.scrollWrapper}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={true}
-              style={styles.accountScroll}
-              contentContainerStyle={styles.scrollContentHorizontal}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.accountFilterScroll}
+        >
+          <TouchableOpacity
+            style={[styles.filterChip, selectedAccountId === 'all' && styles.filterChipActive]}
+            onPress={() => setSelectedAccountId('all')}
+          >
+            <Text style={[styles.filterChipText, selectedAccountId === 'all' && styles.filterChipTextActive]}>
+              All Accounts
+            </Text>
+          </TouchableOpacity>
+          {accounts.map((account) => (
+            <TouchableOpacity
+              key={account.id}
+              style={[styles.filterChip, selectedAccountId === account.id && styles.filterChipActive]}
+              onPress={() => setSelectedAccountId(account.id)}
             >
-              <TouchableOpacity
-                style={[styles.accountChip, selectedAccountId === 'all' && styles.accountChipActive]}
-                onPress={() => setSelectedAccountId('all')}
-              >
-                <Text style={[styles.accountChipText, selectedAccountId === 'all' && styles.accountChipTextActive]}>
-                  All Accounts
-                </Text>
-              </TouchableOpacity>
-              {accounts.map((account) => (
-                <TouchableOpacity
-                  key={account.id}
-                  style={[styles.accountChip, selectedAccountId === account.id && styles.accountChipActive]}
-                  onPress={() => setSelectedAccountId(account.id)}
-                >
-                  <Text style={[styles.accountChipText, selectedAccountId === account.id && styles.accountChipTextActive]}>
-                    {account.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
+              <Text style={[styles.filterChipText, selectedAccountId === account.id && styles.filterChipTextActive]}>
+                {account.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
-      {/* Transaction List */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={brandColors.tealPrimary} />
-        </View>
-      ) : (
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.listContent}>
-          {filteredTransactions.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No transactions found</Text>
+      {/* TRANSACTION LIST */}
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.listContent}>
+        {filteredTransactions.length === 0 ? (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconContainer}>
+              <Icon name="receipt-text-outline" size={48} color={brandColors.textGray} />
             </View>
-          ) : (
-            filteredTransactions.map(renderTransaction)
-          )}
-        </ScrollView>
-      )}
+            <Text style={styles.emptyStateTitle}>No Transactions</Text>
+            <Text style={styles.emptyStateText}>
+              {activeTab === 'upcoming' ? 'No upcoming transactions found' :
+               activeTab === 'history' ? 'No transaction history' :
+               'No recurring transactions set up'}
+            </Text>
+          </View>
+        ) : (
+          filteredTransactions.map((txn) => {
+            const displayName = txn.description || txn.name || 'Unnamed Transaction';
+            const displayAmount = Math.abs(txn.amount || 0);
+            const frequency = txn.recurringDetails?.frequency || txn.frequency;
 
-      {/* Delete Confirmation Modal */}
+            return (
+              <View key={txn.instanceId || txn.id} style={styles.transactionCard}>
+                <View style={styles.transactionContent}>
+                  <View style={[
+                    styles.transactionIcon,
+                    { backgroundColor: txn.type === 'income' ? brandColors.success + '15' : brandColors.error + '15' }
+                  ]}>
+                    <Icon
+                      name={getCategoryIcon(txn.category, txn.type)}
+                      size={24}
+                      color={txn.type === 'income' ? brandColors.success : brandColors.error}
+                    />
+                  </View>
+
+                  <View style={styles.transactionDetails}>
+                    <View style={styles.transactionTop}>
+                      <Text style={styles.transactionName}>{displayName}</Text>
+                      {txn.isInstance && (
+                        <View style={styles.recurringBadge}>
+                          <Icon name="repeat" size={12} color={brandColors.textGray} />
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.transactionMeta}>
+                      <Text style={styles.transactionDate}>{formatDate(txn.date)}</Text>
+                      {frequency && (
+                        <>
+                          <Text style={styles.transactionMetaDot}>•</Text>
+                          <Text style={styles.transactionFrequency}>{frequency}</Text>
+                        </>
+                      )}
+                      {txn.category && (
+                        <>
+                          <Text style={styles.transactionMetaDot}>•</Text>
+                          <Text style={styles.transactionCategory}>{txn.category}</Text>
+                        </>
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={styles.transactionRight}>
+                    <Text style={[
+                      styles.transactionAmount,
+                      txn.type === 'income' ? styles.incomeAmount : styles.expenseAmount
+                    ]}>
+                      {txn.type === 'income' ? '+' : '-'}{formatCurrency(displayAmount)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.transactionActions}>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleEditPress(txn)}
+                  >
+                    <Icon name="pencil" size={16} color={brandColors.tealPrimary} />
+                    <Text style={styles.actionButtonText}>Edit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.actionButtonDanger]}
+                    onPress={() => handleDeletePress(txn)}
+                  >
+                    <Icon name="delete" size={16} color={brandColors.error} />
+                    <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })
+        )}
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
+
+      {/* FLOATING ACTION BUTTON */}
+      <TouchableOpacity style={styles.fab} onPress={() => setAddModalVisible(true)}>
+        <Icon name="plus" size={28} color={brandColors.white} />
+      </TouchableOpacity>
+
+      {/* DELETE CONFIRMATION MODAL */}
       <Modal
         visible={deleteModalVisible}
         transparent
         animationType="fade"
         onRequestClose={() => setDeleteModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalIconContainer}>
-              <Icon name="alert-circle-outline" size={48} color={brandColors.red} />
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setDeleteModalVisible(false)}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIconContainer, { backgroundColor: brandColors.error + '15' }]}>
+                <Icon name="alert-circle" size={32} color={brandColors.error} />
+              </View>
+              <Text style={styles.modalTitle}>Delete Transaction?</Text>
+              <Text style={styles.modalMessage}>{getDeleteModalMessage()}</Text>
             </View>
-
-            <Text style={styles.modalTitle}>Delete Transaction</Text>
-            <Text style={styles.modalMessage}>{getDeleteModalMessage()}</Text>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
+                style={[styles.modalButton, styles.modalButtonSecondary]}
                 onPress={() => setDeleteModalVisible(false)}
                 disabled={deleting}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.modalButtonTextSecondary}>Cancel</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
-                style={[styles.modalButton, styles.deleteButton, deleting && styles.buttonDisabled]}
+                style={[styles.modalButton, styles.modalButtonDanger]}
                 onPress={handleConfirmDelete}
                 disabled={deleting}
               >
                 {deleting ? (
                   <ActivityIndicator color={brandColors.white} />
                 ) : (
-                  <Text style={styles.deleteButtonText}>Delete</Text>
+                  <Text style={styles.modalButtonText}>Delete</Text>
                 )}
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
       </Modal>
 
-      {/* Edit Choice Modal (for recurring instances) */}
+      {/* EDIT CHOICE MODAL */}
       <Modal
         visible={editChoiceModalVisible}
         transparent
         animationType="fade"
         onRequestClose={() => setEditChoiceModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalIconContainer}>
-              <Icon name="pencil-circle-outline" size={48} color={brandColors.tealPrimary} />
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setEditChoiceModalVisible(false)}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIconContainer, { backgroundColor: brandColors.tealPrimary + '15' }]}>
+                <Icon name="pencil-circle" size={32} color={brandColors.tealPrimary} />
+              </View>
+              <Text style={styles.modalTitle}>Edit Recurring Transaction</Text>
+              <Text style={styles.modalMessage}>
+                Do you want to edit only this occurrence or the entire series?
+              </Text>
             </View>
-
-            <Text style={styles.modalTitle}>Edit Recurring Transaction</Text>
-            <Text style={styles.modalMessage}>
-              Do you want to edit only this occurrence or the entire series?
-            </Text>
 
             <View style={styles.choiceButtons}>
               <TouchableOpacity
-                style={styles.choiceButton}
+                style={[styles.modalButton, styles.modalButtonSecondary]}
                 onPress={() => handleEditChoiceSelected('single')}
               >
-                <Text style={styles.choiceButtonText}>Edit This Occurrence Only</Text>
+                <Text style={styles.modalButtonTextSecondary}>This Occurrence</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
-                style={[styles.choiceButton, styles.choiceButtonPrimary]}
+                style={styles.modalButton}
                 onPress={() => handleEditChoiceSelected('series')}
               >
-                <Text style={[styles.choiceButtonText, styles.choiceButtonTextPrimary]}>
-                  Edit Entire Series
-                </Text>
+                <Text style={styles.modalButtonText}>Entire Series</Text>
               </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={styles.cancelLinkButton}
-              onPress={() => {
-                setEditChoiceModalVisible(false);
-                setTransactionToEdit(null);
-              }}
-            >
-              <Text style={styles.cancelLinkText}>Cancel</Text>
-            </TouchableOpacity>
           </View>
-        </View>
+        </TouchableOpacity>
       </Modal>
 
-      {/* Edit Transaction Modal */}
+      {/* EDIT TRANSACTION MODAL - Keep the existing full edit modal*/}
       <Modal
         visible={editModalVisible}
         animationType="slide"
         onRequestClose={() => setEditModalVisible(false)}
       >
         <View style={styles.editModalContainer}>
-          <View style={styles.editHeader}>
+          <View style={styles.editModalHeader}>
             <TouchableOpacity onPress={() => setEditModalVisible(false)}>
               <Icon name="close" size={24} color={brandColors.textDark} />
             </TouchableOpacity>
-            <Text style={styles.editTitle}>Edit Transaction</Text>
+            <Text style={styles.editModalTitle}>Edit Transaction</Text>
             <View style={{ width: 24 }} />
           </View>
 
           <ScrollView style={styles.editForm}>
-            {/* Description */}
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Description</Text>
               <TextInput
@@ -680,7 +740,6 @@ export const TransactionsScreen: React.FC = () => {
               />
             </View>
 
-            {/* Amount */}
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Amount</Text>
               <TextInput
@@ -693,7 +752,6 @@ export const TransactionsScreen: React.FC = () => {
               />
             </View>
 
-            {/* Type */}
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Type</Text>
               <View style={styles.typeButtons}>
@@ -716,7 +774,6 @@ export const TransactionsScreen: React.FC = () => {
               </View>
             </View>
 
-            {/* Category */}
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Category (Optional)</Text>
               <TextInput
@@ -728,7 +785,6 @@ export const TransactionsScreen: React.FC = () => {
               />
             </View>
 
-            {/* Date */}
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Date</Text>
               <TextInput
@@ -740,7 +796,6 @@ export const TransactionsScreen: React.FC = () => {
               />
             </View>
 
-            {/* Account */}
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Account</Text>
               <View style={styles.accountSelect}>
@@ -766,42 +821,28 @@ export const TransactionsScreen: React.FC = () => {
               </View>
             </View>
 
-            {/* Frequency (only show for recurring series) */}
             {((transactionToEdit?.isRecurring && !transactionToEdit?.isInstance) ||
               (transactionToEdit?.isInstance && editChoice === 'series')) && (
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Frequency</Text>
                 <View style={styles.frequencyButtons}>
-                  <TouchableOpacity
-                    style={[styles.frequencyButton, editFrequency === 'weekly' && styles.frequencyButtonActive]}
-                    onPress={() => setEditFrequency('weekly')}
-                  >
-                    <Text style={[styles.frequencyButtonText, editFrequency === 'weekly' && styles.frequencyButtonTextActive]}>
-                      Weekly
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.frequencyButton, editFrequency === 'biweekly' && styles.frequencyButtonActive]}
-                    onPress={() => setEditFrequency('biweekly')}
-                  >
-                    <Text style={[styles.frequencyButtonText, editFrequency === 'biweekly' && styles.frequencyButtonTextActive]}>
-                      Biweekly
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.frequencyButton, editFrequency === 'monthly' && styles.frequencyButtonActive]}
-                    onPress={() => setEditFrequency('monthly')}
-                  >
-                    <Text style={[styles.frequencyButtonText, editFrequency === 'monthly' && styles.frequencyButtonTextActive]}>
-                      Monthly
-                    </Text>
-                  </TouchableOpacity>
+                  {(['weekly', 'biweekly', 'monthly'] as const).map((freq) => (
+                    <TouchableOpacity
+                      key={freq}
+                      style={[styles.frequencyButton, editFrequency === freq && styles.frequencyButtonActive]}
+                      onPress={() => setEditFrequency(freq)}
+                    >
+                      <Text style={[styles.frequencyButtonText, editFrequency === freq && styles.frequencyButtonTextActive]}>
+                        {freq.charAt(0).toUpperCase() + freq.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
             )}
           </ScrollView>
 
-          <View style={styles.editFooter}>
+          <View style={styles.editModalFooter}>
             <TouchableOpacity
               style={[styles.saveButton, saving && styles.buttonDisabled]}
               onPress={handleSaveEdit}
@@ -817,22 +858,12 @@ export const TransactionsScreen: React.FC = () => {
         </View>
       </Modal>
 
-      {/* Add Transaction Modal */}
+      {/* ADD TRANSACTION MODAL */}
       <AddTransactionModal
         visible={addModalVisible}
         onClose={() => setAddModalVisible(false)}
-        onSuccess={() => {
-          // Transaction list will auto-update via Firestore listener
-        }}
+        onSuccess={() => setAddModalVisible(false)}
       />
-
-      {/* Floating Action Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setAddModalVisible(true)}
-      >
-        <Icon name="plus" size={28} color={brandColors.white} />
-      </TouchableOpacity>
     </View>
   );
 };
@@ -842,33 +873,77 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: brandColors.backgroundOffWhite,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: brandColors.backgroundOffWhite,
+  },
+
+  // Header
   header: {
-    padding: 20,
-    paddingTop: 60,
     backgroundColor: brandColors.white,
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: brandColors.lightGray,
+    borderBottomColor: brandColors.border,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  menuButton: {
+    padding: 8,
+    marginRight: 4,
+  },
+  logoContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: brandColors.orangeAccent + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '800',
     color: brandColors.textDark,
+    letterSpacing: -0.5,
   },
+  headerSubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: brandColors.textGray,
+    marginTop: 2,
+  },
+  searchButton: {
+    padding: 8,
+  },
+
+  // Tabs
   tabs: {
     flexDirection: 'row',
     backgroundColor: brandColors.white,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: brandColors.lightGray,
+    borderBottomColor: brandColors.border,
   },
   tab: {
     flex: 1,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
-    borderBottomWidth: 2,
+    borderBottomWidth: 3,
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: brandColors.tealPrimary,
+    borderBottomColor: brandColors.orangeAccent,
   },
   tabText: {
     fontSize: 14,
@@ -876,262 +951,313 @@ const styles = StyleSheet.create({
     color: brandColors.textGray,
   },
   activeTabText: {
-    color: brandColors.tealPrimary,
+    color: brandColors.orangeAccent,
+    fontWeight: '700',
   },
-  filterContainer: {
-    padding: 16,
+
+  // Filter Section
+  filterSection: {
     backgroundColor: brandColors.white,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: brandColors.lightGray,
+    borderBottomColor: brandColors.border,
   },
   searchInput: {
     backgroundColor: brandColors.backgroundOffWhite,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 12,
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: '500',
     color: brandColors.textDark,
     marginBottom: 12,
   },
-  accountFilterContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  accountFilterScroll: {
+    gap: 8,
   },
-  filterLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: brandColors.textDark,
-    marginRight: 12,
-    minWidth: 70,
-  },
-  scrollWrapper: {
-    flex: 1,
-  },
-  accountScroll: {
-    flexGrow: 0,
-  },
-  scrollContentHorizontal: {
-    paddingRight: 16,
-  },
-  accountChip: {
-    paddingHorizontal: 16,
+  filterChip: {
     paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 20,
     backgroundColor: brandColors.backgroundOffWhite,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
+    borderWidth: 1.5,
+    borderColor: brandColors.border,
   },
-  accountChipActive: {
+  filterChipActive: {
     backgroundColor: brandColors.tealPrimary,
     borderColor: brandColors.tealPrimary,
   },
-  accountChipText: {
-    fontSize: 14,
-    fontWeight: '500',
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
     color: brandColors.textDark,
   },
-  accountChipTextActive: {
+  filterChipTextActive: {
     color: brandColors.white,
   },
+
+  // Transaction List
   scrollView: {
     flex: 1,
   },
   listContent: {
-    padding: 16,
+    padding: 20,
   },
+
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: brandColors.lightGray + '50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: brandColors.textDark,
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: brandColors.textGray,
+    textAlign: 'center',
+    paddingHorizontal: 40,
+  },
+
+  // Transaction Card
   transactionCard: {
     backgroundColor: brandColors.white,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowRadius: 4,
     elevation: 2,
   },
-  transactionLeft: {
-    flex: 1,
-  },
-  transactionHeader: {
+  transactionContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  transactionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  transactionDetails: {
+    flex: 1,
+  },
+  transactionTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
   },
   transactionName: {
     fontSize: 16,
     fontWeight: '600',
     color: brandColors.textDark,
-    marginBottom: 4,
+  },
+  recurringBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: brandColors.tealPrimary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  transactionMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   transactionDate: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '500',
     color: brandColors.textGray,
-    marginBottom: 2,
+  },
+  transactionMetaDot: {
+    fontSize: 12,
+    color: brandColors.textGray,
+  },
+  transactionFrequency: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: brandColors.tealPrimary,
   },
   transactionCategory: {
     fontSize: 12,
-    color: brandColors.tealPrimary,
-    marginTop: 2,
+    fontWeight: '500',
+    color: brandColors.textGray,
   },
   transactionRight: {
     alignItems: 'flex-end',
-    marginLeft: 12,
   },
   transactionAmount: {
     fontSize: 18,
     fontWeight: '700',
-    marginBottom: 8,
   },
   incomeAmount: {
-    color: brandColors.green,
+    color: brandColors.success,
   },
   expenseAmount: {
-    color: brandColors.red,
+    color: brandColors.error,
   },
-  actionButtons: {
+
+  // Transaction Actions
+  transactionActions: {
     flexDirection: 'row',
     gap: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: brandColors.border,
   },
   actionButton: {
-    padding: 6,
-    borderRadius: 6,
-    backgroundColor: brandColors.backgroundOffWhite,
-  },
-  loadingContainer: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    backgroundColor: brandColors.tealPrimary + '10',
+    borderRadius: 10,
+  },
+  actionButtonDanger: {
+    backgroundColor: brandColors.error + '10',
+  },
+  actionButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: brandColors.tealPrimary,
+  },
+  actionButtonTextDanger: {
+    color: brandColors.error,
+  },
+
+  // FAB
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: brandColors.orangeAccent,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: brandColors.textGray,
-  },
-  // Modal styles
+
+  // Modals
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
-    alignItems: 'center',
     padding: 20,
   },
-  modalContainer: {
+  modalContent: {
     backgroundColor: brandColors.white,
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 24,
-    width: '100%',
-    maxWidth: 400,
+  },
+  modalHeader: {
     alignItems: 'center',
+    marginBottom: 24,
   },
   modalIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 16,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '800',
     color: brandColors.textDark,
-    marginBottom: 12,
+    marginBottom: 8,
     textAlign: 'center',
   },
   modalMessage: {
     fontSize: 14,
+    fontWeight: '500',
     color: brandColors.textGray,
     textAlign: 'center',
-    marginBottom: 24,
     lineHeight: 20,
   },
   modalButtons: {
     flexDirection: 'row',
     gap: 12,
-    width: '100%',
+  },
+  choiceButtons: {
+    gap: 12,
   },
   modalButton: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: brandColors.tealPrimary,
   },
-  cancelButton: {
-    backgroundColor: brandColors.backgroundOffWhite,
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
+  modalButtonSecondary: {
+    backgroundColor: brandColors.white,
+    borderWidth: 1.5,
+    borderColor: brandColors.tealPrimary,
   },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: brandColors.textDark,
+  modalButtonDanger: {
+    backgroundColor: brandColors.error,
   },
-  deleteButton: {
-    backgroundColor: brandColors.red,
-  },
-  deleteButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+  modalButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
     color: brandColors.white,
+  },
+  modalButtonTextSecondary: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: brandColors.tealPrimary,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
-  // Choice modal styles
-  choiceButtons: {
-    width: '100%',
-    gap: 12,
-  },
-  choiceButton: {
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: brandColors.backgroundOffWhite,
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
-  },
-  choiceButtonPrimary: {
-    backgroundColor: brandColors.tealPrimary,
-    borderColor: brandColors.tealPrimary,
-  },
-  choiceButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: brandColors.textDark,
-  },
-  choiceButtonTextPrimary: {
-    color: brandColors.white,
-  },
-  cancelLinkButton: {
-    marginTop: 16,
-    padding: 8,
-  },
-  cancelLinkText: {
-    fontSize: 14,
-    color: brandColors.textGray,
-  },
-  // Edit modal styles
+
+  // Edit Modal
   editModalContainer: {
     flex: 1,
     backgroundColor: brandColors.white,
   },
-  editHeader: {
+  editModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
     paddingTop: 60,
+    paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: brandColors.lightGray,
+    borderBottomColor: brandColors.border,
   },
-  editTitle: {
+  editModalTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '800',
     color: brandColors.textDark,
   },
   editForm: {
@@ -1142,19 +1268,22 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   formLabel: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: brandColors.textDark,
     marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   formInput: {
     backgroundColor: brandColors.backgroundOffWhite,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 14,
     fontSize: 16,
+    fontWeight: '500',
     color: brandColors.textDark,
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
+    borderWidth: 1.5,
+    borderColor: brandColors.border,
   },
   typeButtons: {
     flexDirection: 'row',
@@ -1163,18 +1292,18 @@ const styles = StyleSheet.create({
   typeButton: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
     backgroundColor: brandColors.backgroundOffWhite,
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
+    borderWidth: 1.5,
+    borderColor: brandColors.border,
   },
   typeButtonActive: {
     backgroundColor: brandColors.tealPrimary,
     borderColor: brandColors.tealPrimary,
   },
   typeButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: brandColors.textDark,
   },
@@ -1187,18 +1316,18 @@ const styles = StyleSheet.create({
   accountOption: {
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: brandColors.backgroundOffWhite,
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
+    borderWidth: 1.5,
+    borderColor: brandColors.border,
   },
   accountOptionActive: {
     backgroundColor: brandColors.tealPrimary,
     borderColor: brandColors.tealPrimary,
   },
   accountOptionText: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
     color: brandColors.textDark,
   },
   accountOptionTextActive: {
@@ -1211,11 +1340,11 @@ const styles = StyleSheet.create({
   frequencyButton: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
     backgroundColor: brandColors.backgroundOffWhite,
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
+    borderWidth: 1.5,
+    borderColor: brandColors.border,
   },
   frequencyButtonActive: {
     backgroundColor: brandColors.tealPrimary,
@@ -1229,36 +1358,25 @@ const styles = StyleSheet.create({
   frequencyButtonTextActive: {
     color: brandColors.white,
   },
-  editFooter: {
+  editModalFooter: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: brandColors.lightGray,
+    borderTopColor: brandColors.border,
   },
   saveButton: {
     backgroundColor: brandColors.tealPrimary,
     paddingVertical: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
-  },
-  saveButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: brandColors.white,
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: brandColors.tealPrimary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: brandColors.tealPrimary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 4,
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: brandColors.white,
   },
 });
