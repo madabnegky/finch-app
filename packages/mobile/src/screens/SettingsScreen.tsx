@@ -1,578 +1,482 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Switch,
-  Alert,
-  ActivityIndicator,
-  Modal,
-  TextInput,
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
-import { brandColors } from '../theme/colors';
+import brandColors from '../theme/colors';
+import { navigationIcons, actionIcons, securityIcons, notificationIcons } from '../theme/icons';
 
-type NotificationSettings = {
-  upcomingBills: boolean;
-  budgetAlerts: boolean;
-  weeklyReports: boolean;
-};
+/**
+ * Settings Screen
+ * - Modern design matching DashboardFinal
+ * - Grouped settings sections
+ * - Profile information at top
+ * - Account management options
+ */
 
-export const SettingsScreen: React.FC = () => {
+interface SettingItemProps {
+  icon: string;
+  iconColor?: string;
+  title: string;
+  subtitle?: string;
+  onPress?: () => void;
+  showChevron?: boolean;
+  rightComponent?: React.ReactNode;
+  danger?: boolean;
+}
+
+function SettingItem({
+  icon,
+  iconColor = brandColors.tealPrimary,
+  title,
+  subtitle,
+  onPress,
+  showChevron = true,
+  rightComponent,
+  danger = false,
+}: SettingItemProps) {
+  return (
+    <TouchableOpacity
+      style={styles.settingItem}
+      onPress={onPress}
+      disabled={!onPress}
+    >
+      <View style={[styles.settingIconContainer, danger && styles.settingIconContainerDanger]}>
+        <Icon name={icon} size={22} color={danger ? brandColors.error : iconColor} />
+      </View>
+      <View style={styles.settingContent}>
+        <Text style={[styles.settingTitle, danger && styles.settingTitleDanger]}>
+          {title}
+        </Text>
+        {subtitle && (
+          <Text style={styles.settingSubtitle}>{subtitle}</Text>
+        )}
+      </View>
+      {rightComponent || (showChevron && (
+        <Icon name={actionIcons.chevronRight} size={20} color={brandColors.textGray} />
+      ))}
+    </TouchableOpacity>
+  );
+}
+
+function SettingSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionCard}>
+        {children}
+      </View>
+    </View>
+  );
+}
+
+export function SettingsScreen() {
+  const navigation = useNavigation();
   const { user, linkAccountWithEmail, linkAccountWithGoogle } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationSettings>({
-    upcomingBills: true,
-    budgetAlerts: true,
-    weeklyReports: false,
-  });
-  const [convertModalVisible, setConvertModalVisible] = useState(false);
-  const [convertEmail, setConvertEmail] = useState('');
-  const [convertPassword, setConvertPassword] = useState('');
-  const [converting, setConverting] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [faceIdEnabled, setFaceIdEnabled] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-
-    const unsubscribe = firestore()
-      .collection('users')
-      .doc(user.uid)
-      .onSnapshot((doc) => {
-        if (doc.exists) {
-          const data = doc.data();
-          if (data?.notificationSettings) {
-            setNotifications(data.notificationSettings);
-          }
-        }
-        setLoading(false);
-      });
-
-    return () => unsubscribe();
-  }, [user]);
-
-  const handleToggle = async (key: keyof NotificationSettings) => {
-    const newValue = !notifications[key];
-    setNotifications((prev) => ({ ...prev, [key]: newValue }));
-
-    try {
-      setSaving(true);
-      await firestore()
-        .collection('users')
-        .doc(user?.uid)
-        .set(
-          {
-            notificationSettings: {
-              ...notifications,
-              [key]: newValue,
-            },
-          },
-          { merge: true }
-        );
-    } catch (error) {
-      console.error('Error updating settings:', error);
-      // Revert on error
-      setNotifications((prev) => ({ ...prev, [key]: !newValue }));
-      Alert.alert('Error', 'Failed to update settings');
-    } finally {
-      setSaving(false);
-    }
+  const handleConnectedAccounts = () => {
+    Alert.alert('Connected Accounts', 'Manage your linked bank accounts');
   };
 
-  const handleSignOut = async () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await auth().signOut();
-          } catch (error) {
-            console.error('Error signing out:', error);
-            Alert.alert('Error', 'Failed to sign out');
-          }
-        },
-      },
-    ]);
+  const handleNotificationSettings = () => {
+    Alert.alert('Notifications', 'Manage your notification preferences');
   };
 
-  const handleDeleteAccount = async () => {
+  const handleSecurity = () => {
+    Alert.alert('Security', 'Manage your security settings');
+  };
+
+  const handlePrivacy = () => {
+    Alert.alert('Privacy', 'Manage your privacy settings');
+  };
+
+  const handleDataExport = () => {
+    Alert.alert('Export Data', 'Download a copy of your financial data');
+  };
+
+  const handleSupport = () => {
+    Alert.alert('Help & Support', 'Get help with Finch');
+  };
+
+  const handleAbout = () => {
+    Alert.alert('About Finch', 'Version 1.0.0\n\nFinch helps you manage your finances with confidence.');
+  };
+
+  const handleSignOut = () => {
     Alert.alert(
-      'Delete Account',
-      'Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently deleted.',
+      'Sign Out',
+      'Are you sure you want to sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Delete user data from Firestore
-              await firestore().collection('users').doc(user?.uid).delete();
-
-              // Delete Firebase Auth user
-              await auth().currentUser?.delete();
-
-              Alert.alert('Success', 'Your account has been deleted');
-            } catch (error) {
-              console.error('Error deleting account:', error);
-              Alert.alert('Error', 'Failed to delete account. You may need to re-authenticate first.');
-            }
-          },
-        },
+        { text: 'Sign Out', style: 'destructive', onPress: async () => {
+          try {
+            console.log('Signing out...');
+            await auth().signOut();
+            console.log('✅ Signed out successfully');
+          } catch (error) {
+            console.error('❌ Sign out error:', error);
+            Alert.alert('Error', 'Failed to sign out. Please try again.');
+          }
+        }},
       ]
     );
   };
 
-  const handleConvertAccount = async () => {
-    if (!convertEmail.trim() || !convertPassword.trim()) {
-      Alert.alert('Required', 'Please enter both email and password');
-      return;
-    }
-
-    if (convertPassword.length < 6) {
-      Alert.alert('Invalid Password', 'Password must be at least 6 characters');
-      return;
-    }
-
-    setConverting(true);
-
-    try {
-      await linkAccountWithEmail(convertEmail, convertPassword);
-      Alert.alert('Success', 'Your demo account has been converted! All your data has been saved.');
-      setConvertModalVisible(false);
-      setConvertEmail('');
-      setConvertPassword('');
-    } catch (error: any) {
-      console.error('Error converting account:', error);
-      Alert.alert('Error', error.message || 'Failed to convert account. Please try again.');
-    } finally {
-      setConverting(false);
-    }
-  };
-
-  const handleConvertWithGoogle = async () => {
-    setConverting(true);
-
-    try {
-      await linkAccountWithGoogle();
-      Alert.alert('Success', 'Your demo account has been converted with Google! All your data has been saved.');
-      setConvertModalVisible(false);
-    } catch (error: any) {
-      console.error('Error converting account with Google:', error);
-      Alert.alert('Error', error.message || 'Failed to convert account. Please try again.');
-    } finally {
-      setConverting(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={brandColors.tealPrimary} />
-      </View>
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This action cannot be undone. All your data will be permanently deleted.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            const currentUser = auth().currentUser;
+            if (currentUser) {
+              console.log('Deleting account...');
+              await currentUser.delete();
+              console.log('✅ Account deleted successfully');
+            }
+          } catch (error) {
+            console.error('❌ Delete account error:', error);
+            Alert.alert(
+              'Error',
+              'Failed to delete account. You may need to sign in again to perform this action.',
+              [{ text: 'OK' }]
+            );
+          }
+        }},
+      ]
     );
-  }
+  };
+
+  const handleLinkWithGoogle = async () => {
+    try {
+      console.log('Linking account with Google...');
+      await linkAccountWithGoogle();
+      Alert.alert('Success', 'Your account has been upgraded! Your data is now saved permanently.');
+    } catch (error: any) {
+      console.error('❌ Link with Google error:', error);
+      Alert.alert('Error', error.message || 'Failed to link account. Please try again.');
+    }
+  };
+
+  const handleLinkWithEmail = () => {
+    Alert.prompt(
+      'Create Account',
+      'Enter your email and password to create a permanent account.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Create', onPress: async (email, password) => {
+          if (!email || !password) {
+            Alert.alert('Error', 'Please enter both email and password.');
+            return;
+          }
+          try {
+            console.log('Linking account with email...');
+            await linkAccountWithEmail(email, password);
+            Alert.alert('Success', 'Your account has been created! Your data is now saved permanently.');
+          } catch (error: any) {
+            console.error('❌ Link with email error:', error);
+            Alert.alert('Error', error.message || 'Failed to create account. Please try again.');
+          }
+        }},
+      ],
+      'plain-text'
+    );
+  };
 
   return (
     <View style={styles.container}>
+      {/* HEADER */}
       <View style={styles.header}>
-        <Text style={styles.title}>Settings</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Icon name="arrow-left" size={24} color={brandColors.textDark} />
+        </TouchableOpacity>
+        <View style={styles.headerLeft}>
+          <View style={styles.headerIcon}>
+            <Icon name={navigationIcons.settings} size={24} color={brandColors.tealPrimary} />
+          </View>
+          <View>
+            <Text style={styles.headerTitle}>Settings</Text>
+            <Text style={styles.headerSubtitle}>Manage your account</Text>
+          </View>
+        </View>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Account Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingLabel}>Email</Text>
-              <Text style={styles.settingValue}>{user?.email || 'Guest User (Demo Mode)'}</Text>
-            </View>
-          </View>
-
-          {/* Convert Demo Account Button (only for anonymous users) */}
-          {user?.isAnonymous && (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.convertButton]}
-              onPress={() => setConvertModalVisible(true)}
-            >
-              <Text style={[styles.actionButtonText, styles.convertButtonText]}>
-                Convert Demo Account
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Notifications Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notifications</Text>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingLabel}>Upcoming Bills</Text>
-              <Text style={styles.settingDescription}>
-                Get notified 3 days before bills are due
-              </Text>
-            </View>
-            <Switch
-              value={notifications.upcomingBills}
-              onValueChange={() => handleToggle('upcomingBills')}
-              trackColor={{ false: brandColors.lightGray, true: brandColors.tealPrimary }}
-              thumbColor={brandColors.white}
-              disabled={saving}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingLabel}>Budget Alerts</Text>
-              <Text style={styles.settingDescription}>
-                Get notified when you reach 80% of your budget
-              </Text>
-            </View>
-            <Switch
-              value={notifications.budgetAlerts}
-              onValueChange={() => handleToggle('budgetAlerts')}
-              trackColor={{ false: brandColors.lightGray, true: brandColors.tealPrimary }}
-              thumbColor={brandColors.white}
-              disabled={saving}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingLabel}>Weekly Reports</Text>
-              <Text style={styles.settingDescription}>
-                Get a weekly summary of your spending
-              </Text>
-            </View>
-            <Switch
-              value={notifications.weeklyReports}
-              onValueChange={() => handleToggle('weeklyReports')}
-              trackColor={{ false: brandColors.lightGray, true: brandColors.tealPrimary }}
-              thumbColor={brandColors.white}
-              disabled={saving}
-            />
-          </View>
-        </View>
-
-        {/* App Info Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <View style={styles.settingItem}>
-            <Text style={styles.settingLabel}>Version</Text>
-            <Text style={styles.settingValue}>1.0.0</Text>
-          </View>
-        </View>
-
-        {/* Actions Section */}
-        <View style={styles.section}>
-          <TouchableOpacity style={styles.actionButton} onPress={handleSignOut}>
-            <Text style={styles.actionButtonText}>Sign Out</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, styles.dangerButton]}
-            onPress={handleDeleteAccount}
-          >
-            <Text style={[styles.actionButtonText, styles.dangerButtonText]}>
-              Delete Account
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* Convert Account Modal */}
-      <Modal
-        visible={convertModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setConvertModalVisible(false)}
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Convert Demo Account</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setConvertModalVisible(false);
-                  setConvertEmail('');
-                  setConvertPassword('');
-                }}
-                style={styles.modalCloseButton}
-              >
-                <Text style={styles.modalCloseText}>✕</Text>
-              </TouchableOpacity>
-            </View>
+        {/* CREATE ACCOUNT SECTION - Only show for guest users */}
+        {user?.isAnonymous && (
+          <SettingSection title="Upgrade Your Account">
+            <SettingItem
+              icon="google"
+              iconColor="#EA4335"
+              title="Sign in with Google"
+              subtitle="Quick and secure"
+              onPress={handleLinkWithGoogle}
+            />
+            <View style={styles.divider} />
+            <SettingItem
+              icon="email"
+              iconColor={brandColors.tealPrimary}
+              title="Create with Email"
+              subtitle="Use your email address"
+              onPress={handleLinkWithEmail}
+            />
+          </SettingSection>
+        )}
 
-            <Text style={styles.modalDescription}>
-              Create an account to save your demo data permanently. You'll be able to sign in on any device!
-            </Text>
-
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalLabel}>Email</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="your@email.com"
-                placeholderTextColor={brandColors.textGray}
-                value={convertEmail}
-                onChangeText={setConvertEmail}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                textContentType="emailAddress"
-                editable={!converting}
+        {/* ACCOUNT SECTION */}
+        <SettingSection title="Account">
+          <SettingItem
+            icon="bank"
+            title="Connected Accounts"
+            subtitle="Manage linked bank accounts"
+            onPress={handleConnectedAccounts}
+          />
+          <View style={styles.divider} />
+          <SettingItem
+            icon={notificationIcons.bell}
+            title="Notifications"
+            subtitle="Manage notification preferences"
+            onPress={handleNotificationSettings}
+            rightComponent={
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={setNotificationsEnabled}
+                trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
+                thumbColor={notificationsEnabled ? brandColors.tealPrimary : brandColors.white}
               />
-            </View>
+            }
+            showChevron={false}
+          />
+        </SettingSection>
 
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalLabel}>Password</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="At least 6 characters"
-                placeholderTextColor={brandColors.textGray}
-                value={convertPassword}
-                onChangeText={setConvertPassword}
-                secureTextEntry
-                textContentType="newPassword"
-                editable={!converting}
+        {/* SECURITY & PRIVACY SECTION */}
+        <SettingSection title="Security & Privacy">
+          <SettingItem
+            icon={securityIcons.lock}
+            title="Security"
+            subtitle="Password & authentication"
+            onPress={handleSecurity}
+          />
+          <View style={styles.divider} />
+          <SettingItem
+            icon={securityIcons.fingerprint}
+            title="Face ID / Touch ID"
+            subtitle="Unlock with biometrics"
+            onPress={() => {}}
+            rightComponent={
+              <Switch
+                value={faceIdEnabled}
+                onValueChange={setFaceIdEnabled}
+                trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
+                thumbColor={faceIdEnabled ? brandColors.tealPrimary : brandColors.white}
               />
-            </View>
+            }
+            showChevron={false}
+          />
+          <View style={styles.divider} />
+          <SettingItem
+            icon={securityIcons.shield}
+            title="Privacy"
+            subtitle="Control your data"
+            onPress={handlePrivacy}
+          />
+        </SettingSection>
 
-            <TouchableOpacity
-              style={[styles.modalButton, converting && styles.buttonDisabled]}
-              onPress={handleConvertAccount}
-              disabled={converting}
-            >
-              <Text style={styles.modalButtonText}>
-                {converting ? 'Converting...' : 'Convert with Email'}
-              </Text>
-            </TouchableOpacity>
+        {/* DATA SECTION */}
+        <SettingSection title="Data">
+          <SettingItem
+            icon="download"
+            title="Export Data"
+            subtitle="Download your financial data"
+            onPress={handleDataExport}
+          />
+        </SettingSection>
 
-            <View style={styles.modalDivider}>
-              <View style={styles.modalDividerLine} />
-              <Text style={styles.modalDividerText}>OR</Text>
-              <View style={styles.modalDividerLine} />
-            </View>
+        {/* SUPPORT SECTION */}
+        <SettingSection title="Support">
+          <SettingItem
+            icon="lifebuoy"
+            title="Help & Support"
+            subtitle="Get help with Finch"
+            onPress={handleSupport}
+          />
+          <View style={styles.divider} />
+          <SettingItem
+            icon="information-outline"
+            title="About Finch"
+            subtitle="Version 1.0.0"
+            onPress={handleAbout}
+          />
+        </SettingSection>
 
-            <TouchableOpacity
-              style={[styles.modalButton, styles.modalGoogleButton, converting && styles.buttonDisabled]}
-              onPress={handleConvertWithGoogle}
-              disabled={converting}
-            >
-              <Icon name="google" size={20} color={brandColors.textDark} style={{ marginRight: 8 }} />
-              <Text style={styles.modalButtonText}>
-                Convert with Google
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        {/* ACCOUNT ACTIONS SECTION */}
+        <SettingSection title="Account Actions">
+          <SettingItem
+            icon="logout"
+            title="Sign Out"
+            onPress={handleSignOut}
+            danger
+            showChevron={false}
+          />
+          <View style={styles.divider} />
+          <SettingItem
+            icon="delete-forever"
+            title="Delete Account"
+            subtitle="Permanently delete your account"
+            onPress={handleDeleteAccount}
+            danger
+          />
+        </SettingSection>
+
+        {/* FOOTER SPACING */}
+        <View style={styles.footerSpacing} />
+      </ScrollView>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: brandColors.backgroundOffWhite,
   },
+
+  // Header
   header: {
-    padding: 20,
-    paddingTop: 60,
     backgroundColor: brandColors.white,
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: brandColors.lightGray,
+    borderBottomColor: brandColors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: brandColors.backgroundOffWhite,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  headerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: brandColors.tealPrimary + '10',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '800',
     color: brandColors.textDark,
+    letterSpacing: -0.5,
   },
+  headerSubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: brandColors.textGray,
+    marginTop: 2,
+  },
+
+  // Scroll View
   scrollView: {
     flex: 1,
   },
-  scrollContent: {
-    padding: 16,
-  },
+
+  // Sections
   section: {
-    marginBottom: 24,
+    marginTop: 24,
+    paddingHorizontal: 20,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: brandColors.textGray,
     textTransform: 'uppercase',
-    marginBottom: 12,
     letterSpacing: 0.5,
+    marginBottom: 12,
+    paddingHorizontal: 4,
   },
-  settingItem: {
+  sectionCard: {
     backgroundColor: brandColors.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    borderRadius: 16,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
-    elevation: 2,
+    elevation: 1,
   },
-  settingLeft: {
+
+  // Setting Items
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: brandColors.white,
+  },
+  settingIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: brandColors.tealPrimary + '10',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  settingIconContainerDanger: {
+    backgroundColor: brandColors.error + '10',
+  },
+  settingContent: {
     flex: 1,
-    marginRight: 16,
+    marginRight: 12,
   },
-  settingLabel: {
+  settingTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: brandColors.textDark,
     marginBottom: 2,
   },
-  settingValue: {
-    fontSize: 14,
+  settingTitleDanger: {
+    color: brandColors.error,
+  },
+  settingSubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
     color: brandColors.textGray,
   },
-  settingDescription: {
-    fontSize: 12,
-    color: brandColors.textGray,
-    marginTop: 2,
-  },
-  actionButton: {
-    backgroundColor: brandColors.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  actionButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: brandColors.tealPrimary,
-  },
-  dangerButton: {
-    backgroundColor: brandColors.white,
-    borderWidth: 1,
-    borderColor: brandColors.red,
-  },
-  dangerButtonText: {
-    color: brandColors.red,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: brandColors.backgroundOffWhite,
-  },
-  convertButton: {
-    backgroundColor: brandColors.green,
-    borderWidth: 0,
-  },
-  convertButtonText: {
-    color: brandColors.white,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContainer: {
-    backgroundColor: brandColors.white,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: brandColors.textDark,
-  },
-  modalCloseButton: {
-    padding: 8,
-  },
-  modalCloseText: {
-    fontSize: 24,
-    color: brandColors.textGray,
-  },
-  modalDescription: {
-    fontSize: 14,
-    color: brandColors.textGray,
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  modalInputGroup: {
-    marginBottom: 16,
-  },
-  modalLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: brandColors.textDark,
-    marginBottom: 8,
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: brandColors.textDark,
-    backgroundColor: brandColors.white,
-  },
-  modalButton: {
-    flexDirection: 'row',
-    backgroundColor: brandColors.tealPrimary,
-    borderRadius: 8,
-    padding: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-  },
-  modalButtonText: {
-    color: brandColors.white,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  modalDivider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 16,
-  },
-  modalDividerLine: {
-    flex: 1,
+
+  // Divider
+  divider: {
     height: 1,
-    backgroundColor: brandColors.lightGray,
+    backgroundColor: brandColors.border,
+    marginLeft: 68, // Align with text after icon
   },
-  modalDividerText: {
-    marginHorizontal: 16,
-    color: brandColors.textGray,
-    fontSize: 14,
-  },
-  modalGoogleButton: {
-    backgroundColor: brandColors.white,
-    borderWidth: 1,
-    borderColor: brandColors.lightGray,
+
+  // Footer
+  footerSpacing: {
+    height: 40,
   },
 });

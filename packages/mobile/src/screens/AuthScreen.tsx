@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import FinchLogo from '../components/FinchLogo';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 
 const brandColors = {
@@ -108,7 +109,10 @@ export const AuthScreen = () => {
       >
         {/* Logo/Header */}
         <View style={styles.header}>
-          <Text style={styles.logo}>🐦 Finch</Text>
+          <View style={styles.logoWrapper}>
+            <FinchLogo size={100} />
+          </View>
+          <Text style={styles.tagline}>The Financial Change You Need</Text>
           <Text style={styles.title}>
             {screen === 'signIn' ? 'Sign in to your account' : 'Create a new account'}
           </Text>
@@ -246,14 +250,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 32,
   },
-  logo: {
-    fontSize: 48,
+  logoWrapper: {
+    marginBottom: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tagline: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: brandColors.textDark,
     marginBottom: 16,
+    textAlign: 'center',
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: brandColors.textDark,
+    fontSize: 18,
+    fontWeight: '600',
+    color: brandColors.textGray,
     textAlign: 'center',
   },
   formContainer: {

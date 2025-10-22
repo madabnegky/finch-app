@@ -38,19 +38,41 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         console.log('AuthProvider - Setting up auth state listener');
 
-        // Check if there's already a signed-in user
-        const currentUser = api.auth.currentUser;
-        if (currentUser) {
-            console.log('AuthProvider - Found existing user:', currentUser.uid);
-            setUser(currentUser);
-            setLoading(false);
-        }
+        let hasHandledInitialState = false;
+        let isSyncingProfile = false;
 
         // Subscribe to auth changes
-        const unsubscribe = onAuthStateChanged(api.auth, (user) => {
+        const unsubscribe = onAuthStateChanged(api.auth, async (user) => {
             console.log('AuthProvider - Auth state changed:', user ? `User ${user.uid} (anonymous: ${user.isAnonymous})` : 'No user');
-            setUser(user);
-            setLoading(false);
+
+            // If no user and this is the first state change, auto-sign in as guest
+            if (!user && !hasHandledInitialState) {
+                hasHandledInitialState = true;
+                console.log('AuthProvider - No user found, signing in as guest...');
+                try {
+                    await api.signInGuest();
+                    // The auth state change will trigger again with the anonymous user
+                } catch (error) {
+                    console.error('AuthProvider - Failed to sign in as guest:', error);
+                    setLoading(false);
+                }
+            } else {
+                // Sync Google profile info if user is linked with Google but missing displayName
+                if (user && !user.isAnonymous && !user.displayName && !isSyncingProfile) {
+                    isSyncingProfile = true;
+                    try {
+                        await api.syncGoogleProfile();
+                    } catch (error) {
+                        console.error('AuthProvider - Failed to sync Google profile:', error);
+                    } finally {
+                        isSyncingProfile = false;
+                    }
+                }
+
+                setUser(user);
+                setLoading(false);
+                hasHandledInitialState = true;
+            }
         });
 
         return () => {
