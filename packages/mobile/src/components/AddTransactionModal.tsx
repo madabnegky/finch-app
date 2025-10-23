@@ -9,11 +9,14 @@ import {
   ScrollView,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import firestore from '@react-native-firebase/firestore';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import { brandColors } from '../theme/colors';
+import { validateAmount, validateDescription, validateDate } from '../utils/validation';
+import { formatErrorForAlert } from '../utils/errorMessages';
 
 const EXPENSE_CATEGORIES = [
   'Housing',
@@ -85,13 +88,34 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   }, [user, visible]);
 
   const handleSave = async () => {
-    if (!name.trim()) {
-      Alert.alert('Required', 'Please enter a transaction name');
+    // Validate transaction description
+    const descriptionValidation = validateDescription(name, true);
+    if (!descriptionValidation.isValid) {
+      Alert.alert('Invalid Input', descriptionValidation.error || 'Please enter a description');
       return;
     }
 
-    if (!amount || parseFloat(amount) <= 0) {
-      Alert.alert('Required', 'Please enter a valid amount');
+    // Validate amount
+    const amountValidation = validateAmount(amount, {
+      min: 0.01,
+      max: 999999,
+      allowNegative: false,
+      fieldName: 'Amount',
+    });
+    if (!amountValidation.isValid) {
+      Alert.alert('Invalid Input', amountValidation.error || 'Please enter a valid amount');
+      return;
+    }
+
+    // Validate date
+    const dateToValidate = isRecurring ? nextDate : transactionDate;
+    const dateValidation = validateDate(dateToValidate, {
+      allowPast: !isRecurring, // Recurring dates must be future
+      allowFuture: true,
+      fieldName: isRecurring ? 'Next occurrence date' : 'Transaction date',
+    });
+    if (!dateValidation.isValid) {
+      Alert.alert('Invalid Input', dateValidation.error || 'Please check the date');
       return;
     }
 
@@ -152,7 +176,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       onClose();
     } catch (error) {
       console.error('Error saving transaction:', error);
-      Alert.alert('Error', 'Failed to save transaction. Please try again.');
+      const { title, message } = formatErrorForAlert(error);
+      Alert.alert(title, message);
     } finally {
       setSaving(false);
     }
@@ -470,6 +495,13 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
               onPress={handleSave}
               disabled={saving}
             >
+              {saving && (
+                <ActivityIndicator
+                  size="small"
+                  color={brandColors.white}
+                  style={{ marginRight: 8 }}
+                />
+              )}
               <Text style={styles.saveButtonText}>
                 {saving ? 'Saving...' : 'Save'}
               </Text>
@@ -641,10 +673,12 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 1,
+    flexDirection: 'row',
     paddingVertical: 14,
     borderRadius: 8,
     backgroundColor: brandColors.tealPrimary,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   saveButtonDisabled: {
     opacity: 0.5,
