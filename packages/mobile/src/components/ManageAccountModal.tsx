@@ -8,10 +8,13 @@ import {
   TextInput,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import { brandColors } from '../theme/colors';
+import { validateAmount, validateAccountName } from '../utils/validation';
+import { formatErrorForAlert } from '../utils/errorMessages';
 
 type Account = {
   id: string;
@@ -62,20 +65,38 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
   }, [account, visible]);
 
   const handleSave = async () => {
-    if (!name.trim()) {
-      Alert.alert('Required', 'Please enter an account name');
+    // Validate account name
+    const nameValidation = validateAccountName(name);
+    if (!nameValidation.isValid) {
+      Alert.alert('Invalid Input', nameValidation.error || 'Please check the account name');
       return;
     }
 
-    if (!balance || isNaN(parseFloat(balance))) {
-      Alert.alert('Required', 'Please enter a valid balance');
+    // Validate balance
+    const balanceValidation = validateAmount(balance, {
+      min: -999999999, // Allow negative for credit cards, overdrafts
+      max: 999999999,
+      allowNegative: true,
+      fieldName: 'Balance',
+    });
+    if (!balanceValidation.isValid) {
+      Alert.alert('Invalid Input', balanceValidation.error || 'Please check the balance');
       return;
     }
 
+    // Validate cushion if provided
     const cushionValue = cushion ? parseFloat(cushion) : 0;
-    if (cushion && (isNaN(cushionValue) || cushionValue < 0)) {
-      Alert.alert('Invalid', 'Cushion must be a positive number');
-      return;
+    if (cushion) {
+      const cushionValidation = validateAmount(cushion, {
+        min: 0,
+        max: 99999,
+        allowNegative: false,
+        fieldName: 'Cushion',
+      });
+      if (!cushionValidation.isValid) {
+        Alert.alert('Invalid Input', cushionValidation.error || 'Please check the cushion amount');
+        return;
+      }
     }
 
     try {
@@ -131,7 +152,8 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
       onClose();
     } catch (error) {
       console.error('Error saving account:', error);
-      Alert.alert('Error', 'Failed to save account. Please try again.');
+      const { title, message } = formatErrorForAlert(error);
+      Alert.alert(title, message);
     } finally {
       setSaving(false);
     }
@@ -343,6 +365,13 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
               onPress={handleSave}
               disabled={saving}
             >
+              {saving && (
+                <ActivityIndicator
+                  size="small"
+                  color={brandColors.white}
+                  style={{ marginRight: 8 }}
+                />
+              )}
               <Text style={styles.saveButtonText}>
                 {saving ? 'Saving...' : 'Save'}
               </Text>
@@ -457,10 +486,12 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 1,
+    flexDirection: 'row',
     paddingVertical: 14,
     borderRadius: 8,
     backgroundColor: brandColors.tealPrimary,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   saveButtonDisabled: {
     opacity: 0.5,
