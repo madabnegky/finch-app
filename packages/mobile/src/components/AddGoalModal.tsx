@@ -8,10 +8,13 @@ import {
   TextInput,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import { brandColors } from '../theme/colors';
+import { validateAmount, validateGoalName, validateDate } from '../utils/validation';
+import { formatErrorForAlert } from '../utils/errorMessages';
 
 type AddGoalModalProps = {
   visible: boolean;
@@ -31,23 +34,40 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!name.trim()) {
-      Alert.alert('Required', 'Please enter a goal name');
+    // Validate goal name
+    const nameValidation = validateGoalName(name);
+    if (!nameValidation.isValid) {
+      Alert.alert('Invalid Input', nameValidation.error || 'Please enter a goal name');
       return;
     }
 
-    if (!targetAmount || parseFloat(targetAmount) <= 0) {
-      Alert.alert('Required', 'Please enter a valid target amount');
+    // Validate target amount
+    const amountValidation = validateAmount(targetAmount, {
+      min: 1,
+      max: 999999999,
+      allowNegative: false,
+      fieldName: 'Target amount',
+    });
+    if (!amountValidation.isValid) {
+      Alert.alert('Invalid Input', amountValidation.error || 'Please enter a valid target amount');
       return;
+    }
+
+    // Validate deadline if provided
+    if (deadline) {
+      const deadlineDate = new Date(deadline);
+      const dateValidation = validateDate(deadlineDate, {
+        allowPast: false,
+        allowFuture: true,
+        fieldName: 'Deadline',
+      });
+      if (!dateValidation.isValid) {
+        Alert.alert('Invalid Input', dateValidation.error || 'Please check the deadline date');
+        return;
+      }
     }
 
     const target = parseFloat(targetAmount);
-
-    // Validate deadline format if provided
-    if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
-      Alert.alert('Invalid Date', 'Please enter a valid date in YYYY-MM-DD format');
-      return;
-    }
 
     try {
       setSaving(true);
@@ -77,7 +97,8 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
       onClose();
     } catch (error) {
       console.error('Error saving goal:', error);
-      Alert.alert('Error', 'Failed to save goal. Please try again.');
+      const { title, message } = formatErrorForAlert(error);
+      Alert.alert(title, message);
     } finally {
       setSaving(false);
     }
