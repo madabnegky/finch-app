@@ -7,6 +7,9 @@ import { TourGuideProvider } from 'rn-tourguide';
 import { AuthProvider } from '../shared-logic/src/hooks/useAuth';
 import brandColors from './src/theme/colors';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import crashlytics from '@react-native-firebase/crashlytics';
+import { Alert } from 'react-native';
+import { useSessionTimeout } from './src/hooks/useSessionTimeout';
 import {
   registerDeviceForNotifications,
   setupForegroundNotificationHandler,
@@ -28,6 +31,7 @@ import { BudgetScreen } from './src/screens/BudgetScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { useAuth } from '../shared-logic/src/hooks/useAuth';
 import CustomDrawer from './src/components/CustomDrawer';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 // This creates the "stack" of screens and drawer
 const Stack = createNativeStackNavigator();
@@ -143,6 +147,26 @@ function MainDrawer() {
 function AppNavigator() {
   const { user, loading } = useAuth();
 
+  // Session timeout - automatically log out after 15 minutes of inactivity
+  useSessionTimeout(
+    () => {
+      // Warning: 1 minute before logout
+      Alert.alert(
+        'Session Expiring',
+        'Your session will expire in 1 minute due to inactivity. Please interact with the app to stay logged in.',
+        [{ text: 'OK' }]
+      );
+    },
+    () => {
+      // Timeout: Session expired
+      Alert.alert(
+        'Session Expired',
+        'You have been logged out due to inactivity for security reasons.',
+        [{ text: 'OK' }]
+      );
+    }
+  );
+
   // Debug: Log auth state changes
   useEffect(() => {
     console.log('AppNavigator - Auth state:', { user: user?.uid || 'null', loading });
@@ -203,15 +227,29 @@ function AppNavigator() {
 setupBackgroundNotificationHandler();
 
 function App(): React.JSX.Element {
+  // Enable Crashlytics crash reporting
+  useEffect(() => {
+    // Enable Crashlytics collection
+    crashlytics().setCrashlyticsCollectionEnabled(true);
+
+    // Log that Crashlytics is enabled
+    console.log('🛡️ Firebase Crashlytics enabled');
+
+    // Optionally set a custom key for debugging
+    crashlytics().setAttribute('app_version', '1.0.0');
+  }, []);
+
   return (
-    <TourGuideProvider
-      androidStatusBarVisible={true}
-      backdropColor="rgba(0, 0, 0, 0.8)"
-    >
-      <AuthProvider>
-        <AppNavigator />
-      </AuthProvider>
-    </TourGuideProvider>
+    <ErrorBoundary>
+      <TourGuideProvider
+        androidStatusBarVisible={true}
+        backdropColor="rgba(0, 0, 0, 0.8)"
+      >
+        <AuthProvider>
+          <AppNavigator />
+        </AuthProvider>
+      </TourGuideProvider>
+    </ErrorBoundary>
   );
 }
 

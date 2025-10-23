@@ -1,11 +1,19 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, Modal } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import auth from '@react-native-firebase/auth';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import brandColors from '../theme/colors';
 import { navigationIcons, actionIcons, securityIcons, notificationIcons } from '../theme/icons';
+import { deleteUserAccountAndData } from '../services/accountDeletionService';
+import PrivacyPolicyScreen from '../legal/PrivacyPolicy';
+import TermsOfServiceScreen from '../legal/TermsOfService';
+import {
+  getUserPreferences,
+  updateUserPreferences,
+  subscribeToUserPreferences
+} from '../services/userPreferencesService';
 
 /**
  * Settings Screen
@@ -76,13 +84,54 @@ export function SettingsScreen() {
   const { user, linkAccountWithEmail, linkAccountWithGoogle } = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [faceIdEnabled, setFaceIdEnabled] = useState(false);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [showTermsOfService, setShowTermsOfService] = useState(false);
+
+  // Load user preferences from Firestore
+  useEffect(() => {
+    if (!user) return;
+
+    // Subscribe to real-time preferences updates
+    const unsubscribe = subscribeToUserPreferences((preferences) => {
+      setNotificationsEnabled(preferences.notificationsEnabled);
+      setFaceIdEnabled(preferences.biometricAuthEnabled);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Handle notification toggle
+  const handleNotificationToggle = async (value: boolean) => {
+    setNotificationsEnabled(value);
+
+    try {
+      await updateUserPreferences({ notificationsEnabled: value });
+      console.log('✅ Notification preference saved');
+    } catch (error) {
+      console.error('❌ Error saving notification preference:', error);
+      // Revert on error
+      setNotificationsEnabled(!value);
+      Alert.alert('Error', 'Failed to save notification preference. Please try again.');
+    }
+  };
+
+  // Handle biometric toggle
+  const handleBiometricToggle = async (value: boolean) => {
+    setFaceIdEnabled(value);
+
+    try {
+      await updateUserPreferences({ biometricAuthEnabled: value });
+      console.log('✅ Biometric preference saved');
+    } catch (error) {
+      console.error('❌ Error saving biometric preference:', error);
+      // Revert on error
+      setFaceIdEnabled(!value);
+      Alert.alert('Error', 'Failed to save biometric preference. Please try again.');
+    }
+  };
 
   const handleConnectedAccounts = () => {
     Alert.alert('Connected Accounts', 'Manage your linked bank accounts');
-  };
-
-  const handleNotificationSettings = () => {
-    Alert.alert('Notifications', 'Manage your notification preferences');
   };
 
   const handleSecurity = () => {
@@ -90,16 +139,13 @@ export function SettingsScreen() {
   };
 
   const handlePrivacy = () => {
-    Alert.alert('Privacy', 'Manage your privacy settings');
+    setShowPrivacyPolicy(true);
   };
 
-  const handleDataExport = () => {
-    Alert.alert('Export Data', 'Download a copy of your financial data');
+  const handleTermsOfService = () => {
+    setShowTermsOfService(true);
   };
 
-  const handleSupport = () => {
-    Alert.alert('Help & Support', 'Get help with Finch');
-  };
 
   const handleAbout = () => {
     Alert.alert('About Finch', 'Version 1.0.0\n\nFinch helps you manage your finances with confidence.');
@@ -128,26 +174,42 @@ export function SettingsScreen() {
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
-      'This action cannot be undone. All your data will be permanently deleted.',
+      'This will permanently delete:\n\n• All your transactions and financial data\n• All budgets and goals\n• All bank account connections\n• Your account profile\n\nThis action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            const currentUser = auth().currentUser;
-            if (currentUser) {
-              console.log('Deleting account...');
-              await currentUser.delete();
-              console.log('✅ Account deleted successfully');
-            }
-          } catch (error) {
-            console.error('❌ Delete account error:', error);
+        {
+          text: 'Delete Forever',
+          style: 'destructive',
+          onPress: () => {
+            // Second confirmation
             Alert.alert(
-              'Error',
-              'Failed to delete account. You may need to sign in again to perform this action.',
-              [{ text: 'OK' }]
+              'Are You Absolutely Sure?',
+              'This is your last chance. All your data will be permanently deleted and cannot be recovered.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Yes, Delete Everything',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      console.log('Starting account deletion...');
+                      await deleteUserAccountAndData();
+                      console.log('✅ Account deleted successfully');
+                      // User will be automatically signed out
+                    } catch (error: any) {
+                      console.error('❌ Delete account error:', error);
+                      Alert.alert(
+                        'Deletion Failed',
+                        error.message || 'Failed to delete account. Please try again.',
+                        [{ text: 'OK' }]
+                      );
+                    }
+                  }
+                },
+              ]
             );
           }
-        }},
+        },
       ]
     );
   };
@@ -246,12 +308,12 @@ export function SettingsScreen() {
           <SettingItem
             icon={notificationIcons.bell}
             title="Notifications"
-            subtitle="Manage notification preferences"
-            onPress={handleNotificationSettings}
+            subtitle="Transaction alerts and reminders"
+            onPress={() => {}}
             rightComponent={
               <Switch
                 value={notificationsEnabled}
-                onValueChange={setNotificationsEnabled}
+                onValueChange={handleNotificationToggle}
                 trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
                 thumbColor={notificationsEnabled ? brandColors.tealPrimary : brandColors.white}
               />
@@ -277,7 +339,7 @@ export function SettingsScreen() {
             rightComponent={
               <Switch
                 value={faceIdEnabled}
-                onValueChange={setFaceIdEnabled}
+                onValueChange={handleBiometricToggle}
                 trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
                 thumbColor={faceIdEnabled ? brandColors.tealPrimary : brandColors.white}
               />
@@ -287,31 +349,24 @@ export function SettingsScreen() {
           <View style={styles.divider} />
           <SettingItem
             icon={securityIcons.shield}
-            title="Privacy"
-            subtitle="Control your data"
+            title="Privacy Policy"
+            subtitle="How we protect your data"
             onPress={handlePrivacy}
           />
         </SettingSection>
 
-        {/* DATA SECTION */}
-        <SettingSection title="Data">
+        {/* LEGAL SECTION */}
+        <SettingSection title="Legal">
           <SettingItem
-            icon="download"
-            title="Export Data"
-            subtitle="Download your financial data"
-            onPress={handleDataExport}
+            icon="file-document-outline"
+            title="Terms of Service"
+            subtitle="Our terms and conditions"
+            onPress={handleTermsOfService}
           />
         </SettingSection>
 
         {/* SUPPORT SECTION */}
-        <SettingSection title="Support">
-          <SettingItem
-            icon="lifebuoy"
-            title="Help & Support"
-            subtitle="Get help with Finch"
-            onPress={handleSupport}
-          />
-          <View style={styles.divider} />
+        <SettingSection title="About">
           <SettingItem
             icon="information-outline"
             title="About Finch"
@@ -342,6 +397,46 @@ export function SettingsScreen() {
         {/* FOOTER SPACING */}
         <View style={styles.footerSpacing} />
       </ScrollView>
+
+      {/* Privacy Policy Modal */}
+      <Modal
+        visible={showPrivacyPolicy}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowPrivacyPolicy(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setShowPrivacyPolicy(false)}
+            >
+              <Icon name="close" size={24} color={brandColors.textDark} />
+            </TouchableOpacity>
+          </View>
+          <PrivacyPolicyScreen />
+        </View>
+      </Modal>
+
+      {/* Terms of Service Modal */}
+      <Modal
+        visible={showTermsOfService}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowTermsOfService(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setShowTermsOfService(false)}
+            >
+              <Icon name="close" size={24} color={brandColors.textDark} />
+            </TouchableOpacity>
+          </View>
+          <TermsOfServiceScreen />
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -478,5 +573,28 @@ const styles = StyleSheet.create({
   // Footer
   footerSpacing: {
     height: 40,
+  },
+
+  // Modal
+  modalContainer: {
+    flex: 1,
+    backgroundColor: brandColors.white,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: brandColors.border,
+  },
+  modalCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: brandColors.backgroundOffWhite,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

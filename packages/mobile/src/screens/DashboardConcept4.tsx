@@ -21,6 +21,8 @@ import { ManageAccountModal } from '../components/ManageAccountModal';
 import { TransferModal } from '../components/TransferModal';
 import { PlaidAccountPicker } from '../components/PlaidAccountPicker';
 import { AccountSetupModal } from '../components/AccountSetupModal';
+import { FirstAccountCongrats } from '../components/FirstAccountCongrats';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { usePlaidLink } from '../components/PlaidLinkHandler';
 import FinchLogo from '../components/FinchLogo';
 import functions from '@react-native-firebase/functions';
@@ -81,12 +83,34 @@ const DashboardContent = () => {
   const [fabExpanded, setFabExpanded] = useState(false);
   const [showDebugButton, setShowDebugButton] = useState(false);
   const [showAccountSetup, setShowAccountSetup] = useState(false);
+  const [showFirstAccountCongrats, setShowFirstAccountCongrats] = useState(false);
+  const [firstAccountInfo, setFirstAccountInfo] = useState<{ id: string; name: string } | null>(null);
+  const [isInDemoMode, setIsInDemoMode] = useState(false); // true if user only has demo accounts
 
   // Tour guide controller
   const { canStart, start, eventEmitter, currentStep } = useTourGuideController();
 
   // Refs for each tour zone to enable scrolling
   const zoneRefs = React.useRef<{ [key: number]: View | null }>({});
+
+  // Shared handler for first account creation
+  const handleFirstAccountCreated = async (accountId: string) => {
+    console.log('🎉 FIRST ACCOUNT CREATED:', accountId);
+    try {
+      const accountDoc = await firestore()
+        .collection(`users/${user?.uid}/accounts`)
+        .doc(accountId)
+        .get();
+
+      const accountData = accountDoc.data();
+      if (accountData) {
+        setFirstAccountInfo({ id: accountId, name: accountData.name });
+        setShowFirstAccountCongrats(true);
+      }
+    } catch (error) {
+      console.error('Error fetching account details:', error);
+    }
+  };
 
   // Initialize demo data for guest users
   useEffect(() => {
@@ -113,7 +137,8 @@ const DashboardContent = () => {
       }
 
       try {
-        const hasSeenTour = await AsyncStorage.getItem('hasSeenDashboardTour');
+        const tourKey = `hasSeenDashboardTour_${user?.uid}`;
+        const hasSeenTour = await AsyncStorage.getItem(tourKey);
 
         console.log('🔍 Tour check - hasSeenTour:', hasSeenTour, 'canStart:', canStart, 'loading:', loading, 'accounts:', accounts.length);
 
@@ -138,9 +163,10 @@ const DashboardContent = () => {
 
   // Handle tour completion
   useEffect(() => {
-    if (eventEmitter) {
+    if (eventEmitter && user?.uid) {
       const handleStop = async () => {
-        await AsyncStorage.setItem('hasSeenDashboardTour', 'true');
+        const tourKey = `hasSeenDashboardTour_${user.uid}`;
+        await AsyncStorage.setItem(tourKey, 'true');
       };
 
       eventEmitter.on('stop', handleStop);
@@ -148,7 +174,7 @@ const DashboardContent = () => {
         eventEmitter.off('stop', handleStop);
       };
     }
-  }, [eventEmitter]);
+  }, [eventEmitter, user?.uid]);
 
   // Handle step changes to scroll to each zone
   useEffect(() => {
@@ -272,6 +298,13 @@ const DashboardContent = () => {
             });
 
             setAccounts(accountsData);
+
+            // Check if user only has demo accounts
+            const hasRealAccounts = snapshot.docs.some(doc => {
+              const data = doc.data();
+              return !data.isDemo; // At least one non-demo account exists
+            });
+            setIsInDemoMode(!hasRealAccounts); // Demo mode if NO real accounts
 
             // Set default selected account to primary account, or first one if no primary set
             if (!selectedAccountId && accountsData.length > 0) {
@@ -770,6 +803,7 @@ const DashboardContent = () => {
           onSuccess={() => {
             console.log('Account saved successfully!');
           }}
+          onAccountCreated={handleFirstAccountCreated}
           account={null}
         />
       </View>
@@ -859,6 +893,7 @@ const DashboardContent = () => {
           onSuccess={() => {
             console.log('Account saved successfully!');
           }}
+          onAccountCreated={handleFirstAccountCreated}
           account={null}
         />
 
@@ -918,7 +953,8 @@ const DashboardContent = () => {
                 <TouchableOpacity
                   style={styles.debugButton}
                   onPress={async () => {
-                    await AsyncStorage.removeItem('hasSeenDashboardTour');
+                    const tourKey = `hasSeenDashboardTour_${user?.uid}`;
+                    await AsyncStorage.removeItem(tourKey);
                     start();
                   }}
                 >
@@ -943,8 +979,8 @@ const DashboardContent = () => {
           </View>
         </View>
 
-        {/* GUEST MODE BANNER */}
-        {user?.isAnonymous && (
+        {/* DEMO MODE BANNER - Phase 1: User exploring with demo data */}
+        {user?.isAnonymous && isInDemoMode && (
           <TourGuideZone
             zone={5}
             text="When you're ready, tap 'Get Started' and we'll help you add your first account and set up your recurring transactions!"
@@ -969,6 +1005,26 @@ const DashboardContent = () => {
               </TouchableOpacity>
             </View>
           </TourGuideZone>
+        )}
+
+        {/* CREATE ACCOUNT BANNER - Phase 2: User has real data but still anonymous */}
+        {user?.isAnonymous && !isInDemoMode && (
+          <View style={styles.saveAccountBanner}>
+            <View style={styles.saveAccountBannerContent}>
+              <Icon name="alert-circle" size={24} color="#F59E0B" />
+              <View style={styles.saveAccountBannerTextContainer}>
+                <Text style={styles.saveAccountBannerTitle}>Save Your Data</Text>
+                <Text style={styles.saveAccountBannerSubtitle}>Create an account so you don't lose your work</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.createAccountButton}
+              onPress={() => (navigation as any).navigate('Settings')}
+            >
+              <Text style={styles.createAccountButtonText}>Create Account</Text>
+              <Icon name="arrow-right" size={18} color={brandColors.white} />
+            </TouchableOpacity>
+          </View>
         )}
 
         {/* WHAT IF BANNER */}
@@ -1366,6 +1422,7 @@ const DashboardContent = () => {
         onSuccess={() => {
           console.log('Account saved successfully!');
         }}
+        onAccountCreated={handleFirstAccountCreated}
         account={null}
       />
 
@@ -1405,22 +1462,40 @@ const DashboardContent = () => {
           setShowManageAccount(true);
         }}
       />
+
+      {/* FIRST ACCOUNT CONGRATULATIONS MODAL */}
+      {firstAccountInfo && (
+        <FirstAccountCongrats
+          visible={showFirstAccountCongrats}
+          accountName={firstAccountInfo.name}
+          onAddTransactions={() => {
+            setShowFirstAccountCongrats(false);
+            setShowAddTransaction(true);
+          }}
+          onSkip={() => {
+            setShowFirstAccountCongrats(false);
+            setFirstAccountInfo(null);
+          }}
+        />
+      )}
     </View>
   );
 };
 
-// Export wrapper with TourGuideProvider
+// Export wrapper with TourGuideProvider and ErrorBoundary
 export const DashboardConcept4 = () => {
   return (
-    <TourGuideProvider
-      borderRadius={16}
-      androidStatusBarVisible={true}
-      preventOutsideInteraction={false}
-      verticalOffset={0}
-      backdropColor="rgba(0, 0, 0, 0.7)"
-    >
-      <DashboardContent />
-    </TourGuideProvider>
+    <ErrorBoundary fallbackTitle="Dashboard Error" fallbackMessage="Something went wrong loading your dashboard. Your data is safe.">
+      <TourGuideProvider
+        borderRadius={16}
+        androidStatusBarVisible={true}
+        preventOutsideInteraction={false}
+        verticalOffset={0}
+        backdropColor="rgba(0, 0, 0, 0.7)"
+      >
+        <DashboardContent />
+      </TourGuideProvider>
+    </ErrorBoundary>
   );
 };
 
@@ -1635,6 +1710,54 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   getStartedButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: brandColors.white,
+  },
+
+  // Save Account Banner (Phase 2)
+  saveAccountBanner: {
+    backgroundColor: '#FEF3C7', // Amber/yellow light background
+    borderWidth: 1,
+    borderColor: '#F59E0B', // Amber/yellow border
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 12,
+  },
+  saveAccountBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  saveAccountBannerTextContainer: {
+    flex: 1,
+  },
+  saveAccountBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#92400E', // Amber dark text
+    marginBottom: 2,
+  },
+  saveAccountBannerSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#78350F', // Amber darker text
+  },
+  createAccountButton: {
+    backgroundColor: '#F59E0B', // Amber button
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  createAccountButtonText: {
     fontSize: 14,
     fontWeight: '700',
     color: brandColors.white,
