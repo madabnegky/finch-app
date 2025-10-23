@@ -27,6 +27,7 @@ type ManageAccountModalProps = {
   visible: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  onAccountCreated?: (accountId: string) => void; // Called with new account ID when created
   account?: Account | null; // If provided, edit mode; otherwise add mode
 };
 
@@ -34,6 +35,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
   visible,
   onClose,
   onSuccess,
+  onAccountCreated,
   account,
 }) => {
   const { user } = useAuth();
@@ -97,11 +99,32 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
         Alert.alert('Success', 'Account updated successfully');
       } else {
         // Create new account
-        await firestore()
+        const accountRef = await firestore()
           .collection(`users/${user?.uid}/accounts`)
           .add(accountData);
 
-        Alert.alert('Success', 'Account added successfully');
+        // Check if this is the user's first non-demo account
+        const accountsSnapshot = await firestore()
+          .collection(`users/${user?.uid}/accounts`)
+          .get();
+
+        // Count non-demo accounts (accounts without isDemo or isDemo === false)
+        const nonDemoAccounts = accountsSnapshot.docs.filter(doc => {
+          const data = doc.data();
+          return !data.isDemo; // No isDemo field OR isDemo is false
+        });
+
+        const isFirstAccount = nonDemoAccounts.length === 1; // Just created, so should be 1
+
+        console.log(`✅ Account created: ${accountRef.id}, total accounts: ${accountsSnapshot.size}, non-demo: ${nonDemoAccounts.length}, isFirstAccount: ${isFirstAccount}`);
+
+        if (isFirstAccount && onAccountCreated) {
+          // This is the first account! Trigger the congratulations flow
+          onAccountCreated(accountRef.id);
+        } else {
+          // Not the first account, just show success message
+          Alert.alert('Success', 'Account added successfully');
+        }
       }
 
       onSuccess?.();
