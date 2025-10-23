@@ -10,13 +10,17 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, ActivityIn
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import firestore from '@react-native-firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TourGuideProvider, TourGuideZone, useTourGuideController } from 'rn-tourguide';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
+import { initializeDemoData } from '../services/demoDataService';
 import { generateTransactionInstances } from '../utils/transactionInstances';
 import { WhatIfModal } from '../components/WhatIfModal';
 import { AddTransactionModal } from '../components/AddTransactionModal';
 import { ManageAccountModal } from '../components/ManageAccountModal';
 import { TransferModal } from '../components/TransferModal';
 import { PlaidAccountPicker } from '../components/PlaidAccountPicker';
+import { AccountSetupModal } from '../components/AccountSetupModal';
 import { usePlaidLink } from '../components/PlaidLinkHandler';
 import FinchLogo from '../components/FinchLogo';
 import functions from '@react-native-firebase/functions';
@@ -57,9 +61,11 @@ type Goal = {
   accountId: string;
 };
 
-export const DashboardConcept4 = () => {
+// Inner component to access tour guide controller
+const DashboardContent = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const scrollViewRef = React.useRef<ScrollView>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -73,11 +79,150 @@ export const DashboardConcept4 = () => {
   const [showTransfer, setShowTransfer] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fabExpanded, setFabExpanded] = useState(false);
+  const [showDebugButton, setShowDebugButton] = useState(false);
+  const [showAccountSetup, setShowAccountSetup] = useState(false);
 
-  // DEBUG: Test if modal works at all
+  // Tour guide controller
+  const { canStart, start, eventEmitter, currentStep } = useTourGuideController();
+
+  // Refs for each tour zone to enable scrolling
+  const zoneRefs = React.useRef<{ [key: number]: View | null }>({});
+
+  // Initialize demo data for guest users
   useEffect(() => {
-    console.log('🟢 showManageAccount changed to:', showManageAccount);
-  }, [showManageAccount]);
+    const initDemoDataForGuest = async () => {
+      if (user?.isAnonymous) {
+        try {
+          console.log('🎬 Guest user detected, initializing demo data...');
+          await initializeDemoData(user.uid);
+        } catch (error) {
+          console.error('Error initializing demo data:', error);
+        }
+      }
+    };
+
+    initDemoDataForGuest();
+  }, [user]);
+
+  // Auto-start tour for new users
+  useEffect(() => {
+    const attemptTourStart = async () => {
+      // Only attempt if we have accounts loaded (not loading and accounts exist)
+      if (loading || accounts.length === 0) {
+        return;
+      }
+
+      try {
+        const hasSeenTour = await AsyncStorage.getItem('hasSeenDashboardTour');
+
+        console.log('🔍 Tour check - hasSeenTour:', hasSeenTour, 'canStart:', canStart, 'loading:', loading, 'accounts:', accounts.length);
+
+        if (!hasSeenTour && canStart) {
+          // Give extra time for UI to settle and tour zones to register
+          setTimeout(() => {
+            console.log('🎯 Starting onboarding tour automatically...');
+            start();
+          }, 2000);
+        }
+      } catch (error) {
+        console.error('Error checking tour status:', error);
+      }
+    };
+
+    // Show debug button immediately
+    setShowDebugButton(true);
+
+    // Attempt tour start
+    attemptTourStart();
+  }, [canStart, loading, accounts.length]);
+
+  // Handle tour completion
+  useEffect(() => {
+    if (eventEmitter) {
+      const handleStop = async () => {
+        await AsyncStorage.setItem('hasSeenDashboardTour', 'true');
+      };
+
+      eventEmitter.on('stop', handleStop);
+      return () => {
+        eventEmitter.off('stop', handleStop);
+      };
+    }
+  }, [eventEmitter]);
+
+  // Handle step changes to scroll to each zone
+  useEffect(() => {
+    console.log('🔧 Setting up tour event listeners, currentStep:', currentStep);
+
+    if (eventEmitter) {
+      const handleStepChange = (step?: any) => {
+        console.log('📍 Tour step change:', step);
+        if (!step || !step.order) return;
+
+        const zoneNumber = step.order;
+
+        // Zone order (WITH NEW GET STARTED BUTTON):
+        // Zone 1: Account Selector
+        // Zone 2: Available to Spend
+        // Zone 3: What If
+        // Zone 4: Breakdown
+        // Zone 5: Get Started button (in guest banner at top)
+
+        // Keep FAB collapsed during tour
+        setFabExpanded(false);
+
+        // Scroll to different positions based on zone
+        let scrollPosition = 0;
+
+        switch (zoneNumber) {
+          case 1: // Account selector - at top, minimal scroll
+            scrollPosition = 0;
+            break;
+          case 2: // Available to Spend - still near top
+            scrollPosition = 50;
+            break;
+          case 3: // What If - middle area
+            scrollPosition = 200;
+            break;
+          case 4: // Breakdown - lower middle
+            scrollPosition = 400;
+            break;
+          case 5: // Get Started button - scroll back to top to show the banner
+            scrollPosition = 0;
+            break;
+        }
+
+        console.log(`📍 Scrolling to zone ${zoneNumber} at position ${scrollPosition}`);
+
+        // Scroll immediately without animation for instant response
+        // Check for scrollViewRef at execution time, not setup time
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollTo({
+            y: scrollPosition,
+            animated: false,
+          });
+        } else {
+          console.log('⚠️ ScrollView ref not available yet');
+        }
+      };
+
+      console.log('🔧 Registering event listeners...');
+      eventEmitter.on('stepChange', handleStepChange);
+      eventEmitter.on('start', handleStepChange);
+
+      // If tour is already started when we set up listeners, handle current step
+      if (currentStep) {
+        console.log('🔧 Tour already started, handling current step:', currentStep);
+        handleStepChange(currentStep);
+      }
+
+      return () => {
+        console.log('🔧 Cleaning up event listeners');
+        eventEmitter.off('stepChange', handleStepChange);
+        eventEmitter.off('start', handleStepChange);
+      };
+    }
+  }, [eventEmitter, currentStep]);
 
   // Plaid state
   const [triggerPlaid, setTriggerPlaid] = useState(false);
@@ -566,7 +711,7 @@ export const DashboardConcept4 = () => {
               </View>
               <View>
                 {user?.isAnonymous ? (
-                  <Text style={styles.headerTitle}>Dashboard</Text>
+                  <Text style={styles.headerName}>Dashboard</Text>
                 ) : (
                   <>
                     <Text style={styles.headerGreeting}>Dashboard</Text>
@@ -649,7 +794,7 @@ export const DashboardConcept4 = () => {
               </View>
               <View>
                 {user?.isAnonymous ? (
-                  <Text style={styles.headerTitle}>Dashboard</Text>
+                  <Text style={styles.headerName}>Dashboard</Text>
                 ) : (
                   <>
                     <Text style={styles.headerGreeting}>Welcome</Text>
@@ -735,7 +880,11 @@ export const DashboardConcept4 = () => {
 
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollViewRef}
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={true}
+      >
         {/* HEADER */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
@@ -751,7 +900,7 @@ export const DashboardConcept4 = () => {
               </View>
               <View>
                 {user?.isAnonymous ? (
-                  <Text style={styles.headerTitle}>Dashboard</Text>
+                  <Text style={styles.headerName}>Dashboard</Text>
                 ) : (user?.displayName || user?.email) ? (
                   <>
                     <Text style={styles.headerGreeting}>
@@ -760,43 +909,66 @@ export const DashboardConcept4 = () => {
                     <Text style={styles.headerName}>{user?.displayName || user?.email?.split('@')[0]}</Text>
                   </>
                 ) : (
-                  <Text style={styles.headerTitle}>Dashboard</Text>
+                  <Text style={styles.headerName}>Dashboard</Text>
                 )}
               </View>
             </View>
-            <TouchableOpacity
-              style={styles.profileButton}
-              onPress={() => (navigation as any).navigate('Settings')}
-            >
-              {user?.photoURL ? (
-                <Image source={{ uri: user.photoURL }} style={styles.profileImage} />
-              ) : (
-                <View style={styles.profilePlaceholder}>
-                  <Text style={styles.profileInitial}>
-                    {(user?.displayName?.[0] || user?.email?.[0] || '?').toUpperCase()}
-                  </Text>
-                </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {showDebugButton && (
+                <TouchableOpacity
+                  style={styles.debugButton}
+                  onPress={async () => {
+                    await AsyncStorage.removeItem('hasSeenDashboardTour');
+                    start();
+                  }}
+                >
+                  <Icon name="information-outline" size={20} color={brandColors.tealPrimary} />
+                </TouchableOpacity>
               )}
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.profileButton}
+                onPress={() => (navigation as any).navigate('Settings')}
+              >
+                {user?.photoURL ? (
+                  <Image source={{ uri: user.photoURL }} style={styles.profileImage} />
+                ) : (
+                  <View style={styles.profilePlaceholder}>
+                    <Text style={styles.profileInitial}>
+                      {(user?.displayName?.[0] || user?.email?.[0] || '?').toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
         {/* GUEST MODE BANNER */}
         {user?.isAnonymous && (
-          <View style={styles.guestBanner}>
-            <View style={styles.guestBannerContent}>
-              <Icon name="account-alert" size={20} color={brandColors.orangeAccent} />
-              <Text style={styles.guestBannerText}>
-                Guest Mode - Your data is temporary
-              </Text>
+          <TourGuideZone
+            zone={5}
+            text="When you're ready, tap 'Get Started' and we'll help you add your first account and set up your recurring transactions!"
+            borderRadius={12}
+            maskOffset={4}
+            tooltipBottomOffset={100}
+          >
+            <View ref={(ref) => (zoneRefs.current[5] = ref)} style={styles.guestBanner} collapsable={false}>
+              <View style={styles.guestBannerContent}>
+                <Icon name="rocket-launch" size={24} color={brandColors.orangeAccent} />
+                <View style={styles.guestBannerTextContainer}>
+                  <Text style={styles.guestBannerTitle}>Demo Mode</Text>
+                  <Text style={styles.guestBannerSubtitle}>Exploring Finch with sample data</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.getStartedButton}
+                onPress={() => setShowAccountSetup(true)}
+              >
+                <Text style={styles.getStartedButtonText}>Get Started</Text>
+                <Icon name="arrow-right" size={18} color={brandColors.white} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.guestBannerButton}
-              onPress={() => (navigation as any).navigate('Settings')}
-            >
-              <Text style={styles.guestBannerButtonText}>Create Account</Text>
-            </TouchableOpacity>
-          </View>
+          </TourGuideZone>
         )}
 
         {/* WHAT IF BANNER */}
@@ -821,94 +993,130 @@ export const DashboardConcept4 = () => {
         <View style={styles.section}>
           <View style={styles.primaryCard}>
             {/* Account Selector Dropdown */}
-            <TouchableOpacity
-              style={styles.accountSelector}
-              onPress={() => setShowAccountPicker(true)}
+            <TourGuideZone
+              zone={1}
+              text="This is your account selector. Once you add accounts, you can tap here to switch between them."
+              borderRadius={12}
+              maskOffset={4}
+              tooltipBottomOffset={20}
             >
-              <View style={styles.accountSelectorLeft}>
-                <View style={[styles.accountIcon, { backgroundColor: brandColors.tealPrimary + '15' }]}>
-                  <Icon name={accountIcons[selectedAccount.type as keyof typeof accountIcons] || 'wallet'} size={22} color={brandColors.tealPrimary} />
+              <TouchableOpacity
+                ref={(ref) => (zoneRefs.current[1] = ref)}
+                style={styles.accountSelector}
+                onPress={() => setShowAccountPicker(true)}
+                collapsable={false}
+              >
+                <View style={styles.accountSelectorLeft}>
+                  <View style={[styles.accountIcon, { backgroundColor: brandColors.tealPrimary + '15' }]}>
+                    <Icon name={accountIcons[selectedAccount.type as keyof typeof accountIcons] || 'wallet'} size={22} color={brandColors.tealPrimary} />
+                  </View>
+                  <View>
+                    <Text style={styles.accountSelectorLabel}>Primary Account</Text>
+                    <Text style={styles.accountSelectorName}>{selectedAccount.name}</Text>
+                  </View>
                 </View>
-                <View>
-                  <Text style={styles.accountSelectorLabel}>Primary Account</Text>
-                  <Text style={styles.accountSelectorName}>{selectedAccount.name}</Text>
-                </View>
-              </View>
-              <Icon name="chevron-down" size={20} color={brandColors.textGray} />
-            </TouchableOpacity>
+                <Icon name="chevron-down" size={20} color={brandColors.textGray} />
+              </TouchableOpacity>
+            </TourGuideZone>
 
             {/* Available to Spend - Hero */}
-            <View style={styles.heroSection}>
-              <Text style={styles.heroLabel}>AVAILABLE TO SPEND</Text>
-              <Text style={styles.heroAmount}>{formatCurrency(selectedAccount.availableToSpend)}</Text>
-            </View>
+            <TourGuideZone
+              zone={2}
+              text="This is your Available to Spend - the money you can safely use right now based on your balance, upcoming bills, safety cushion, and goal allocations."
+              borderRadius={16}
+              maskOffset={4}
+              tooltipBottomOffset={100}
+            >
+              <View ref={(ref) => (zoneRefs.current[2] = ref)} style={styles.heroSection} collapsable={false}>
+                <Text style={styles.heroLabel}>AVAILABLE TO SPEND</Text>
+                <Text style={styles.heroAmount}>{formatCurrency(selectedAccount.availableToSpend)}</Text>
+              </View>
+            </TourGuideZone>
 
             {/* Test a Purchase Card */}
-            <TouchableOpacity
-              style={styles.testPurchaseCard}
-              onPress={() => setShowWhatIf(true)}
-              activeOpacity={0.7}
+            <TourGuideZone
+              zone={3}
+              text="Use 'What If?' to simulate a purchase and see how it will affect your finances over the next 60 days before you spend."
+              borderRadius={12}
+              maskOffset={4}
+              tooltipBottomOffset={80}
             >
-              <View style={styles.testPurchaseIcon}>
-                <Icon name="calculator" size={24} color={brandColors.tealPrimary} />
-              </View>
-              <View style={styles.testPurchaseContent}>
-                <Text style={styles.testPurchaseTitle}>Can I afford a purchase?</Text>
-                <Text style={styles.testPurchaseSubtitle}>
-                  Test how spending money today will impact your finances
-                </Text>
-              </View>
-              <Icon name="chevron-right" size={20} color={brandColors.textGray} />
-            </TouchableOpacity>
+              <TouchableOpacity
+                ref={(ref) => (zoneRefs.current[3] = ref)}
+                style={styles.testPurchaseCard}
+                onPress={() => setShowWhatIf(true)}
+                activeOpacity={0.7}
+                collapsable={false}
+              >
+                <View style={styles.testPurchaseIcon}>
+                  <Icon name="calculator" size={24} color={brandColors.tealPrimary} />
+                </View>
+                <View style={styles.testPurchaseContent}>
+                  <Text style={styles.testPurchaseTitle}>Can I afford a purchase?</Text>
+                  <Text style={styles.testPurchaseSubtitle}>
+                    Test how spending money today will impact your finances
+                  </Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={brandColors.textGray} />
+              </TouchableOpacity>
+            </TourGuideZone>
 
             {/* Financial Breakdown */}
-            <View style={styles.breakdownSection}>
-              <Text style={styles.breakdownTitle}>How we calculated this</Text>
-              <View style={styles.breakdownRows}>
-                <View style={styles.breakdownRow}>
-                  <View style={styles.breakdownLeft}>
-                    <View style={[styles.breakdownDot, { backgroundColor: brandColors.tealPrimary }]} />
-                    <Text style={styles.breakdownLabel}>Current Balance</Text>
-                  </View>
-                  <Text style={styles.breakdownValue}>{formatCurrency(selectedAccount.currentBalance)}</Text>
-                </View>
-                {totalUpcomingIncome > 0 && (
+            <TourGuideZone
+              zone={4}
+              text="Here's exactly how we calculated your Available to Spend. We factor in your current balance, upcoming income and bills, safety cushion, and goal savings."
+              borderRadius={12}
+              maskOffset={4}
+              tooltipBottomOffset={180}
+            >
+              <View ref={(ref) => (zoneRefs.current[4] = ref)} style={styles.breakdownSection} collapsable={false}>
+                <Text style={styles.breakdownTitle}>How we calculated this</Text>
+                <View style={styles.breakdownRows}>
                   <View style={styles.breakdownRow}>
                     <View style={styles.breakdownLeft}>
-                      <View style={[styles.breakdownDot, { backgroundColor: brandColors.success }]} />
-                      <Text style={styles.breakdownLabel}>Upcoming Income</Text>
+                      <View style={[styles.breakdownDot, { backgroundColor: brandColors.tealPrimary }]} />
+                      <Text style={styles.breakdownLabel}>Current Balance</Text>
                     </View>
-                    <Text style={[styles.breakdownValue, styles.breakdownPositive]}>+{formatCurrency(totalUpcomingIncome)}</Text>
+                    <Text style={styles.breakdownValue}>{formatCurrency(selectedAccount.currentBalance)}</Text>
                   </View>
-                )}
-                <View style={styles.breakdownRow}>
-                  <View style={styles.breakdownLeft}>
-                    <View style={[styles.breakdownDot, { backgroundColor: brandColors.error }]} />
-                    <Text style={styles.breakdownLabel}>Upcoming Bills</Text>
+                  {totalUpcomingIncome > 0 && (
+                    <View style={styles.breakdownRow}>
+                      <View style={styles.breakdownLeft}>
+                        <View style={[styles.breakdownDot, { backgroundColor: brandColors.success }]} />
+                        <Text style={styles.breakdownLabel}>Upcoming Income</Text>
+                      </View>
+                      <Text style={[styles.breakdownValue, styles.breakdownPositive]}>+{formatCurrency(totalUpcomingIncome)}</Text>
+                    </View>
+                  )}
+                  <View style={styles.breakdownRow}>
+                    <View style={styles.breakdownLeft}>
+                      <View style={[styles.breakdownDot, { backgroundColor: brandColors.error }]} />
+                      <Text style={styles.breakdownLabel}>Upcoming Bills</Text>
+                    </View>
+                    <Text style={[styles.breakdownValue, styles.breakdownNegative]}>-{formatCurrency(totalUpcomingBills)}</Text>
                   </View>
-                  <Text style={[styles.breakdownValue, styles.breakdownNegative]}>-{formatCurrency(totalUpcomingBills)}</Text>
-                </View>
-                <View style={styles.breakdownRow}>
-                  <View style={styles.breakdownLeft}>
-                    <View style={[styles.breakdownDot, { backgroundColor: brandColors.orangeAccent }]} />
-                    <Text style={styles.breakdownLabel}>Safety Cushion</Text>
+                  <View style={styles.breakdownRow}>
+                    <View style={styles.breakdownLeft}>
+                      <View style={[styles.breakdownDot, { backgroundColor: brandColors.orangeAccent }]} />
+                      <Text style={styles.breakdownLabel}>Safety Cushion</Text>
+                    </View>
+                    <Text style={[styles.breakdownValue, styles.breakdownNegative]}>-{formatCurrency(selectedAccount.cushion)}</Text>
                   </View>
-                  <Text style={[styles.breakdownValue, styles.breakdownNegative]}>-{formatCurrency(selectedAccount.cushion)}</Text>
-                </View>
-                <View style={styles.breakdownRow}>
-                  <View style={styles.breakdownLeft}>
-                    <View style={[styles.breakdownDot, { backgroundColor: '#8B5CF6' }]} />
-                    <Text style={styles.breakdownLabel}>Goal Allocations</Text>
+                  <View style={styles.breakdownRow}>
+                    <View style={styles.breakdownLeft}>
+                      <View style={[styles.breakdownDot, { backgroundColor: '#8B5CF6' }]} />
+                      <Text style={styles.breakdownLabel}>Goal Allocations</Text>
+                    </View>
+                    <Text style={[styles.breakdownValue, styles.breakdownNegative]}>-{formatCurrency(selectedAccount.goalAllocations)}</Text>
                   </View>
-                  <Text style={[styles.breakdownValue, styles.breakdownNegative]}>-{formatCurrency(selectedAccount.goalAllocations)}</Text>
-                </View>
-                <View style={styles.breakdownDivider} />
-                <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownTotal}>Available to Spend</Text>
-                  <Text style={styles.breakdownTotalValue}>{formatCurrency(selectedAccount.availableToSpend)}</Text>
+                  <View style={styles.breakdownDivider} />
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownTotal}>Available to Spend</Text>
+                    <Text style={styles.breakdownTotalValue}>{formatCurrency(selectedAccount.availableToSpend)}</Text>
+                  </View>
                 </View>
               </View>
-            </View>
+            </TourGuideZone>
           </View>
         </View>
 
@@ -946,110 +1154,112 @@ export const DashboardConcept4 = () => {
                 <Text style={styles.seeAllLink}>View All</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.billsContainer}>
-              {upcomingBills.map((bill, index) => {
-                const categoryIcon = getCategoryIcon(bill.category, bill.type);
-                return (
-                  <View key={index} style={styles.billCard}>
-                    <View style={styles.billLeft}>
-                      <View style={[styles.billIconContainer, { backgroundColor: categoryIcon.color + '10' }]}>
-                        <Icon name={categoryIcon.icon} size={20} color={categoryIcon.color} />
+              <View style={styles.billsContainer}>
+                {upcomingBills.map((bill, index) => {
+                  const categoryIcon = getCategoryIcon(bill.category, bill.type);
+                  return (
+                    <View key={index} style={styles.billCard}>
+                      <View style={styles.billLeft}>
+                        <View style={[styles.billIconContainer, { backgroundColor: categoryIcon.color + '10' }]}>
+                          <Icon name={categoryIcon.icon} size={20} color={categoryIcon.color} />
+                        </View>
+                        <View style={styles.billInfo}>
+                          <Text style={styles.billName}>{bill.name}</Text>
+                          <Text style={styles.billDate}>Due {bill.date} • {bill.daysAway} days</Text>
+                        </View>
                       </View>
-                      <View style={styles.billInfo}>
-                        <Text style={styles.billName}>{bill.name}</Text>
-                        <Text style={styles.billDate}>Due {bill.date} • {bill.daysAway} days</Text>
+                      <View style={styles.billRight}>
+                        <Text style={styles.billAmount}>-{formatCurrency(bill.amount)}</Text>
                       </View>
                     </View>
-                    <View style={styles.billRight}>
-                      <Text style={styles.billAmount}>-{formatCurrency(bill.amount)}</Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
+                  );
+                })}
+              </View>
           </View>
         )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* EXPANDABLE FAB MENU */}
+      {/* FAB BACKDROP (outside tour zone) */}
       {fabExpanded && (
-        <>
-          <TouchableOpacity
-            style={styles.fabBackdrop}
-            onPress={() => setFabExpanded(false)}
-            activeOpacity={1}
-          />
-          <View style={styles.fabMenu}>
-            <TouchableOpacity
-              style={styles.fabMenuItem}
-              onPress={() => {
-                setFabExpanded(false);
-                setShowAddTransaction(true);
-              }}
-            >
-              <View style={styles.fabMenuButton}>
-                <Icon name="cash-plus" size={24} color={brandColors.white} />
-              </View>
-              <Text style={styles.fabMenuLabel}>Add Transaction</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.fabMenuItem}
-              onPress={handleAddAccountWithPlaid}
-            >
-              <View style={styles.fabMenuButton}>
-                <Icon name="bank-plus" size={24} color={brandColors.white} />
-              </View>
-              <Text style={styles.fabMenuLabel}>Connect Bank</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.fabMenuItem}
-              onPress={() => {
-                console.log('🔵 Manual Account button pressed');
-                setFabExpanded(false);
-                setShowManageAccount(true);
-                console.log('🔵 showManageAccount set to true');
-              }}
-            >
-              <View style={styles.fabMenuButton}>
-                <Icon name="bank" size={24} color={brandColors.white} />
-              </View>
-              <Text style={styles.fabMenuLabel}>Manual Account</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.fabMenuItem}
-              onPress={() => {
-                setFabExpanded(false);
-                setShowTransfer(true);
-              }}
-            >
-              <View style={styles.fabMenuButton}>
-                <Icon name="bank-transfer" size={24} color={brandColors.white} />
-              </View>
-              <Text style={styles.fabMenuLabel}>Transfer</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.fabMenuItem}
-              onPress={() => {
-                setFabExpanded(false);
-                setShowWhatIf(true);
-              }}
-            >
-              <View style={styles.fabMenuButton}>
-                <Icon name="lightbulb-on" size={24} color={brandColors.white} />
-              </View>
-              <Text style={styles.fabMenuLabel}>What If?</Text>
-            </TouchableOpacity>
-          </View>
-        </>
+        <TouchableOpacity
+          style={styles.fabBackdrop}
+          onPress={() => setFabExpanded(false)}
+          activeOpacity={1}
+        />
       )}
 
-      {/* MAIN FAB */}
+      {/* EXPANDABLE FAB MENU */}
+      {fabExpanded && (
+        <View style={styles.fabMenu}>
+          <TouchableOpacity
+            style={styles.fabMenuItem}
+            onPress={() => {
+              setFabExpanded(false);
+              setShowAddTransaction(true);
+            }}
+          >
+            <View style={styles.fabMenuButton}>
+              <Icon name="cash-plus" size={24} color={brandColors.white} />
+            </View>
+            <Text style={styles.fabMenuLabel}>Add Transaction</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.fabMenuItem}
+            onPress={handleAddAccountWithPlaid}
+          >
+            <View style={styles.fabMenuButton}>
+              <Icon name="bank-plus" size={24} color={brandColors.white} />
+            </View>
+            <Text style={styles.fabMenuLabel}>Connect Bank</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.fabMenuItem}
+            onPress={() => {
+              console.log('🔵 Manual Account button pressed');
+              setFabExpanded(false);
+              setShowManageAccount(true);
+              console.log('🔵 showManageAccount set to true');
+            }}
+          >
+            <View style={styles.fabMenuButton}>
+              <Icon name="bank" size={24} color={brandColors.white} />
+            </View>
+            <Text style={styles.fabMenuLabel}>Manual Account</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.fabMenuItem}
+            onPress={() => {
+              setFabExpanded(false);
+              setShowTransfer(true);
+            }}
+          >
+            <View style={styles.fabMenuButton}>
+              <Icon name="bank-transfer" size={24} color={brandColors.white} />
+            </View>
+            <Text style={styles.fabMenuLabel}>Transfer</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.fabMenuItem}
+            onPress={() => {
+              setFabExpanded(false);
+              setShowWhatIf(true);
+            }}
+          >
+            <View style={styles.fabMenuButton}>
+              <Icon name="lightbulb-on" size={24} color={brandColors.white} />
+            </View>
+            <Text style={styles.fabMenuLabel}>What If?</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* MAIN FAB - NO LONGER IN TOUR */}
       <TouchableOpacity
         style={styles.fab}
         onPress={() => setFabExpanded(!fabExpanded)}
@@ -1181,7 +1391,36 @@ export const DashboardConcept4 = () => {
           }}
         />
       )}
+
+      {/* ACCOUNT SETUP MODAL */}
+      <AccountSetupModal
+        visible={showAccountSetup}
+        onClose={() => setShowAccountSetup(false)}
+        onPlaidSelected={() => {
+          setShowAccountSetup(false);
+          handleAddAccountWithPlaid();
+        }}
+        onManualSelected={() => {
+          setShowAccountSetup(false);
+          setShowManageAccount(true);
+        }}
+      />
     </View>
+  );
+};
+
+// Export wrapper with TourGuideProvider
+export const DashboardConcept4 = () => {
+  return (
+    <TourGuideProvider
+      borderRadius={16}
+      androidStatusBarVisible={true}
+      preventOutsideInteraction={false}
+      verticalOffset={0}
+      backdropColor="rgba(0, 0, 0, 0.7)"
+    >
+      <DashboardContent />
+    </TourGuideProvider>
   );
 };
 
@@ -1344,6 +1583,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: brandColors.white,
   },
+  debugButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: brandColors.tealPrimary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
   // Guest Mode Banner
   guestBanner: {
@@ -1353,7 +1600,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 14,
+    padding: 16,
     marginHorizontal: 20,
     marginTop: 16,
     borderRadius: 12,
@@ -1361,23 +1608,34 @@ const styles = StyleSheet.create({
   guestBannerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     flex: 1,
   },
-  guestBannerText: {
-    fontSize: 14,
-    fontWeight: '600',
+  guestBannerTextContainer: {
+    flex: 1,
+  },
+  guestBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
     color: brandColors.textDark,
-    flex: 1,
+    marginBottom: 2,
   },
-  guestBannerButton: {
+  guestBannerSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: brandColors.textGray,
+  },
+  getStartedButton: {
     backgroundColor: brandColors.orangeAccent,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  guestBannerButtonText: {
-    fontSize: 13,
+  getStartedButtonText: {
+    fontSize: 14,
     fontWeight: '700',
     color: brandColors.white,
   },
