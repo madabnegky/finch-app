@@ -48,18 +48,10 @@ android {
             keyPassword 'android'
         }
         release {
-            if (keystorePropertiesFile.exists()) {
-                keyAlias keystoreProperties['keyAlias']
-                keyPassword keystoreProperties['keyPassword']
-                storeFile file(keystoreProperties['storeFile'])
-                storePassword keystoreProperties['storePassword']
-            } else {
-                // Fallback to debug keystore if release keystore not configured
-                storeFile file('debug.keystore')
-                storePassword 'android'
-                keyAlias 'androiddebugkey'
-                keyPassword 'android'
-            }
+            storeFile file('finch-release.keystore')
+            storePassword 'FinchSecure2025!'
+            keyAlias 'finch-release-key'
+            keyPassword 'FinchSecure2025!'
         }
     }
     buildTypes {
