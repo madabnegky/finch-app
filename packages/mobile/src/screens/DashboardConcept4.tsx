@@ -924,12 +924,22 @@ const DashboardContent = () => {
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
-              <TouchableOpacity
-                style={styles.menuButton}
-                onPress={() => (navigation as any).openDrawer()}
+              <TourGuideZone
+                zone={4}
+                text="Tap the menu icon (☰) to access Goals, Calendar, Reports, and Settings. Goals let you set aside money for future expenses!"
+                shape="circle"
+                borderRadius={24}
+                maskOffset={4}
               >
-                <Icon name="menu" size={24} color={brandColors.textDark} />
-              </TouchableOpacity>
+                <TouchableOpacity
+                  ref={(ref) => (zoneRefs.current[4] = ref)}
+                  style={styles.menuButton}
+                  onPress={() => (navigation as any).openDrawer()}
+                  collapsable={false}
+                >
+                  <Icon name="menu" size={24} color={brandColors.textDark} />
+                </TouchableOpacity>
+              </TourGuideZone>
               <View style={styles.logoContainer}>
                 <FinchLogo size={32} />
               </View>
@@ -1071,7 +1081,18 @@ const DashboardContent = () => {
                     <Text style={styles.accountSelectorName}>{selectedAccount.name}</Text>
                   </View>
                 </View>
-                <Icon name="chevron-down" size={20} color={brandColors.textGray} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowManageAccount(true);
+                    }}
+                    style={{ padding: 4 }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Icon name="pencil" size={18} color={brandColors.tealPrimary} />
+                  </TouchableOpacity>
+                  <Icon name="chevron-down" size={20} color={brandColors.textGray} />
+                </View>
               </TouchableOpacity>
             </TourGuideZone>
 
@@ -1423,7 +1444,7 @@ const DashboardContent = () => {
           console.log('Account saved successfully!');
         }}
         onAccountCreated={handleFirstAccountCreated}
-        account={null}
+        account={selectedAccount}
       />
 
       {/* TRANSFER MODAL */}

@@ -57,6 +57,9 @@ function mapPlaidCategoryToFinch(plaidCategories) {
     'healthcare': 'Health',
     'medical': 'Health',
 
+    // Insurance
+    'insurance': 'Insurance',
+
     // Entertainment
     'recreation': 'Entertainment',
     'entertainment': 'Entertainment',

@@ -25,6 +25,7 @@ const EXPENSE_CATEGORIES = [
   'Groceries',
   'Shopping',
   'Health',
+  'Insurance',
   'Subscriptions',
   'Utilities',
   'Personal Care',
