@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finch - Privacy Policy</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #2C3E50;
+            background-color: #FFFFFF;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .header {
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #00897B;
+        }
+
+        h1 {
+            font-size: 36px;
+            color: #00695C;
+            margin-bottom: 10px;
+        }
+
+        .last-updated {
+            font-size: 14px;
+            color: #757575;
+            font-style: italic;
+        }
+
+        h2 {
+            font-size: 24px;
+            color: #00695C;
+            margin-top: 32px;
+            margin-bottom: 16px;
+        }
+
+        h3 {
+            font-size: 18px;
+            color: #00897B;
+            margin-top: 20px;
+            margin-bottom: 12px;
+        }
+
+        p {
+            margin-bottom: 16px;
+            font-size: 16px;
+        }
+
+        ul {
+            margin: 16px 0 16px 20px;
+        }
+
+        li {
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        .bold {
+            font-weight: bold;
+            color: #00695C;
+        }
+
+        .footer {
+            margin-top: 48px;
+            padding-top: 24px;
+            border-top: 1px solid #E0E0E0;
+            text-align: center;
+        }
+
+        .footer p {
+            font-size: 14px;
+            color: #757575;
+            font-style: italic;
+        }
+
+        a {
+            color: #00897B;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Privacy Policy</h1>
+            <p class="last-updated">Last Updated: January 2025</p>
+        </div>
+
+        <section>
+            <h2>1. Introduction</h2>
+            <p>
+                Finch ("we," "our," or "us") is committed to protecting your privacy. This Privacy
+                Policy explains how we collect, use, disclose, and safeguard your information when
+                you use our mobile application (the "App").
+            </p>
+            <p>
+                Please read this Privacy Policy carefully. By using the App, you agree to the
+                collection and use of information in accordance with this policy.
+            </p>
+        </section>
+
+        <section>
+            <h2>2. Information We Collect</h2>
+
+            <h3>2.1 Personal Information</h3>
+            <p>When you register for an account, we collect:</p>
+            <ul>
+                <li>Email address</li>
+                <li>Name (if provided)</li>
+                <li>Profile information (if provided)</li>
+            </ul>
+
+            <h3>2.2 Financial Information</h3>
+            <p>When you connect your bank accounts through Plaid:</p>
+            <ul>
+                <li>Bank account information (account numbers, balances)</li>
+                <li>Transaction history</li>
+                <li>Account holder information</li>
+            </ul>
+            <p>
+                Note: We use Plaid for secure bank connections. Plaid encrypts your banking
+                credentials and we never have direct access to your banking passwords.
+            </p>
+
+            <h3>2.3 Usage Information</h3>
+            <ul>
+                <li>App interaction data</li>
+                <li>Device information (model, OS version)</li>
+                <li>Crash reports and performance data</li>
+                <li>Push notification tokens</li>
+            </ul>
+
+            <h3>2.4 Budget and Financial Data</h3>
+            <ul>
+                <li>Budget categories and amounts</li>
+                <li>Financial goals</li>
+                <li>Spending patterns and analytics</li>
+                <li>Custom categories and tags</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>3. How We Use Your Information</h2>
+            <p>We use your information to:</p>
+            <ul>
+                <li>Provide and maintain our budgeting services</li>
+                <li>Sync your financial data across devices</li>
+                <li>Send you transaction notifications and budget alerts</li>
+                <li>Analyze spending patterns and provide insights</li>
+                <li>Improve app functionality and user experience</li>
+                <li>Detect and prevent fraud or security issues</li>
+                <li>Comply with legal obligations</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>4. Data Storage and Security</h2>
+            <p>
+                <span class="bold">Firebase Cloud Services:</span> Your data is stored securely in Google
+                Firebase Cloud Firestore with industry-standard encryption at rest and in transit.
+            </p>
+            <p><span class="bold">Security Measures:</span></p>
+            <ul>
+                <li>End-to-end encryption for sensitive data</li>
+                <li>Secure authentication via Firebase Auth</li>
+                <li>Automatic session timeout after 15 minutes of inactivity</li>
+                <li>Regular security audits and updates</li>
+                <li>Code obfuscation in production releases</li>
+            </ul>
+            <p>
+                While we implement robust security measures, no method of transmission over the
+                internet is 100% secure. We cannot guarantee absolute security.
+            </p>
+        </section>
+
+        <section>
+            <h2>5. Third-Party Services</h2>
+
+            <h3>5.1 Plaid</h3>
+            <p>
+                We use Plaid to securely connect to your bank accounts. Plaid's privacy policy
+                governs their handling of your banking credentials:
+                <a href="https://plaid.com/legal/#consumers" target="_blank">https://plaid.com/legal/#consumers</a>
+            </p>
+
+            <h3>5.2 Google Firebase</h3>
+            <p>
+                We use Firebase for authentication, cloud storage, push notifications, and
+                analytics. Google's privacy policy applies:
+                <a href="https://policies.google.com/privacy" target="_blank">https://policies.google.com/privacy</a>
+            </p>
+
+            <h3>5.3 Firebase Crashlytics</h3>
+            <p>
+                We use Crashlytics to monitor app crashes and improve stability. Crash reports
+                may include device information but no personal financial data.
+            </p>
+        </section>
+
+        <section>
+            <h2>6. Data Sharing and Disclosure</h2>
+            <p><span class="bold">We do not sell your personal information.</span></p>
+            <p>We may share your information only in these limited circumstances:</p>
+            <ul>
+                <li>With your explicit consent</li>
+                <li>With service providers (Firebase, Plaid) who assist in providing our services</li>
+                <li>To comply with legal obligations or court orders</li>
+                <li>To protect our rights, property, or safety, or that of our users</li>
+                <li>In connection with a business transfer (merger, acquisition, bankruptcy)</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>7. Your Rights and Choices</h2>
+
+            <h3>7.1 Access and Correction</h3>
+            <p>
+                You can access and update your personal information in the Settings section of the app.
+            </p>
+
+            <h3>7.2 Data Deletion</h3>
+            <p>
+                You have the right to request deletion of your account and all associated data.
+                To delete your account:
+            </p>
+            <ol>
+                <li>Go to Settings → Account</li>
+                <li>Tap "Delete Account"</li>
+                <li>Confirm deletion</li>
+            </ol>
+            <p>
+                This will permanently delete all your financial data, budgets, and transaction
+                history. This action cannot be undone.
+            </p>
+
+            <h3>7.3 Opt-Out of Notifications</h3>
+            <p>
+                You can disable push notifications in the app settings or your device settings.
+            </p>
+
+            <h3>7.4 Data Portability</h3>
+            <p>
+                You can export your data in CSV format from the Settings section.
+            </p>
+        </section>
+
+        <section>
+            <h2>8. Data Retention</h2>
+            <p>
+                We retain your information for as long as your account is active or as needed to
+                provide you services. When you delete your account, we will delete your personal
+                and financial data within 30 days, except where we are required to retain it for
+                legal, regulatory, or security purposes.
+            </p>
+        </section>
+
+        <section>
+            <h2>9. Children's Privacy</h2>
+            <p>
+                Our App is not intended for children under 13 years of age. We do not knowingly
+                collect personal information from children under 13. If you believe we have
+                collected information from a child under 13, please contact us immediately.
+            </p>
+        </section>
+
+        <section>
+            <h2>10. International Users</h2>
+            <p>
+                Your information may be transferred to and processed in countries other than your
+                country of residence. These countries may have data protection laws different from
+                your country. By using the App, you consent to such transfers.
+            </p>
+        </section>
+
+        <section>
+            <h2>11. Changes to This Privacy Policy</h2>
+            <p>
+                We may update this Privacy Policy from time to time. We will notify you of any
+                changes by posting the new Privacy Policy in the app and updating the "Last Updated"
+                date. You are advised to review this Privacy Policy periodically for any changes.
+            </p>
+        </section>
+
+        <section>
+            <h2>12. Contact Us</h2>
+            <p>
+                If you have questions about this Privacy Policy or our data practices, please contact us:
+            </p>
+            <ul>
+                <li>Email: privacy@finchapp.com</li>
+                <li>In-App: Settings → Help & Support → Contact Us</li>
+            </ul>
+        </section>
+
+        <div class="footer">
+            <p>
+                By using Finch, you acknowledge that you have read and understood this Privacy Policy.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
