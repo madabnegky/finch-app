@@ -9,7 +9,9 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import firestore from '@react-native-firebase/firestore';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import { brandColors } from '../theme/colors';
@@ -30,7 +32,8 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
   const { user } = useAuth();
   const [name, setName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
-  const [deadline, setDeadline] = useState('');
+  const [deadline, setDeadline] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -55,8 +58,7 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
 
     // Validate deadline if provided
     if (deadline) {
-      const deadlineDate = new Date(deadline);
-      const dateValidation = validateDate(deadlineDate, {
+      const dateValidation = validateDate(deadline, {
         allowPast: false,
         allowFuture: true,
         fieldName: 'Deadline',
@@ -81,7 +83,7 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
       };
 
       if (deadline) {
-        goalData.deadline = firestore.Timestamp.fromDate(new Date(deadline));
+        goalData.deadline = firestore.Timestamp.fromDate(deadline);
       }
 
       await firestore()
@@ -91,7 +93,7 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
       // Reset form
       setName('');
       setTargetAmount('');
-      setDeadline('');
+      setDeadline(null);
 
       Alert.alert('Success', 'Goal added successfully');
       onSuccess?.();
@@ -142,13 +144,38 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
             />
 
             <Text style={styles.label}>Deadline (Optional)</Text>
-            <TextInput
-              style={styles.input}
-              value={deadline}
-              onChangeText={setDeadline}
-              placeholder="YYYY-MM-DD (e.g., 2025-12-31)"
-              placeholderTextColor={brandColors.textGray}
-            />
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={styles.dateButtonText}>
+                {deadline
+                  ? deadline.toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })
+                  : 'Select deadline date'}
+              </Text>
+              <Text style={styles.dateButtonIcon}>📅</Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                testID="deadlineDatePicker"
+                value={deadline || new Date()}
+                mode="date"
+                is24Hour={true}
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                minimumDate={new Date()}
+                onChange={(event, selectedDate) => {
+                  setShowDatePicker(Platform.OS === 'ios');
+                  if (event.type === 'set' && selectedDate) {
+                    setDeadline(selectedDate);
+                  }
+                }}
+              />
+            )}
 
             <Text style={styles.helperText}>
               Set a target date to help track your progress and stay motivated
@@ -235,6 +262,26 @@ const styles = StyleSheet.create({
     color: brandColors.textGray,
     marginTop: 4,
     fontStyle: 'italic',
+  },
+  dateButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: brandColors.white,
+    borderWidth: 1,
+    borderColor: brandColors.lightGray,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  dateButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: brandColors.textDark,
+  },
+  dateButtonIcon: {
+    fontSize: 20,
   },
   footer: {
     flexDirection: 'row',
