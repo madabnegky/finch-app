@@ -1,1 +1,6 @@
 node_modules
+
+# Android keystore and secrets
+packages/mobile/android/keystore.properties
+packages/mobile/android/app/*.keystore
+*.jks

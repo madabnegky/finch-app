@@ -327,9 +327,6 @@ export const GoalsScreen = () => {
               <Text style={styles.headerSubtitle}>Save for Your Future</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.headerButton}>
-            <Icon name="information-outline" size={24} color={brandColors.textDark} />
-          </TouchableOpacity>
         </View>
       </View>
 

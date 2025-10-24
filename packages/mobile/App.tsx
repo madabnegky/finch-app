@@ -244,6 +244,30 @@ function App(): React.JSX.Element {
       <TourGuideProvider
         androidStatusBarVisible={true}
         backdropColor="rgba(0, 0, 0, 0.8)"
+        tooltipStyle={{
+          backgroundColor: brandColors.tealPrimary,
+          borderRadius: 12,
+          paddingTop: 24,
+          paddingBottom: 24,
+          paddingLeft: 20,
+          paddingRight: 20,
+        }}
+        tooltipTextStyle={{
+          color: brandColors.white,
+          fontSize: 16,
+          lineHeight: 24,
+          textAlign: 'center',
+        }}
+        stepNumberStyle={{
+          backgroundColor: brandColors.white,
+          borderColor: brandColors.white,
+        }}
+        stepNumberTextStyle={{
+          color: brandColors.tealPrimary,
+          fontSize: 14,
+          fontWeight: 'bold',
+        }}
+        arrowColor={brandColors.tealPrimary}
       >
         <AuthProvider>
           <AppNavigator />
