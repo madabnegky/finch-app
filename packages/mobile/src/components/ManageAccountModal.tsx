@@ -84,8 +84,12 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
       return;
     }
 
+    // Clean commas before parsing (parseFloat stops at commas, so "1,000" becomes 1)
+    const cleanBalance = balance.replace(/,/g, '').replace(/[^\d.-]/g, '');
+    const cleanCushion = cushion.replace(/,/g, '').replace(/[^\d.]/g, '');
+
     // Validate cushion if provided
-    const cushionValue = cushion ? parseFloat(cushion) : 0;
+    const cushionValue = cushion ? parseFloat(cleanCushion) : 0;
     if (cushion) {
       const cushionValidation = validateAmount(cushion, {
         min: 0,
@@ -105,7 +109,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
       const accountData = {
         name: name.trim(),
         type,
-        currentBalance: parseFloat(balance),
+        currentBalance: parseFloat(cleanBalance),
         cushion: cushionValue || 0,
         ...(isEditMode ? {} : { createdAt: firestore.FieldValue.serverTimestamp() }),
       };
