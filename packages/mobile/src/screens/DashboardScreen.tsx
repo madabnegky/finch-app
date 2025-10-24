@@ -15,6 +15,10 @@ import { usePlaidLink } from '../components/PlaidLinkHandler';
 import { generateTransactionInstances } from '../utils/transactionInstances';
 import brandColors from '../theme/colors';
 import functions from '@react-native-firebase/functions';
+import {
+  getUserPreferences,
+  updateUserPreferences
+} from '../services/userPreferencesService';
 
 type Account = {
   id: string;
@@ -39,8 +43,12 @@ type Transaction = {
 };
 
 export const DashboardScreen = () => {
+  console.log('🚨🚨🚨 DashboardScreen LOADED - NEW CODE VERSION 2.0 🚨🚨🚨');
+  console.log('🚨🚨🚨 DashboardScreen LOADED - NEW CODE VERSION 2.0 🚨🚨🚨');
+  console.log('🚨🚨🚨 DashboardScreen LOADED - NEW CODE VERSION 2.0 🚨🚨🚨');
+  console.log('🔥🔥🔥 THIS IS THE NEW CODE - TIMESTAMP: ' + new Date().toISOString() + ' 🔥🔥🔥');
   const navigation = useNavigation();
-  const { user, signOut } = useAuth();
+  const { user, signOut, linkAccountWithEmail, linkAccountWithGoogle } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +56,7 @@ export const DashboardScreen = () => {
   const [showManageAccount, setShowManageAccount] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [showWhatIf, setShowWhatIf] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [fabExpanded, setFabExpanded] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -60,6 +69,10 @@ export const DashboardScreen = () => {
   const [plaidLoading, setPlaidLoading] = useState(false);
   const [showPlaidPicker, setShowPlaidPicker] = useState(false);
   const [plaidData, setPlaidData] = useState<any>(null);
+
+  // Tour Guide controller
+  const { canStart, start, stop, eventEmitter } = useTourGuideController();
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(true); // Default true to prevent flash
 
   // Fetch accounts and transactions from Firebase
   useEffect(() => {
@@ -116,7 +129,67 @@ export const DashboardScreen = () => {
     };
   }, [user]);
 
-  // TODO: Implement better onboarding with rn-tourguide
+  // Check onboarding status and start tour if needed
+  useEffect(() => {
+    if (!user || loading) return;
+
+    const checkOnboarding = async () => {
+      try {
+        const preferences = await getUserPreferences();
+        console.log('🎯 Onboarding status:', {
+          hasCompleted: preferences.hasCompletedOnboarding,
+          canStart,
+          user: user.uid
+        });
+        setHasCompletedOnboarding(preferences.hasCompletedOnboarding);
+
+        // Start tour after a short delay if not completed
+        if (!preferences.hasCompletedOnboarding && canStart) {
+          console.log('🚀 Starting onboarding tour in 1 second...');
+          setTimeout(() => {
+            console.log('🎬 Calling start() now...');
+            start();
+          }, 1000);
+        } else {
+          console.log('⏭️ Skipping tour:', {
+            hasCompleted: preferences.hasCompletedOnboarding,
+            canStart
+          });
+        }
+      } catch (error) {
+        console.error('❌ Error checking onboarding status:', error);
+      }
+    };
+
+    checkOnboarding();
+  }, [user, loading, canStart]);
+
+  // Handle tour completion
+  useEffect(() => {
+    if (!eventEmitter) return;
+
+    const onTourFinish = async () => {
+      console.log('✅ Onboarding tour completed!');
+      try {
+        await updateUserPreferences({ hasCompletedOnboarding: true });
+        setHasCompletedOnboarding(true);
+      } catch (error) {
+        console.error('Error saving onboarding completion:', error);
+      }
+    };
+
+    const onTourStop = () => {
+      console.log('⏸️ Onboarding tour stopped');
+    };
+
+    eventEmitter.on('stop', onTourFinish);
+    eventEmitter.on('stepChange', onTourStop);
+
+    return () => {
+      eventEmitter.off('stop', onTourFinish);
+      eventEmitter.off('stepChange', onTourStop);
+    };
+  }, [eventEmitter]);
 
 
   // Plaid handlers
@@ -553,11 +626,37 @@ export const DashboardScreen = () => {
     <View style={styles.container}>
       <ScrollView style={styles.scrollView}>
       {/* Welcome Message */}
-      <View style={styles.welcomeContainer}>
-        <Text style={styles.welcomeText}>Welcome to Finch</Text>
-        <Text style={styles.welcomeSubtext}>
-          {user?.isAnonymous ? 'Guest Mode' : 'Manage your finances with ease'}
-        </Text>
+      <TourGuideZone
+        zone={2}
+        text="Tap the menu icon (☰) at the top left to access Goals, Calendar, Reports, and Settings. Goals let you set aside money for future expenses!"
+        shape="rectangle"
+      >
+        <View style={styles.welcomeContainer}>
+          <Text style={styles.welcomeText}>Welcome to Finch</Text>
+          <Text style={styles.welcomeSubtext}>
+            {user?.isAnonymous ? 'Guest Mode' : 'Manage your finances with ease'}
+          </Text>
+        </View>
+      </TourGuideZone>
+
+      {/* DEBUG: Tour Test Button - ALWAYS VISIBLE */}
+      <View style={{ padding: 20, backgroundColor: '#f0f0f0', margin: 10 }}>
+        <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 10 }}>DEBUG MODE</Text>
+        <TouchableOpacity
+          style={{ padding: 15, backgroundColor: brandColors.tealPrimary, borderRadius: 8 }}
+          onPress={() => {
+            console.log('🎯 Manual tour start button pressed. canStart:', canStart);
+            if (canStart) {
+              console.log('✅ Starting tour manually...');
+              start();
+            } else {
+              console.log('❌ Cannot start tour - canStart is false');
+              Alert.alert('Tour Not Ready', 'The tour cannot start yet. canStart is false.');
+            }
+          }}
+        >
+          <Text style={{ color: 'white', textAlign: 'center', fontSize: 16, fontWeight: 'bold' }}>START TOUR (DEBUG)</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Guest Mode Upgrade Prompt - Moved to top */}
@@ -569,7 +668,7 @@ export const DashboardScreen = () => {
           </Text>
           <TouchableOpacity
             style={styles.upgradeButton}
-            onPress={() => Alert.alert('Coming Soon', 'Account upgrade will be added soon!')}
+            onPress={() => setShowUpgradeModal(true)}
           >
             <Text style={styles.upgradeButtonText}>Create Account</Text>
           </TouchableOpacity>
@@ -577,10 +676,15 @@ export const DashboardScreen = () => {
       )}
 
       {/* 60-Day Outlook */}
-      <View style={styles.outlookCard}>
-        <Text style={styles.outlookTitle}>60-Day Outlook</Text>
-        <Text style={styles.outlookSubtitle}>Aggregated across all accounts</Text>
-        <View style={styles.outlookStats}>
+      <TourGuideZone
+        zone={1}
+        text="This is your 60-day financial outlook. It shows when you'll have money available and warns you about upcoming tight periods."
+        shape="rectangle"
+      >
+        <View style={styles.outlookCard}>
+          <Text style={styles.outlookTitle}>60-Day Outlook</Text>
+          <Text style={styles.outlookSubtitle}>Aggregated across all accounts</Text>
+          <View style={styles.outlookStats}>
           <View style={styles.outlookStat}>
             <Text style={styles.outlookLabel}>Current Balance</Text>
             <Text style={styles.outlookValue}>{formatCurrency(outlook.currentBalance)}</Text>
@@ -599,6 +703,7 @@ export const DashboardScreen = () => {
           </View>
         </View>
       </View>
+      </TourGuideZone>
 
       {/* Simulation Banner */}
       {whatIfTransaction && (() => {
@@ -651,8 +756,8 @@ export const DashboardScreen = () => {
       {accountsWithProjections.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Accounts</Text>
-          {accountsWithProjections.map((account) => (
-            <View key={account.id} style={styles.accountCard}>
+            {accountsWithProjections.map((account) => (
+              <View key={account.id} style={styles.accountCard}>
               <View style={styles.accountHeader}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.accountName}>{account.name}</Text>
@@ -825,6 +930,80 @@ export const DashboardScreen = () => {
         }}
       />
 
+      {/* Guest Account Upgrade Modal */}
+      {showUpgradeModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.upgradeModalContent}>
+              <Icon name="account-check" size={64} color={brandColors.tealPrimary} />
+              <Text style={styles.upgradeModalTitle}>Save Your Data</Text>
+              <Text style={styles.upgradeModalMessage}>
+                Create a permanent account to save your financial data across devices.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.upgradeMethodButton}
+                onPress={async () => {
+                  try {
+                    await linkAccountWithGoogle();
+                    setShowUpgradeModal(false);
+                    Alert.alert('Success!', 'Your account has been upgraded! All your data is now saved.');
+                  } catch (error: any) {
+                    Alert.alert('Error', error.message || 'Failed to link with Google. Please try again.');
+                  }
+                }}
+              >
+                <Icon name="google" size={24} color="#EA4335" style={styles.upgradeMethodIcon} />
+                <View style={styles.upgradeMethodText}>
+                  <Text style={styles.upgradeMethodTitle}>Continue with Google</Text>
+                  <Text style={styles.upgradeMethodSubtitle}>Quick and secure</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.upgradeMethodButton}
+                onPress={() => {
+                  setShowUpgradeModal(false);
+                  Alert.prompt(
+                    'Create Account',
+                    'Enter your email and password to create a permanent account.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Create', onPress: async (email?: string, password?: string) => {
+                        if (!email || !password) {
+                          Alert.alert('Error', 'Please enter both email and password.');
+                          return;
+                        }
+                        try {
+                          await linkAccountWithEmail(email, password);
+                          Alert.alert('Success!', 'Your account has been created! All your data is now saved.');
+                        } catch (error: any) {
+                          Alert.alert('Error', error.message || 'Failed to create account. Please try again.');
+                        }
+                      }},
+                    ],
+                    'plain-text'
+                  );
+                }}
+              >
+                <Icon name="email" size={24} color={brandColors.tealPrimary} style={styles.upgradeMethodIcon} />
+                <View style={styles.upgradeMethodText}>
+                  <Text style={styles.upgradeMethodTitle}>Create with Email</Text>
+                  <Text style={styles.upgradeMethodSubtitle}>Use your email address</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.upgradeCancelButton}
+                onPress={() => setShowUpgradeModal(false)}
+              >
+                <Text style={styles.upgradeCancelButtonText}>Maybe Later</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* Delete Account Confirmation Modal */}
       {accountToDelete && (
         <View style={styles.modalOverlay}>
@@ -943,18 +1122,22 @@ export const DashboardScreen = () => {
       )}
 
       {/* Main FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setFabExpanded(!fabExpanded)}
+      <TourGuideZone
+        zone={3}
+        text="Tap this button to add transactions, connect bank accounts via Plaid, create manual accounts, transfer money between accounts, or run 'What If?' scenarios."
+        shape="circle"
       >
-        <Icon
-          name={fabExpanded ? 'close' : 'plus'}
-          size={28}
-          color={brandColors.white}
-        />
-      </TouchableOpacity>
-
-      {/* TODO: Add rn-tourguide onboarding here */}
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setFabExpanded(!fabExpanded)}
+        >
+          <Icon
+            name={fabExpanded ? 'close' : 'plus'}
+            size={28}
+            color={brandColors.white}
+          />
+        </TouchableOpacity>
+      </TourGuideZone>
 
       {/* Plaid Account Picker - shown after Plaid success */}
       {plaidData && (
@@ -1463,5 +1646,65 @@ const styles = StyleSheet.create({
     color: brandColors.white,
     fontWeight: '600',
     marginTop: 4,
+  },
+  // Upgrade Modal Styles
+  upgradeModalContent: {
+    backgroundColor: brandColors.white,
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    maxWidth: 400,
+    width: '100%',
+  },
+  upgradeModalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: brandColors.textDark,
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  upgradeModalMessage: {
+    fontSize: 16,
+    color: brandColors.textGray,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  upgradeMethodButton: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: brandColors.backgroundOffWhite,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: brandColors.border,
+  },
+  upgradeMethodIcon: {
+    marginRight: 16,
+  },
+  upgradeMethodText: {
+    flex: 1,
+  },
+  upgradeMethodTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: brandColors.textDark,
+    marginBottom: 2,
+  },
+  upgradeMethodSubtitle: {
+    fontSize: 14,
+    color: brandColors.textGray,
+  },
+  upgradeCancelButton: {
+    marginTop: 8,
+    padding: 12,
+  },
+  upgradeCancelButtonText: {
+    fontSize: 16,
+    color: brandColors.textGray,
+    textAlign: 'center',
   },
 });
