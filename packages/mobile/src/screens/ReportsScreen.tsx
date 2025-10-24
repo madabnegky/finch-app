@@ -16,10 +16,12 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Modal,
+  Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import firestore from '@react-native-firebase/firestore';
+import { LineChart } from 'react-native-chart-kit';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import FinchLogo from '../components/FinchLogo';
 import brandColors from '../theme/colors';
@@ -42,17 +44,28 @@ const DATE_RANGES = [
 ];
 
 const CATEGORY_COLORS: { [key: string]: string } = {
-  'Food & Dining': '#EF4444',
-  'Shopping': '#8B5CF6',
-  'Transportation': '#3A6B82',
-  'Bills & Utilities': '#F5A52D',
-  'Entertainment': '#EC4899',
-  'Healthcare': '#10B981',
-  'Travel': '#06B6D4',
-  'Personal': '#F97316',
-  'Education': '#14B8A6',
-  'Other': '#6B7280',
-  'Uncategorized': '#9CA3AF',
+  // Distinct, vibrant colors for line chart visibility
+  'Housing': '#FF6B35',        // Bright Orange
+  'Transportation': '#004E89',  // Deep Blue
+  'Food': '#F72585',           // Hot Pink
+  'Groceries': '#7209B7',      // Purple
+  'Shopping': '#3A0CA3',       // Deep Purple
+  'Health': '#4CC9F0',         // Cyan
+  'Insurance': '#F77F00',      // Dark Orange
+  'Subscriptions': '#06FFA5',  // Mint Green
+  'Utilities': '#FFD60A',      // Yellow
+  'Personal Care': '#FB5607',  // Red-Orange
+  'Travel': '#8338EC',         // Violet
+  'Gifts & Donations': '#06D6A0', // Teal
+  'Entertainment': '#EC4899',  // Magenta
+  'Uncategorized': '#9CA3AF',  // Gray
+  // Legacy mappings
+  'Food & Dining': '#F72585',
+  'Bills & Utilities': '#FFD60A',
+  'Healthcare': '#4CC9F0',
+  'Education': '#3A0CA3',
+  'Personal': '#FB5607',
+  'Other': '#9CA3AF',
 };
 
 export const ReportsScreen: React.FC = () => {
@@ -62,6 +75,7 @@ export const ReportsScreen: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [dateRange, setDateRange] = useState<DateRange>('30days');
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user) return;
@@ -147,6 +161,29 @@ export const ReportsScreen: React.FC = () => {
       .sort((a, b) => b.amount - a.amount);
   };
 
+  // Calculate spending by category over time
+  const getCategoryTrends = () => {
+    const categoryByMonth: { [monthKey: string]: { [category: string]: number } } = {};
+
+    transactions.forEach((txn) => {
+      if (txn.type !== 'expense') return;
+
+      const txnDate = txn.date.toDate ? txn.date.toDate() : new Date(txn.date);
+      const monthKey = `${txnDate.getFullYear()}-${String(txnDate.getMonth() + 1).padStart(2, '0')}`;
+      const category = txn.category || 'Uncategorized';
+
+      if (!categoryByMonth[monthKey]) {
+        categoryByMonth[monthKey] = {};
+      }
+
+      categoryByMonth[monthKey][category] = (categoryByMonth[monthKey][category] || 0) + Math.abs(txn.amount);
+    });
+
+    return Object.entries(categoryByMonth)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-6); // Last 6 months
+  };
+
   // Calculate income vs expenses trend (simplified monthly)
   const getMonthlyTrend = () => {
     const monthlyData: { [key: string]: { income: number; expenses: number } } = {};
@@ -171,8 +208,20 @@ export const ReportsScreen: React.FC = () => {
       .slice(-6); // Last 6 months
   };
 
+  // Toggle category selection
+  const toggleCategory = (category: string) => {
+    const newSelected = new Set(selectedCategories);
+    if (newSelected.has(category)) {
+      newSelected.delete(category);
+    } else {
+      newSelected.add(category);
+    }
+    setSelectedCategories(newSelected);
+  };
+
   const { totalIncome, totalExpenses, netSavings } = getKeyMetrics();
   const categoryData = getSpendingByCategory();
+  const categoryTrends = getCategoryTrends();
   const monthlyTrend = getMonthlyTrend();
   const totalSpending = categoryData.reduce((sum, cat) => sum + cat.amount, 0);
 
@@ -226,27 +275,24 @@ export const ReportsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* KEY METRICS CARDS */}
+        {/* KEY METRICS CARDS - Compact row layout */}
         <View style={styles.section}>
-          <View style={styles.metricsRow}>
-            <View style={[styles.metricCard, { borderLeftColor: brandColors.success }]}>
-              <Icon name="trending-up" size={20} color={brandColors.success} />
-              <Text style={styles.metricLabel}>TOTAL INCOME</Text>
-              <Text style={[styles.metricValue, { color: brandColors.success }]}>
+          <View style={styles.metricsRowCompact}>
+            <View style={[styles.metricCardCompact, { borderLeftColor: brandColors.success }]}>
+              <Text style={styles.metricLabelCompact}>Total Income</Text>
+              <Text style={[styles.metricValueCompact, { color: brandColors.success }]}>
                 {formatCurrency(totalIncome)}
               </Text>
             </View>
-            <View style={[styles.metricCard, { borderLeftColor: brandColors.error }]}>
-              <Icon name="trending-down" size={20} color={brandColors.error} />
-              <Text style={styles.metricLabel}>TOTAL EXPENSES</Text>
-              <Text style={[styles.metricValue, { color: brandColors.error }]}>
+            <View style={[styles.metricCardCompact, { borderLeftColor: brandColors.error }]}>
+              <Text style={styles.metricLabelCompact}>Total Expenses</Text>
+              <Text style={[styles.metricValueCompact, { color: brandColors.error }]}>
                 {formatCurrency(totalExpenses)}
               </Text>
             </View>
-            <View style={[styles.metricCard, { borderLeftColor: brandColors.tealPrimary }]}>
-              <Icon name="wallet" size={20} color={brandColors.tealPrimary} />
-              <Text style={styles.metricLabel}>NET SAVINGS</Text>
-              <Text style={[styles.metricValue, { color: netSavings >= 0 ? brandColors.tealPrimary : brandColors.error }]}>
+            <View style={[styles.metricCardCompact, { borderLeftColor: brandColors.tealPrimary }]}>
+              <Text style={styles.metricLabelCompact}>Net Savings</Text>
+              <Text style={[styles.metricValueCompact, { color: netSavings >= 0 ? brandColors.tealPrimary : brandColors.error }]}>
                 {formatCurrency(netSavings)}
               </Text>
             </View>
@@ -300,6 +346,102 @@ export const ReportsScreen: React.FC = () => {
                   );
                 })}
               </View>
+            )}
+          </View>
+        </View>
+
+        {/* CATEGORY TRENDS OVER TIME */}
+        <View style={styles.section}>
+          <View style={styles.chartCard}>
+            <View style={styles.chartHeader}>
+              <View>
+                <Text style={styles.chartTitle}>Spending Trends by Category</Text>
+                <Text style={styles.chartSubtitle}>Click categories to add/remove from chart</Text>
+              </View>
+            </View>
+
+            {/* Category selector pills */}
+            <View style={styles.categoryPillsContainer}>
+              {categoryData.slice(0, 8).map((cat) => {
+                const isSelected = selectedCategories.has(cat.name);
+                return (
+                  <TouchableOpacity
+                    key={cat.name}
+                    style={[
+                      styles.categoryPill,
+                      isSelected && styles.categoryPillActive,
+                      { borderColor: cat.color }
+                    ]}
+                    onPress={() => toggleCategory(cat.name)}
+                  >
+                    <View style={[styles.categoryPillDot, { backgroundColor: cat.color }]} />
+                    <Text
+                      style={[
+                        styles.categoryPillText,
+                        isSelected && styles.categoryPillTextActive
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {cat.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Line chart with react-native-chart-kit */}
+            {selectedCategories.size === 0 ? (
+              <Text style={styles.noDataText}>Select categories above to view trends</Text>
+            ) : categoryTrends.length === 0 ? (
+              <Text style={styles.noDataText}>No data available</Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <LineChart
+                  data={{
+                    labels: categoryTrends.map(([monthKey]) =>
+                      new Date(monthKey + '-01').toLocaleDateString('en-US', { month: 'short' })
+                    ),
+                    datasets: Array.from(selectedCategories).map((category) => {
+                      const color = categoryData.find(c => c.name === category)?.color || '#9CA3AF';
+                      return {
+                        data: categoryTrends.map(([, cats]) => cats[category] || 0),
+                        color: () => color,
+                        strokeWidth: 3,
+                      };
+                    }),
+                  }}
+                  width={Math.max(Dimensions.get('window').width - 60, categoryTrends.length * 80)}
+                  height={220}
+                  yAxisLabel="$"
+                  yAxisSuffix=""
+                  chartConfig={{
+                    backgroundColor: brandColors.white,
+                    backgroundGradientFrom: brandColors.white,
+                    backgroundGradientTo: brandColors.white,
+                    decimalPlaces: 0,
+                    color: (opacity = 1) => `rgba(58, 107, 130, ${opacity})`,
+                    labelColor: (opacity = 1) => `rgba(100, 116, 139, ${opacity})`,
+                    style: {
+                      borderRadius: 16,
+                    },
+                    propsForDots: {
+                      r: '4',
+                      strokeWidth: '2',
+                      stroke: brandColors.white,
+                    },
+                    propsForBackgroundLines: {
+                      strokeDasharray: '',
+                      stroke: brandColors.border,
+                      strokeWidth: 1,
+                    },
+                  }}
+                  bezier
+                  style={{
+                    marginVertical: 8,
+                    borderRadius: 16,
+                  }}
+                />
+              </ScrollView>
             )}
           </View>
         </View>
@@ -372,35 +514,6 @@ export const ReportsScreen: React.FC = () => {
                 </View>
               </View>
             )}
-          </View>
-        </View>
-
-        {/* TOP SPENDING CATEGORIES */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Top Spending Categories</Text>
-          </View>
-          <View style={styles.topCategoriesContainer}>
-            {categoryData.slice(0, 5).map((cat, index) => {
-              const percentage = totalSpending > 0 ? ((cat.amount / totalSpending) * 100) : 0;
-
-              return (
-                <View key={cat.name} style={styles.topCategoryCard}>
-                  <View style={styles.topCategoryLeft}>
-                    <View style={[styles.topCategoryIcon, { backgroundColor: cat.color + '15' }]}>
-                      <View style={[styles.topCategoryDot, { backgroundColor: cat.color }]} />
-                    </View>
-                    <View style={styles.topCategoryInfo}>
-                      <Text style={styles.topCategoryName}>{cat.name}</Text>
-                      <Text style={styles.topCategoryPercentage}>{percentage.toFixed(1)}% of total</Text>
-                    </View>
-                  </View>
-                  <View style={styles.topCategoryRight}>
-                    <Text style={styles.topCategoryAmount}>{formatCurrency(cat.amount)}</Text>
-                  </View>
-                </View>
-              );
-            })}
           </View>
         </View>
 
@@ -545,34 +658,33 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
 
-  // Key Metrics
-  metricsRow: {
+  // Key Metrics - Compact
+  metricsRowCompact: {
+    flexDirection: 'row',
     gap: 12,
   },
-  metricCard: {
+  metricCardCompact: {
+    flex: 1,
     backgroundColor: brandColors.white,
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 12,
+    padding: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
     borderLeftWidth: 4,
-    marginBottom: 12,
   },
-  metricLabel: {
-    fontSize: 12,
-    fontWeight: '700',
+  metricLabelCompact: {
+    fontSize: 13,
+    fontWeight: '600',
     color: brandColors.textGray,
-    letterSpacing: 1.2,
-    marginTop: 8,
     marginBottom: 8,
   },
-  metricValue: {
-    fontSize: 28,
+  metricValueCompact: {
+    fontSize: 18,
     fontWeight: '800',
-    letterSpacing: -1,
+    letterSpacing: -0.5,
   },
 
   // Chart Card
@@ -830,5 +942,98 @@ const styles = StyleSheet.create({
   dateRangeOptionTextActive: {
     color: brandColors.tealPrimary,
     fontWeight: '700',
+  },
+
+  // Category Pills
+  categoryPillsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  categoryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 2,
+    backgroundColor: brandColors.backgroundOffWhite,
+  },
+  categoryPillActive: {
+    backgroundColor: brandColors.white,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  categoryPillDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  categoryPillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: brandColors.textGray,
+    maxWidth: 100,
+  },
+  categoryPillTextActive: {
+    color: brandColors.textDark,
+    fontWeight: '700',
+  },
+
+  // Simple Area Chart
+  simpleChartContainer: {
+    height: 220,
+    position: 'relative',
+  },
+  simpleChartArea: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    height: 180,
+    paddingHorizontal: 8,
+    gap: 4,
+  },
+  monthColumn: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 8,
+  },
+  monthBars: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'flex-end',
+    gap: 2,
+  },
+  categoryBar: {
+    width: '100%',
+    borderRadius: 4,
+  },
+  monthLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: brandColors.textGray,
+    textAlign: 'center',
+  },
+  chartYAxis: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    height: 180,
+    justifyContent: 'space-between',
+    paddingRight: 8,
+  },
+  chartYAxisLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: brandColors.textGray,
+    backgroundColor: brandColors.white + 'EE',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
 });
