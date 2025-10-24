@@ -74,12 +74,14 @@ export const TransferModal: React.FC<TransferModalProps> = ({
       return;
     }
 
-    if (!amount || parseFloat(amount) <= 0) {
+    // Clean commas before parsing (parseFloat stops at commas, so "1,000" becomes 1)
+    const cleanAmount = amount.replace(/,/g, '').replace(/[^\d.]/g, '');
+    if (!amount || parseFloat(cleanAmount) <= 0) {
       Alert.alert('Required', 'Please enter a valid transfer amount');
       return;
     }
 
-    const transferAmount = parseFloat(amount);
+    const transferAmount = parseFloat(cleanAmount);
     const fromAccount = accounts.find((a) => a.id === fromAccountId);
 
     if (!fromAccount) {

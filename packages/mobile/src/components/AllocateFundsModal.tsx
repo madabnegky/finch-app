@@ -58,7 +58,9 @@ export const AllocateFundsModal: React.FC<AllocateFundsModalProps> = ({
   const handleSave = () => {
     if (!goal) return;
 
-    const amountNum = parseFloat(amount);
+    // Clean commas before parsing (parseFloat stops at commas, so "1,000" becomes 1)
+    const cleanAmount = amount.replace(/,/g, '').replace(/[^\d.]/g, '');
+    const amountNum = parseFloat(cleanAmount);
 
     if (!amount || isNaN(amountNum)) {
       setError('Please enter a valid amount');
@@ -208,7 +210,7 @@ export const AllocateFundsModal: React.FC<AllocateFundsModalProps> = ({
               <View style={styles.previewBox}>
                 <Text style={styles.previewLabel}>New Total</Text>
                 <Text style={styles.previewAmount}>
-                  {formatCurrency((goal.allocatedAmount || 0) + parseFloat(amount || '0'))}
+                  {formatCurrency((goal.allocatedAmount || 0) + parseFloat((amount || '0').replace(/,/g, '').replace(/[^\d.]/g, '')))}
                 </Text>
               </View>
             )}

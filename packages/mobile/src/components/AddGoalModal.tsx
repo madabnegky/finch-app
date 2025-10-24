@@ -67,7 +67,8 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
       }
     }
 
-    const target = parseFloat(targetAmount);
+    // Clean commas before parsing (parseFloat stops at commas, so "1,000" becomes 1)
+    const target = parseFloat(targetAmount.replace(/,/g, '').replace(/[^\d.]/g, ''));
 
     try {
       setSaving(true);

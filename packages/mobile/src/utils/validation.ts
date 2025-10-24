@@ -27,8 +27,8 @@ export const validateAmount = (
     fieldName = 'Amount',
   } = options;
 
-  // Convert to number if string
-  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  // Convert to number if string - clean commas first (parseFloat stops at commas)
+  const numValue = typeof value === 'string' ? parseFloat(value.replace(/,/g, '').replace(/[^\d.-]/g, '')) : value;
 
   // Check if empty or invalid
   if (value === '' || value === null || value === undefined) {

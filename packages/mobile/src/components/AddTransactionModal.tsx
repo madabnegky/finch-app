@@ -133,9 +133,12 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       const dateObj = isRecurring ? new Date(nextDate) : new Date(transactionDate);
       dateObj.setHours(0, 0, 0, 0);
 
+      // Clean commas before parsing (parseFloat stops at commas, so "1,000" becomes 1)
+      const cleanAmount = amount.replace(/,/g, '').replace(/[^\d.]/g, '');
+
       const transactionData: any = {
         description: name.trim(),
-        amount: type === 'expense' ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount)),
+        amount: type === 'expense' ? -Math.abs(parseFloat(cleanAmount)) : Math.abs(parseFloat(cleanAmount)),
         type,
         ...(type === 'expense' && { category }),
         date: firestore.Timestamp.fromDate(dateObj),

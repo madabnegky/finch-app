@@ -59,12 +59,14 @@ export const EditGoalModal: React.FC<EditGoalModalProps> = ({
       return;
     }
 
-    if (!targetAmount || parseFloat(targetAmount) <= 0) {
+    // Clean commas before parsing (parseFloat stops at commas, so "1,000" becomes 1)
+    const cleanAmount = targetAmount.replace(/,/g, '').replace(/[^\d.]/g, '');
+    if (!targetAmount || parseFloat(cleanAmount) <= 0) {
       Alert.alert('Required', 'Please enter a valid target amount');
       return;
     }
 
-    const target = parseFloat(targetAmount);
+    const target = parseFloat(cleanAmount);
 
     if (goal.allocatedAmount > target) {
       Alert.alert('Invalid', 'Target amount cannot be less than already allocated amount');
