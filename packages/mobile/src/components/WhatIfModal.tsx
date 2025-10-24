@@ -43,7 +43,9 @@ export const WhatIfModal: React.FC<WhatIfModalProps> = ({
   const [accounts, setAccounts] = useState<Account[]>([]);
 
   // Calculate impact in real-time
-  const purchaseAmount = parseFloat(amount) || 0;
+  // Remove commas and other formatting characters before parsing (parseFloat stops at commas, so "1,000" becomes 1)
+  const cleanAmount = amount.replace(/,/g, '').replace(/[^\d.]/g, '');
+  const purchaseAmount = parseFloat(cleanAmount) || 0;
   const newAvailableToSpend = currentAvailableToSpend - purchaseAmount;
   const newProjection60DayLow = projection60DayLow - purchaseAmount;
 
@@ -144,7 +146,9 @@ export const WhatIfModal: React.FC<WhatIfModalProps> = ({
       return;
     }
 
-    if (!amount || isNaN(parseFloat(amount))) {
+    // Clean amount before parsing
+    const cleanAmountForValidation = amount.replace(/,/g, '').replace(/[^\d.]/g, '');
+    if (!amount || isNaN(parseFloat(cleanAmountForValidation))) {
       return;
     }
 
@@ -156,7 +160,7 @@ export const WhatIfModal: React.FC<WhatIfModalProps> = ({
     const simulationTransaction = {
       id: `whatif-${Date.now()}`,
       description: description.trim(),
-      amount: -Math.abs(parseFloat(amount)), // Always expense
+      amount: -Math.abs(parseFloat(cleanAmountForValidation)), // Always expense
       date: parsedDate,
       accountId: accountId || (accounts[0]?.id || ''),
       type: 'expense' as const,
