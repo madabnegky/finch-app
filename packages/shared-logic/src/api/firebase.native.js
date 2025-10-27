@@ -14,8 +14,12 @@ GoogleSignin.configure({
 });
 
 const api = {
-  auth: auth(),
-  firestore: firestore(),
+  get auth() {
+    return auth();
+  },
+  get firestore() {
+    return firestore();
+  },
 
   // Authentication methods
   signOut: async () => {
@@ -47,7 +51,15 @@ const api = {
       // Check if your device supports Google Play
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       // Get the users ID token
-      const { idToken } = await GoogleSignin.signIn();
+      const userInfo = await GoogleSignin.signIn();
+      // Handle both old and new response structures
+      const idToken = userInfo.idToken || userInfo.data?.idToken;
+
+      if (!idToken) {
+        console.error('No idToken found in response:', userInfo);
+        throw new Error('Failed to get idToken from Google Sign In');
+      }
+
       // Create a Google credential with the token
       const googleCredential = auth.GoogleAuthProvider.credential(idToken);
       // Sign-in the user with the credential

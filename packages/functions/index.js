@@ -28,54 +28,78 @@ const queue = 'plaid-sync-queue';
 
 // Map Plaid categories to Finch categories
 function mapPlaidCategoryToFinch(plaidCategories) {
-  if (!plaidCategories || plaidCategories.length === 0) {
+  if (!plaidCategories) {
     return 'Uncategorized';
   }
 
-  const primaryCategory = plaidCategories[0].toLowerCase();
-  const secondaryCategory = plaidCategories[1]?.toLowerCase();
+  let primaryCategory, detailedCategory;
 
-  // Plaid -> Finch category mappings
-  const categoryMap = {
-    // Food categories
-    'food and drink': secondaryCategory === 'groceries' ? 'Groceries' : 'Food',
-    'restaurants': 'Food',
+  // Handle new personal_finance_category object format
+  if (plaidCategories.primary) {
+    primaryCategory = plaidCategories.primary.toLowerCase();
+    detailedCategory = plaidCategories.detailed?.toLowerCase();
+  }
+  // Handle old category array format (deprecated)
+  else if (Array.isArray(plaidCategories) && plaidCategories.length > 0) {
+    primaryCategory = plaidCategories[0].toLowerCase();
+    detailedCategory = plaidCategories[1]?.toLowerCase();
+  }
+  else {
+    return 'Uncategorized';
+  }
 
-    // Transportation
+  // New personal_finance_category primary mappings
+  const pfcMap = {
+    'food_and_drink': detailedCategory?.includes('groceries') ? 'Groceries' : 'Food',
+    'general_merchandise': 'Shopping',
     'transportation': 'Transportation',
-    'travel': secondaryCategory?.includes('gas') ? 'Transportation' : 'Travel',
+    'travel': 'Travel',
+    'home_improvement': 'Housing',
+    'medical': 'Health',
+    'personal_care': 'Personal Care',
+    'general_services': (() => {
+      // Handle detailed subcategories for GENERAL_SERVICES
+      if (detailedCategory?.includes('subscription')) return 'Subscriptions';
+      if (detailedCategory?.includes('automotive')) return 'Transportation';
+      if (detailedCategory?.includes('insurance')) return 'Insurance';
+      return 'Uncategorized';
+    })(),
+    'entertainment': 'Entertainment',
+    'rent_and_utilities': detailedCategory?.includes('utilities') ? 'Utilities' : 'Housing',
+    'loan_payments': 'Uncategorized', // These are typically transfers
+    'bank_fees': 'Uncategorized',
+    'transfer_in': 'Uncategorized',
+    'transfer_out': 'Uncategorized',
+    'income': 'Uncategorized', // Income doesn't get categorized
+  };
 
-    // Shopping
+  // Check new format first
+  if (pfcMap[primaryCategory]) {
+    return pfcMap[primaryCategory];
+  }
+
+  // Fallback to old category mappings (for backward compatibility)
+  const categoryMap = {
+    'food and drink': detailedCategory === 'groceries' ? 'Groceries' : 'Food',
+    'restaurants': 'Food',
+    'transportation': 'Transportation',
+    'travel': detailedCategory?.includes('gas') ? 'Transportation' : 'Travel',
     'shops': 'Shopping',
     'general merchandise': 'Shopping',
-
-    // Housing
-    'rent and utilities': secondaryCategory?.includes('util') ? 'Utilities' : 'Housing',
+    'rent and utilities': detailedCategory?.includes('util') ? 'Utilities' : 'Housing',
     'home improvement': 'Housing',
-
-    // Health
     'healthcare': 'Health',
     'medical': 'Health',
-
-    // Insurance
     'insurance': 'Insurance',
-
-    // Entertainment
     'recreation': 'Entertainment',
     'entertainment': 'Entertainment',
-
-    // Bills & Subscriptions
-    'service': secondaryCategory?.includes('subscr') || secondaryCategory?.includes('streaming')
+    'service': detailedCategory?.includes('subscr') || detailedCategory?.includes('streaming')
       ? 'Subscriptions'
-      : secondaryCategory?.includes('util') ? 'Utilities' : 'Uncategorized',
+      : detailedCategory?.includes('util') ? 'Utilities' : 'Uncategorized',
     'subscription': 'Subscriptions',
-
-    // Personal
     'personal care': 'Personal Care',
-
-    // Donations
     'community': 'Gifts & Donations',
-    'transfer': 'Uncategorized', // Internal transfers shouldn't be categorized as expenses
+    'transfer': 'Uncategorized',
   };
 
   // Try exact match on primary category
@@ -263,7 +287,7 @@ exports.createLinkToken = functions.https.onCall(async (data, context) => {
         client_user_id: userId,
       },
       client_name: 'Finch',
-      products: ['auth', 'transactions'],
+      products: ['transactions'], // Using transactions (which includes balance data)
       country_codes: ['US'],
       language: 'en',
       webhook: `https://us-central1-finch-app-v2.cloudfunctions.net/plaidWebhook`,
@@ -843,6 +867,236 @@ exports.identifyRecurringTransactions = functions.https.onCall(async (data, cont
   } catch (error) {
     functions.logger.error('Error identifying recurring transactions:', error);
     throw new functions.https.HttpsError('internal', 'Failed to identify recurring transactions', error.message);
+  }
+});
+
+/**
+ * Fetches recurring transactions from Plaid's Recurring Transactions API
+ * Uses Plaid's built-in detection with confidence scores
+ * @param {string} itemId - Plaid item ID
+ * @param {string} accountId - Finch account ID
+ */
+exports.fetchPlaidRecurringTransactions = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const userId = context.auth.uid;
+  const { itemId, accountId } = data;
+
+  if (!itemId || !accountId) {
+    throw new functions.https.HttpsError('invalid-argument', 'itemId and accountId are required');
+  }
+
+  try {
+    // Get Plaid item
+    const plaidItemDoc = await db.collection(`users/${userId}/plaidItems`).doc(itemId).get();
+    if (!plaidItemDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Plaid item not found');
+    }
+
+    const encryptedAccessToken = plaidItemDoc.data().accessToken;
+    const accessToken = decrypt(encryptedAccessToken);
+    const accountDoc = await db.collection(`users/${userId}/accounts`).doc(accountId).get();
+    const plaidAccountId = accountDoc.data()?.plaidAccountId;
+
+    if (!plaidAccountId) {
+      throw new functions.https.HttpsError('failed-precondition', 'Account not linked to Plaid');
+    }
+
+    // Fetch recurring transactions from Plaid API
+    const response = await plaidClient.transactionsRecurringGet({
+      access_token: accessToken,
+      account_ids: [plaidAccountId],
+    });
+
+    functions.logger.info(`Fetched recurring transactions from Plaid API`, {
+      inflowCount: response.data.inflow_streams.length,
+      outflowCount: response.data.outflow_streams.length,
+    });
+
+    // Process both inflow (income) and outflow (expenses) streams
+    const allStreams = [
+      ...response.data.inflow_streams.map(s => ({ ...s, is_income: true })),
+      ...response.data.outflow_streams.map(s => ({ ...s, is_income: false })),
+    ];
+
+    // Get existing recurring transactions to avoid duplicates
+    const existingRecurringSnapshot = await db.collection(`users/${userId}/transactions`)
+      .where('accountId', '==', accountId)
+      .where('isRecurring', '==', true)
+      .get();
+
+    const existingRecurring = existingRecurringSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    let autoAddedCount = 0;
+    let needsConfirmationCount = 0;
+    const needsConfirmation = [];
+
+    for (const stream of allStreams) {
+      // Skip inactive streams
+      if (!stream.is_active) continue;
+
+      // Calculate confidence score
+      // Plaid provides is_active, but we'll create our own score based on various factors
+      let confidence = 0.5; // Base confidence
+
+      // Higher confidence for active streams
+      if (stream.is_active) confidence += 0.3;
+
+      // Higher confidence for more occurrences
+      const txnCount = stream.transaction_ids?.length || 0;
+      if (txnCount >= 6) confidence += 0.2;
+      else if (txnCount >= 3) confidence += 0.1;
+
+      // Adjust based on frequency consistency
+      if (stream.frequency === 'MONTHLY' || stream.frequency === 'BIWEEKLY') {
+        confidence += 0.1;
+      }
+
+      // Cap at 0.95
+      confidence = Math.min(confidence, 0.95);
+
+      // Calculate average amount
+      const avgAmount = stream.average_amount?.amount || 0;
+      const amount = stream.is_income ? Math.abs(avgAmount) : -Math.abs(avgAmount);
+
+      // Map Plaid frequency to our format
+      const frequencyMap = {
+        'WEEKLY': 'weekly',
+        'BIWEEKLY': 'biweekly',
+        'SEMI_MONTHLY': 'biweekly', // Approximate
+        'MONTHLY': 'monthly',
+        'ANNUALLY': 'yearly',
+      };
+      const frequency = frequencyMap[stream.frequency] || 'monthly';
+
+      // Calculate next occurrence date
+      const lastDate = stream.last_date ? new Date(stream.last_date) : new Date();
+      const nextDate = new Date(lastDate);
+
+      switch (frequency) {
+        case 'weekly':
+          nextDate.setDate(lastDate.getDate() + 7);
+          break;
+        case 'biweekly':
+          nextDate.setDate(lastDate.getDate() + 14);
+          break;
+        case 'monthly':
+          nextDate.setMonth(lastDate.getMonth() + 1);
+          break;
+        case 'yearly':
+          nextDate.setFullYear(lastDate.getFullYear() + 1);
+          break;
+      }
+
+      // Check if similar recurring transaction already exists
+      const alreadyExists = existingRecurring.some(existing => {
+        const descMatch = existing.description?.toLowerCase().includes(stream.description?.toLowerCase()) ||
+                          stream.description?.toLowerCase().includes(existing.description?.toLowerCase());
+        const amountMatch = Math.abs(existing.amount - amount) <= 5.0; // $5 tolerance for variable bills
+        const freqMatch = existing.recurringDetails?.frequency === frequency;
+        return descMatch && amountMatch && freqMatch;
+      });
+
+      if (alreadyExists) {
+        functions.logger.info(`Skipping duplicate recurring transaction: ${stream.description}`);
+        continue;
+      }
+
+      // Log raw Plaid category data for debugging
+      // Plaid now uses personal_finance_category instead of deprecated category field
+      const categoryData = stream.personal_finance_category || stream.category;
+      const mappedCategory = mapPlaidCategoryToFinch(categoryData);
+      functions.logger.info(`Category mapping for ${stream.description}:`, {
+        rawPlaidCategory: stream.category, // Old deprecated field
+        personalFinanceCategory: stream.personal_finance_category, // New field
+        mappedFinchCategory: mappedCategory,
+        merchantName: stream.merchant_name,
+      });
+
+      const recurringData = {
+        accountId,
+        description: stream.description || stream.merchant_name || 'Unknown',
+        merchantName: stream.merchant_name,
+        amount,
+        type: stream.is_income ? 'income' : 'expense',
+        category: stream.is_income ? null : mappedCategory, // Don't categorize income transactions
+        isRecurring: true,
+        recurringDetails: {
+          frequency,
+          nextDate: admin.firestore.Timestamp.fromDate(nextDate),
+          isVariableAmount: stream.average_amount?.iso_currency_code !== stream.last_amount?.iso_currency_code, // Simplified check
+          detectedFromPlaid: true,
+          plaidStreamId: stream.stream_id,
+          confidenceScore: confidence,
+          occurrenceCount: txnCount,
+          firstDate: stream.first_date ? admin.firestore.Timestamp.fromDate(new Date(stream.first_date)) : null,
+          lastDate: stream.last_date ? admin.firestore.Timestamp.fromDate(new Date(stream.last_date)) : null,
+        },
+        source: 'plaid_recurring_api',
+        plaidConfirmed: false, // User hasn't confirmed yet
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      // Auto-add high confidence (>= 80%), ask user to confirm medium confidence (50-80%)
+      if (confidence >= 0.8) {
+        // Auto-add with confirmed status
+        await db.collection(`users/${userId}/transactions`).add({
+          ...recurringData,
+          plaidConfirmed: true,
+        });
+        autoAddedCount++;
+
+        functions.logger.info(`Auto-added high-confidence recurring: ${stream.description}`, {
+          confidence,
+          frequency,
+        });
+      } else if (confidence >= 0.5) {
+        // Add to pending confirmation list
+        needsConfirmation.push({
+          ...recurringData,
+          confidence, // Include for UI display
+        });
+        needsConfirmationCount++;
+
+        functions.logger.info(`Needs confirmation: ${stream.description}`, {
+          confidence,
+          frequency,
+        });
+      }
+    }
+
+    // Store transactions that need confirmation temporarily
+    // We'll create them as "unconfirmed" and the UI will let user review
+    for (const pending of needsConfirmation) {
+      await db.collection(`users/${userId}/pendingRecurringTransactions`).add(pending);
+    }
+
+    functions.logger.info(`Plaid recurring API complete`, {
+      autoAdded: autoAddedCount,
+      needsConfirmation: needsConfirmationCount,
+      totalStreams: allStreams.length,
+    });
+
+    return {
+      success: true,
+      autoAddedCount,
+      needsConfirmationCount,
+      totalStreams: allStreams.length,
+      needsConfirmation: needsConfirmation.map(t => ({
+        description: t.description,
+        amount: t.amount,
+        frequency: t.recurringDetails.frequency,
+        confidence: t.confidence,
+      })),
+    };
+  } catch (error) {
+    functions.logger.error('Error fetching Plaid recurring transactions:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to fetch recurring transactions', error.message);
   }
 });
 

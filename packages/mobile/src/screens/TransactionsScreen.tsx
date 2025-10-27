@@ -579,7 +579,7 @@ export const TransactionsScreen: React.FC = () => {
                           <Text style={styles.transactionFrequency}>{frequency}</Text>
                         </>
                       )}
-                      {txn.category && (
+                      {txn.category && txn.type !== 'income' && (
                         <>
                           <Text style={styles.transactionMetaDot}>•</Text>
                           <Text style={styles.transactionCategory}>{txn.category}</Text>

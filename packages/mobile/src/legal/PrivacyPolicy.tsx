@@ -198,7 +198,7 @@ export const PrivacyPolicyScreen = () => {
         <Text style={styles.text}>
           If you have questions about this Privacy Policy or our data practices, please contact us:
         </Text>
-        <Text style={styles.bulletText}>• Email: privacy@finchapp.com</Text>
+        <Text style={styles.bulletText}>• Email: kyle.christian@gmail.com</Text>
         <Text style={styles.bulletText}>• In-App: Settings → Help & Support → Contact Us</Text>
       </Section>
 

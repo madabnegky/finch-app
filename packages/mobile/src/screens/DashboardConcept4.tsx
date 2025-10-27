@@ -25,6 +25,7 @@ import { FirstAccountCongrats } from '../components/FirstAccountCongrats';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { usePlaidLink } from '../components/PlaidLinkHandler';
 import FinchLogo from '../components/FinchLogo';
+import { CustomTooltip } from '../components/CustomTooltip';
 import functions from '@react-native-firebase/functions';
 import brandColors from '../theme/colors';
 import { accountIcons } from '../theme/icons';
@@ -32,7 +33,7 @@ import { accountIcons } from '../theme/icons';
 type Account = {
   id: string;
   name: string;
-  type: string;
+  type: 'checking' | 'savings';
   currentBalance: number;
   cushion: number;
   availableToSpend: number;
@@ -78,6 +79,7 @@ const DashboardContent = () => {
   const [whatIfTransaction, setWhatIfTransaction] = useState<any>(null);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [showManageAccount, setShowManageAccount] = useState(false);
+  const [accountToEdit, setAccountToEdit] = useState<Account | null>(null); // Track which account to edit (null = add new)
   const [showTransfer, setShowTransfer] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fabExpanded, setFabExpanded] = useState(false);
@@ -448,15 +450,25 @@ const DashboardContent = () => {
           console.warn(`⚠️ Failed to sync transactions for ${accountRef.id}:`, syncError);
         }
 
+        // Fetch recurring transactions from Plaid API (replaces legacy pattern detection)
         try {
-          const identifyRecurring = functions().httpsCallable('identifyRecurringTransactions');
-          await identifyRecurring({
+          const fetchPlaidRecurring = functions().httpsCallable('fetchPlaidRecurringTransactions');
+          const recurringResult = await fetchPlaidRecurring({
             itemId: plaidData.itemId,
             accountId: accountRef.id,
           });
-          console.log(`✅ Identified recurring transactions for account ${accountRef.id}`);
-        } catch (recurringError) {
-          console.warn(`⚠️ Failed to identify recurring transactions for ${accountRef.id}:`, recurringError);
+
+          const data = recurringResult.data as any;
+          console.log(`✅ Plaid Recurring API: Auto-added ${data.autoAddedCount}, Needs confirmation: ${data.needsConfirmationCount}`);
+
+          // Store info about pending confirmations for later display
+          if (data.needsConfirmationCount > 0) {
+            // TODO: Show notification or navigate to confirmation screen
+            console.log('📋 Transactions pending confirmation:', data.needsConfirmation);
+          }
+        } catch (plaidRecurringError) {
+          console.warn(`⚠️ Failed to fetch Plaid recurring transactions for ${accountRef.id}:`, plaidRecurringError);
+          // Non-fatal - fallback to pattern detection already ran
         }
       }
 
@@ -1084,6 +1096,7 @@ const DashboardContent = () => {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <TouchableOpacity
                     onPress={() => {
+                      setAccountToEdit(selectedAccount); // Set account to edit
                       setShowManageAccount(true);
                     }}
                     style={{ padding: 4 }}
@@ -1298,8 +1311,9 @@ const DashboardContent = () => {
             onPress={() => {
               console.log('🔵 Manual Account button pressed');
               setFabExpanded(false);
+              setAccountToEdit(null); // Clear account to edit (add new account)
               setShowManageAccount(true);
-              console.log('🔵 showManageAccount set to true');
+              console.log('🔵 showManageAccount set to true, accountToEdit set to null');
             }}
           >
             <View style={styles.fabMenuButton}>
@@ -1436,15 +1450,18 @@ const DashboardContent = () => {
       />
 
       {/* MANAGE ACCOUNT MODAL */}
-      {console.log('🔵 Rendering ManageAccountModal, visible:', showManageAccount)}
+      {console.log('🔵 Rendering ManageAccountModal, visible:', showManageAccount, 'accountToEdit:', accountToEdit?.name || 'null (add mode)')}
       <ManageAccountModal
         visible={showManageAccount}
-        onClose={() => setShowManageAccount(false)}
+        onClose={() => {
+          setShowManageAccount(false);
+          setAccountToEdit(null); // Clear on close
+        }}
         onSuccess={() => {
           console.log('Account saved successfully!');
         }}
         onAccountCreated={handleFirstAccountCreated}
-        account={selectedAccount}
+        account={accountToEdit}
       />
 
       {/* TRANSFER MODAL */}
@@ -1513,6 +1530,7 @@ export const DashboardConcept4 = () => {
         preventOutsideInteraction={false}
         verticalOffset={0}
         backdropColor="rgba(0, 0, 0, 0.7)"
+        tooltipComponent={CustomTooltip}
       >
         <DashboardContent />
       </TourGuideProvider>

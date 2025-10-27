@@ -8,8 +8,9 @@ import { AuthProvider } from '../shared-logic/src/hooks/useAuth';
 import brandColors from './src/theme/colors';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import crashlytics from '@react-native-firebase/crashlytics';
-import { Alert } from 'react-native';
-import { useSessionTimeout } from './src/hooks/useSessionTimeout';
+// import { Alert } from 'react-native'; // Disabled with session timeout
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+// import { useSessionTimeout } from './src/hooks/useSessionTimeout'; // Disabled - see AppNavigator
 import { CustomTooltip } from './src/components/CustomTooltip';
 import {
   registerDeviceForNotifications,
@@ -148,25 +149,26 @@ function MainDrawer() {
 function AppNavigator() {
   const { user, loading } = useAuth();
 
-  // Session timeout - automatically log out after 15 minutes of inactivity
-  useSessionTimeout(
-    () => {
-      // Warning: 1 minute before logout
-      Alert.alert(
-        'Session Expiring',
-        'Your session will expire in 1 minute due to inactivity. Please interact with the app to stay logged in.',
-        [{ text: 'OK' }]
-      );
-    },
-    () => {
-      // Timeout: Session expired
-      Alert.alert(
-        'Session Expired',
-        'You have been logged out due to inactivity for security reasons.',
-        [{ text: 'OK' }]
-      );
-    }
-  );
+  // Session timeout - DISABLED: Was logging out even during active use
+  // TODO: Re-implement with proper user interaction tracking (taps, scrolls, etc.)
+  // useSessionTimeout(
+  //   () => {
+  //     // Warning: 1 minute before logout
+  //     Alert.alert(
+  //       'Session Expiring',
+  //       'Your session will expire in 1 minute due to inactivity. Please interact with the app to stay logged in.',
+  //       [{ text: 'OK' }]
+  //     );
+  //   },
+  //   () => {
+  //     // Timeout: Session expired
+  //     Alert.alert(
+  //       'Session Expired',
+  //       'You have been logged out due to inactivity for security reasons.',
+  //       [{ text: 'OK' }]
+  //     );
+  //   }
+  // );
 
   // Debug: Log auth state changes
   useEffect(() => {
@@ -228,6 +230,16 @@ function AppNavigator() {
 setupBackgroundNotificationHandler();
 
 function App(): React.JSX.Element {
+  // Configure Google Sign-In
+  useEffect(() => {
+    GoogleSignin.configure({
+      webClientId: '271671331037-90pnnqenl2enkc9es1gr6qcer1ugf8at.apps.googleusercontent.com',
+      iosClientId: '271671331037-gmnhja4s0v01eveg492obflctto072j2.apps.googleusercontent.com',
+      offlineAccess: true,
+    });
+    console.log('✅ Google Sign-In configured');
+  }, []);
+
   // Enable Crashlytics crash reporting
   useEffect(() => {
     // Enable Crashlytics collection

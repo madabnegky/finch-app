@@ -8,16 +8,10 @@ require Pod::Executable.execute_command('node', ['-p',
 platform :ios, '15.0'
 prepare_react_native_project!
 
-# Enable modular headers for Firebase Swift pods
-use_modular_headers!
+# Use dynamic frameworks for Firebase Swift pods compatibility
+use_frameworks! :linkage => :static
 
-linkage = ENV['USE_FRAMEWORKS']
-if linkage != nil
-  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
-  use_frameworks! :linkage => linkage.to_sym
-end
-
-target 'FinchAndroid' do
+target 'Finch' do
   config = use_native_modules!
 
   # Flags change depending on the env values.
@@ -32,7 +26,7 @@ target 'FinchAndroid' do
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
-  target 'FinchAndroidTests' do
+  target 'FinchTests' do
     inherit! :complete
     # Pods for testing
   end
@@ -44,5 +38,43 @@ target 'FinchAndroid' do
       config[:reactNativePath],
       :mac_catalyst_enabled => false
     )
+
+    # Fix gRPC-Core modulemap path issue
+    grpc_modulemap_dir = File.join(installer.sandbox.root, 'Headers', 'Private', 'grpc')
+    grpc_modulemap_src = File.join(installer.sandbox.root, 'Target Support Files', 'gRPC-Core', 'gRPC-Core.modulemap')
+    grpc_modulemap_dst = File.join(grpc_modulemap_dir, 'gRPC-Core.modulemap')
+
+    FileUtils.mkdir_p(grpc_modulemap_dir)
+    FileUtils.cp(grpc_modulemap_src, grpc_modulemap_dst) if File.exist?(grpc_modulemap_src)
+
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        # Fix BoringSSL-GRPC: Remove -GCC_WARN_INHIBIT_ALL_WARNINGS that clang interprets as invalid -G flag
+        if target.name == 'BoringSSL-GRPC'
+          ['OTHER_CFLAGS', 'OTHER_CPLUSPLUSFLAGS'].each do |setting|
+            if config.build_settings[setting]
+              flags_value = config.build_settings[setting]
+              if flags_value.is_a?(String)
+                config.build_settings[setting] = flags_value.gsub('-GCC_WARN_INHIBIT_ALL_WARNINGS', '-w')
+              elsif flags_value.is_a?(Array)
+                config.build_settings[setting] = flags_value.map { |f| f == '-GCC_WARN_INHIBIT_ALL_WARNINGS' ? '-w' : f }
+              end
+            end
+          end
+        end
+      end
+    end
+
+    # Fix BoringSSL-GRPC per-file COMPILER_FLAGS
+    installer.pods_project.targets.each do |target|
+      if target.name == 'BoringSSL-GRPC'
+        target.source_build_phase.files.each do |file|
+          if file.settings && file.settings['COMPILER_FLAGS']
+            flags_value = file.settings['COMPILER_FLAGS']
+            file.settings['COMPILER_FLAGS'] = flags_value.gsub('-GCC_WARN_INHIBIT_ALL_WARNINGS', '-w')
+          end
+        end
+      end
+    end
   end
 end

@@ -7,11 +7,11 @@
 #define TIMEOUT_SECONDS 600
 #define TEXT_TO_LOOK_FOR @"Welcome to React"
 
-@interface FinchAndroidTests : XCTestCase
+@interface FinchTests : XCTestCase
 
 @end
 
-@implementation FinchAndroidTests
+@implementation FinchTests
 
 - (BOOL)findSubviewInView:(UIView *)view matching:(BOOL (^)(UIView *view))test
 {

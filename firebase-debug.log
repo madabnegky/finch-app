@@ -1372,3 +1372,198 @@ Please deploy your functions for the change to take effect by running firebase d
 [info] 2025-10-21T02:57:57.429056Z D createLinkToken: {"message":"Callable request verification passed","verifications":{"app":"MISSING","auth":"VALID"}}
 [info] 2025-10-21T02:57:58.399594Z I createLinkToken: Created link token for user U6v35cAV4AVZst68dwe6YntYWr62
 [info] 2025-10-21T02:57:58.417121528Z D createLinkToken: Function execution took 2042 ms, finished with status code: 200
+[debug] [2025-10-24T13:31:33.832Z] ----------------------------------------------------------------------
+[debug] [2025-10-24T13:31:33.834Z] Command:       /Users/kylechristian/.nvm/versions/node/v20.19.5/bin/node /Users/kylechristian/.nvm/versions/node/v20.19.5/bin/firebase deploy --only hosting
+[debug] [2025-10-24T13:31:33.834Z] CLI Version:   14.20.0
+[debug] [2025-10-24T13:31:33.834Z] Platform:      darwin
+[debug] [2025-10-24T13:31:33.834Z] Node Version:  v20.19.5
+[debug] [2025-10-24T13:31:33.834Z] Time:          Fri Oct 24 2025 07:31:33 GMT-0600 (Mountain Daylight Time)
+[debug] [2025-10-24T13:31:33.835Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-10-24T13:31:33.836Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2025-10-24T13:31:33.968Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-10-24T13:31:33.968Z] > authorizing via signed-in user (kyle.christian@gmail.com)
+[debug] [2025-10-24T13:31:33.968Z] [iam] checking project finch-app-v2 for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2025-10-24T13:31:33.969Z] Checked if tokens are valid: false, expires at: 1761147347467
+[debug] [2025-10-24T13:31:33.969Z] Checked if tokens are valid: false, expires at: 1761147347467
+[debug] [2025-10-24T13:31:33.969Z] > refreshing access token with scopes: []
+[debug] [2025-10-24T13:31:33.970Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2025-10-24T13:31:33.970Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-10-24T13:31:34.276Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2025-10-24T13:31:34.277Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-10-24T13:31:34.286Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/finch-app-v2:testIamPermissions [none]
+[debug] [2025-10-24T13:31:34.286Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/finch-app-v2:testIamPermissions x-goog-quota-user=projects/finch-app-v2
+[debug] [2025-10-24T13:31:34.286Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/finch-app-v2:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-10-24T13:31:34.294Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2025-10-24T13:31:34.294Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[debug] [2025-10-24T13:31:34.601Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/finch-app-v2:testIamPermissions 200
+[debug] [2025-10-24T13:31:34.601Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/finch-app-v2:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-10-24T13:31:34.602Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:31:34.602Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:31:34.602Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/finch-app-v2 [none]
+[debug] [2025-10-24T13:31:35.262Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/finch-app-v2 200
+[debug] [2025-10-24T13:31:35.263Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/finch-app-v2 {"projectId":"finch-app-v2","projectNumber":"271671331037","displayName":"finch-app-v2","name":"projects/finch-app-v2","resources":{"hostingSite":"finch-app-v2"},"state":"ACTIVE","etag":"1_873c5b4f-8e4a-4d73-944b-ceb45579dabd"}
+[info] 
+[info] === Deploying to 'finch-app-v2'...
+[info] 
+[info] i  deploying hosting 
+[debug] [2025-10-24T13:31:35.267Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:31:35.267Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:31:35.267Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions [none]
+[debug] [2025-10-24T13:31:35.267Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions {"status":"CREATED","labels":{"deployment-tool":"cli-firebase"}}
+[debug] [2025-10-24T13:31:36.432Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions 200
+[debug] [2025-10-24T13:31:36.432Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions {"name":"projects/271671331037/sites/finch-app-v2/versions/ad5ddafef2895560","status":"CREATED","config":{},"labels":{"deployment-tool":"cli-firebase"}}
+[info] i  hosting[finch-app-v2]: beginning deploy... 
+[info] i  hosting[finch-app-v2]: found 1 files in docs 
+[debug] [2025-10-24T13:31:36.439Z] [hosting] uploading with 200 concurrency
+[debug] [2025-10-24T13:31:36.440Z] [hosting] hash cache [ZG9jcw] not populated
+[debug] [2025-10-24T13:31:36.442Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:31:36.442Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:31:36.443Z] [hosting] hash cache [ZG9jcw] stored for 1 files
+[debug] [2025-10-24T13:31:36.443Z] [hosting][hash queue][FINAL] {"max":2,"min":2,"avg":2,"active":0,"complete":1,"success":1,"errored":0,"retried":0,"total":1,"elapsed":3}
+[debug] [2025-10-24T13:31:36.443Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/271671331037/sites/finch-app-v2/versions/ad5ddafef2895560:populateFiles [none]
+[debug] [2025-10-24T13:31:36.443Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/271671331037/sites/finch-app-v2/versions/ad5ddafef2895560:populateFiles {"files":{"/privacy-policy.html":"9b50e4836c7f07f850230c5d6df0fa8ada805e754f7e6664712f6b36db524b4a"}}
+[debug] [2025-10-24T13:31:36.595Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/271671331037/sites/finch-app-v2/versions/ad5ddafef2895560:populateFiles 200
+[debug] [2025-10-24T13:31:36.595Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/271671331037/sites/finch-app-v2/versions/ad5ddafef2895560:populateFiles {"uploadRequiredHashes":["9b50e4836c7f07f850230c5d6df0fa8ada805e754f7e6664712f6b36db524b4a"],"uploadUrl":"https://upload-firebasehosting.googleapis.com/upload/sites/finch-app-v2/versions/ad5ddafef2895560/files"}
+[debug] [2025-10-24T13:31:36.595Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:31:36.595Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:31:36.596Z] >>> [apiv2][query] POST https://upload-firebasehosting.googleapis.com/upload/sites/finch-app-v2/versions/ad5ddafef2895560/files/9b50e4836c7f07f850230c5d6df0fa8ada805e754f7e6664712f6b36db524b4a [none]
+[debug] [2025-10-24T13:31:36.596Z] >>> [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/finch-app-v2/versions/ad5ddafef2895560/files/9b50e4836c7f07f850230c5d6df0fa8ada805e754f7e6664712f6b36db524b4a [stream]
+[debug] [2025-10-24T13:31:36.596Z] [hosting][populate queue][FINAL] {"max":154,"min":154,"avg":154,"active":0,"complete":1,"success":1,"errored":0,"retried":0,"total":1,"elapsed":154}
+[debug] [2025-10-24T13:31:36.596Z] [hosting] uploads queued: 1
+[debug] [2025-10-24T13:31:37.206Z] <<< [apiv2][status] POST https://upload-firebasehosting.googleapis.com/upload/sites/finch-app-v2/versions/ad5ddafef2895560/files/9b50e4836c7f07f850230c5d6df0fa8ada805e754f7e6664712f6b36db524b4a 200
+[debug] [2025-10-24T13:31:37.206Z] <<< [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/finch-app-v2/versions/ad5ddafef2895560/files/9b50e4836c7f07f850230c5d6df0fa8ada805e754f7e6664712f6b36db524b4a [stream]
+[debug] [2025-10-24T13:31:37.206Z] [hosting][upload queue][FINAL] {"max":611,"min":611,"avg":611,"active":0,"complete":1,"success":1,"errored":0,"retried":0,"total":1,"elapsed":611}
+[info] i  hosting: upload complete 
+[info] ✔  hosting[finch-app-v2]: file upload complete 
+[debug] [2025-10-24T13:31:37.207Z] [hosting] deploy completed after 774ms
+[debug] [2025-10-24T13:31:37.207Z] [
+  {
+    "config": {
+      "public": "docs",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "site": "finch-app-v2"
+    },
+    "version": "projects/271671331037/sites/finch-app-v2/versions/ad5ddafef2895560"
+  }
+]
+[info] i  hosting[finch-app-v2]: finalizing version... 
+[debug] [2025-10-24T13:31:37.208Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:31:37.208Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:31:37.209Z] >>> [apiv2][query] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions/ad5ddafef2895560 updateMask=status%2Cconfig
+[debug] [2025-10-24T13:31:37.209Z] >>> [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions/ad5ddafef2895560 {"status":"FINALIZED","config":{}}
+[debug] [2025-10-24T13:31:37.353Z] <<< [apiv2][status] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions/ad5ddafef2895560 200
+[debug] [2025-10-24T13:31:37.353Z] <<< [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions/ad5ddafef2895560 {"name":"projects/271671331037/sites/finch-app-v2/versions/ad5ddafef2895560","status":"FINALIZED","config":{},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2025-10-24T13:31:35.832705Z","createUser":{"email":"kyle.christian@gmail.com"},"finalizeTime":"2025-10-24T13:31:37.440458Z","finalizeUser":{"email":"kyle.christian@gmail.com"}}
+[debug] [2025-10-24T13:31:37.353Z] [hosting] finalized version for finch-app-v2:[object Object]
+[info] ✔  hosting[finch-app-v2]: version finalized 
+[info] i  hosting[finch-app-v2]: releasing new version... 
+[debug] [2025-10-24T13:31:37.354Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:31:37.354Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:31:37.354Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/channels/live/releases versionName=projects%2F271671331037%2Fsites%2Ffinch-app-v2%2Fversions%2Fad5ddafef2895560
+[debug] [2025-10-24T13:31:37.354Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/channels/live/releases {}
+[debug] [2025-10-24T13:31:37.621Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/channels/live/releases 200
+[debug] [2025-10-24T13:31:37.621Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/channels/live/releases {"name":"projects/271671331037/sites/finch-app-v2/channels/live/releases/1761312697147000","version":{"name":"projects/271671331037/sites/finch-app-v2/versions/ad5ddafef2895560","status":"FINALIZED","config":{},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2025-10-24T13:31:35.832705Z","createUser":{"email":"kyle.christian@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJVNSP8Aaz2qfUxFFAJLgtLoJ7Lfr2p7gY17qCYuvqXVYVUt64qDg"},"finalizeTime":"2025-10-24T13:31:37.440458Z","finalizeUser":{"email":"kyle.christian@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJVNSP8Aaz2qfUxFFAJLgtLoJ7Lfr2p7gY17qCYuvqXVYVUt64qDg"}},"type":"DEPLOY","releaseTime":"2025-10-24T13:31:37.147Z","releaseUser":{"email":"kyle.christian@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJVNSP8Aaz2qfUxFFAJLgtLoJ7Lfr2p7gY17qCYuvqXVYVUt64qDg"}}
+[debug] [2025-10-24T13:31:37.621Z] [hosting] release: {"name":"projects/271671331037/sites/finch-app-v2/channels/live/releases/1761312697147000","version":{"name":"projects/271671331037/sites/finch-app-v2/versions/ad5ddafef2895560","status":"FINALIZED","config":{},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2025-10-24T13:31:35.832705Z","createUser":{"email":"kyle.christian@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJVNSP8Aaz2qfUxFFAJLgtLoJ7Lfr2p7gY17qCYuvqXVYVUt64qDg"},"finalizeTime":"2025-10-24T13:31:37.440458Z","finalizeUser":{"email":"kyle.christian@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJVNSP8Aaz2qfUxFFAJLgtLoJ7Lfr2p7gY17qCYuvqXVYVUt64qDg"}},"type":"DEPLOY","releaseTime":"2025-10-24T13:31:37.147Z","releaseUser":{"email":"kyle.christian@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJVNSP8Aaz2qfUxFFAJLgtLoJ7Lfr2p7gY17qCYuvqXVYVUt64qDg"}}
+[info] ✔  hosting[finch-app-v2]: release complete 
+[info] 
+[info] ✔  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/finch-app-v2/overview
+[info] Hosting URL: https://finch-app-v2.web.app
+[debug] [2025-10-24T13:39:54.716Z] ----------------------------------------------------------------------
+[debug] [2025-10-24T13:39:54.718Z] Command:       /Users/kylechristian/.nvm/versions/node/v20.19.5/bin/node /Users/kylechristian/.nvm/versions/node/v20.19.5/bin/firebase deploy --only hosting
+[debug] [2025-10-24T13:39:54.718Z] CLI Version:   14.20.0
+[debug] [2025-10-24T13:39:54.718Z] Platform:      darwin
+[debug] [2025-10-24T13:39:54.718Z] Node Version:  v20.19.5
+[debug] [2025-10-24T13:39:54.719Z] Time:          Fri Oct 24 2025 07:39:54 GMT-0600 (Mountain Daylight Time)
+[debug] [2025-10-24T13:39:54.719Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-10-24T13:39:54.850Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-10-24T13:39:54.851Z] > authorizing via signed-in user (kyle.christian@gmail.com)
+[debug] [2025-10-24T13:39:54.851Z] [iam] checking project finch-app-v2 for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2025-10-24T13:39:54.852Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:39:54.852Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:39:54.852Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/finch-app-v2:testIamPermissions [none]
+[debug] [2025-10-24T13:39:54.852Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/finch-app-v2:testIamPermissions x-goog-quota-user=projects/finch-app-v2
+[debug] [2025-10-24T13:39:54.853Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/finch-app-v2:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-10-24T13:39:55.191Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/finch-app-v2:testIamPermissions 200
+[debug] [2025-10-24T13:39:55.191Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/finch-app-v2:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-10-24T13:39:55.192Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:39:55.192Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:39:55.192Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/finch-app-v2 [none]
+[debug] [2025-10-24T13:39:55.625Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/finch-app-v2 200
+[debug] [2025-10-24T13:39:55.625Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/finch-app-v2 {"projectId":"finch-app-v2","projectNumber":"271671331037","displayName":"finch-app-v2","name":"projects/finch-app-v2","resources":{"hostingSite":"finch-app-v2"},"state":"ACTIVE","etag":"1_873c5b4f-8e4a-4d73-944b-ceb45579dabd"}
+[info] 
+[info] === Deploying to 'finch-app-v2'...
+[info] 
+[info] i  deploying hosting 
+[debug] [2025-10-24T13:39:55.632Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:39:55.632Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:39:55.632Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions [none]
+[debug] [2025-10-24T13:39:55.632Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions {"status":"CREATED","labels":{"deployment-tool":"cli-firebase"}}
+[debug] [2025-10-24T13:39:56.424Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions 200
+[debug] [2025-10-24T13:39:56.425Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions {"name":"projects/271671331037/sites/finch-app-v2/versions/4e4c9a1133a84e4c","status":"CREATED","config":{},"labels":{"deployment-tool":"cli-firebase"}}
+[info] i  hosting[finch-app-v2]: beginning deploy... 
+[info] i  hosting[finch-app-v2]: found 2 files in docs 
+[debug] [2025-10-24T13:39:56.438Z] [hosting] uploading with 200 concurrency
+[debug] [2025-10-24T13:39:56.443Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:39:56.443Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:39:56.444Z] [hosting] hash cache [ZG9jcw] stored for 2 files
+[debug] [2025-10-24T13:39:56.444Z] [hosting][hash queue][FINAL] {"max":3,"min":1,"avg":2,"active":0,"complete":2,"success":2,"errored":0,"retried":0,"total":2,"elapsed":5}
+[debug] [2025-10-24T13:39:56.445Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/271671331037/sites/finch-app-v2/versions/4e4c9a1133a84e4c:populateFiles [none]
+[debug] [2025-10-24T13:39:56.445Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/271671331037/sites/finch-app-v2/versions/4e4c9a1133a84e4c:populateFiles {"files":{"/privacy-policy.html":"9b50e4836c7f07f850230c5d6df0fa8ada805e754f7e6664712f6b36db524b4a","/delete-account.html":"4785fb0220e0a81c0fc362231b9c663ae5adf11af1b397f389a51a90d717f1dc"}}
+[debug] [2025-10-24T13:39:56.597Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/271671331037/sites/finch-app-v2/versions/4e4c9a1133a84e4c:populateFiles 200
+[debug] [2025-10-24T13:39:56.597Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/271671331037/sites/finch-app-v2/versions/4e4c9a1133a84e4c:populateFiles {"uploadRequiredHashes":["4785fb0220e0a81c0fc362231b9c663ae5adf11af1b397f389a51a90d717f1dc"],"uploadUrl":"https://upload-firebasehosting.googleapis.com/upload/sites/finch-app-v2/versions/4e4c9a1133a84e4c/files"}
+[debug] [2025-10-24T13:39:56.597Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:39:56.597Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:39:56.598Z] >>> [apiv2][query] POST https://upload-firebasehosting.googleapis.com/upload/sites/finch-app-v2/versions/4e4c9a1133a84e4c/files/4785fb0220e0a81c0fc362231b9c663ae5adf11af1b397f389a51a90d717f1dc [none]
+[debug] [2025-10-24T13:39:56.598Z] >>> [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/finch-app-v2/versions/4e4c9a1133a84e4c/files/4785fb0220e0a81c0fc362231b9c663ae5adf11af1b397f389a51a90d717f1dc [stream]
+[debug] [2025-10-24T13:39:56.599Z] [hosting][populate queue][FINAL] {"max":155,"min":155,"avg":155,"active":0,"complete":1,"success":1,"errored":0,"retried":0,"total":1,"elapsed":156}
+[debug] [2025-10-24T13:39:56.599Z] [hosting] uploads queued: 1
+[debug] [2025-10-24T13:39:57.201Z] <<< [apiv2][status] POST https://upload-firebasehosting.googleapis.com/upload/sites/finch-app-v2/versions/4e4c9a1133a84e4c/files/4785fb0220e0a81c0fc362231b9c663ae5adf11af1b397f389a51a90d717f1dc 200
+[debug] [2025-10-24T13:39:57.201Z] <<< [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/finch-app-v2/versions/4e4c9a1133a84e4c/files/4785fb0220e0a81c0fc362231b9c663ae5adf11af1b397f389a51a90d717f1dc [stream]
+[debug] [2025-10-24T13:39:57.201Z] [hosting][upload queue][FINAL] {"max":604,"min":604,"avg":604,"active":0,"complete":1,"success":1,"errored":0,"retried":0,"total":1,"elapsed":604}
+[info] i  hosting: upload complete 
+[info] ✔  hosting[finch-app-v2]: file upload complete 
+[debug] [2025-10-24T13:39:57.202Z] [hosting] deploy completed after 774ms
+[debug] [2025-10-24T13:39:57.202Z] [
+  {
+    "config": {
+      "public": "docs",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "site": "finch-app-v2"
+    },
+    "version": "projects/271671331037/sites/finch-app-v2/versions/4e4c9a1133a84e4c"
+  }
+]
+[info] i  hosting[finch-app-v2]: finalizing version... 
+[debug] [2025-10-24T13:39:57.203Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:39:57.203Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:39:57.204Z] >>> [apiv2][query] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions/4e4c9a1133a84e4c updateMask=status%2Cconfig
+[debug] [2025-10-24T13:39:57.204Z] >>> [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions/4e4c9a1133a84e4c {"status":"FINALIZED","config":{}}
+[debug] [2025-10-24T13:39:57.358Z] <<< [apiv2][status] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions/4e4c9a1133a84e4c 200
+[debug] [2025-10-24T13:39:57.358Z] <<< [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/versions/4e4c9a1133a84e4c {"name":"projects/271671331037/sites/finch-app-v2/versions/4e4c9a1133a84e4c","status":"FINALIZED","config":{},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2025-10-24T13:39:56.271173Z","createUser":{"email":"kyle.christian@gmail.com"},"finalizeTime":"2025-10-24T13:39:57.431163Z","finalizeUser":{"email":"kyle.christian@gmail.com"}}
+[debug] [2025-10-24T13:39:57.358Z] [hosting] finalized version for finch-app-v2:[object Object]
+[info] ✔  hosting[finch-app-v2]: version finalized 
+[info] i  hosting[finch-app-v2]: releasing new version... 
+[debug] [2025-10-24T13:39:57.358Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:39:57.358Z] Checked if tokens are valid: true, expires at: 1761316293277
+[debug] [2025-10-24T13:39:57.359Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/channels/live/releases versionName=projects%2F271671331037%2Fsites%2Ffinch-app-v2%2Fversions%2F4e4c9a1133a84e4c
+[debug] [2025-10-24T13:39:57.359Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/channels/live/releases {}
+[debug] [2025-10-24T13:39:57.557Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/channels/live/releases 200
+[debug] [2025-10-24T13:39:57.557Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/finch-app-v2/channels/live/releases {"name":"projects/271671331037/sites/finch-app-v2/channels/live/releases/1761313197081000","version":{"name":"projects/271671331037/sites/finch-app-v2/versions/4e4c9a1133a84e4c","status":"FINALIZED","config":{},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2025-10-24T13:39:56.271173Z","createUser":{"email":"kyle.christian@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJVNSP8Aaz2qfUxFFAJLgtLoJ7Lfr2p7gY17qCYuvqXVYVUt64qDg"},"finalizeTime":"2025-10-24T13:39:57.431163Z","finalizeUser":{"email":"kyle.christian@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJVNSP8Aaz2qfUxFFAJLgtLoJ7Lfr2p7gY17qCYuvqXVYVUt64qDg"}},"type":"DEPLOY","releaseTime":"2025-10-24T13:39:57.081Z","releaseUser":{"email":"kyle.christian@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJVNSP8Aaz2qfUxFFAJLgtLoJ7Lfr2p7gY17qCYuvqXVYVUt64qDg"}}
+[debug] [2025-10-24T13:39:57.557Z] [hosting] release: {"name":"projects/271671331037/sites/finch-app-v2/channels/live/releases/1761313197081000","version":{"name":"projects/271671331037/sites/finch-app-v2/versions/4e4c9a1133a84e4c","status":"FINALIZED","config":{},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2025-10-24T13:39:56.271173Z","createUser":{"email":"kyle.christian@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJVNSP8Aaz2qfUxFFAJLgtLoJ7Lfr2p7gY17qCYuvqXVYVUt64qDg"},"finalizeTime":"2025-10-24T13:39:57.431163Z","finalizeUser":{"email":"kyle.christian@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJVNSP8Aaz2qfUxFFAJLgtLoJ7Lfr2p7gY17qCYuvqXVYVUt64qDg"}},"type":"DEPLOY","releaseTime":"2025-10-24T13:39:57.081Z","releaseUser":{"email":"kyle.christian@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJVNSP8Aaz2qfUxFFAJLgtLoJ7Lfr2p7gY17qCYuvqXVYVUt64qDg"}}
+[info] ✔  hosting[finch-app-v2]: release complete 
+[info] 
+[info] ✔  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/finch-app-v2/overview
+[info] Hosting URL: https://finch-app-v2.web.app

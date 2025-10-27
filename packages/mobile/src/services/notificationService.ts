@@ -25,7 +25,8 @@ export async function requestNotificationPermission(): Promise<boolean> {
       return enabled;
     } else {
       // Android 13+ requires POST_NOTIFICATIONS permission
-      if (Platform.Version >= 33) {
+      const androidVersion = typeof Platform.Version === 'number' ? Platform.Version : parseInt(Platform.Version, 10);
+      if (androidVersion >= 33) {
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
         );
@@ -63,9 +64,14 @@ export async function registerDeviceForNotifications(userId: string): Promise<vo
       return;
     }
 
+    // Register for remote messages first (required for iOS)
+    if (Platform.OS === 'ios') {
+      await messaging().registerDeviceForRemoteMessages();
+    }
+
     // Get FCM token
     const token = await messaging().getToken();
-    console.log('📱 FCM Token:', token);
+    console.log('✅ FCM token saved to Firestore:', token);
 
     if (!token) {
       console.warn('⚠️ No FCM token received');

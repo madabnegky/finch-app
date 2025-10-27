@@ -3,15 +3,21 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import brandColors from '../theme/colors';
 
+interface IStep {
+  name: string;
+  order: number;
+  text: string;
+  target: any;
+  wrapper: any;
+}
+
 interface CustomTooltipProps {
   isFirstStep: boolean;
   isLastStep: boolean;
   handleNext: () => void;
   handlePrev: () => void;
   handleStop: () => void;
-  currentStep: {
-    text: string;
-  };
+  currentStep: IStep;
   labels?: {
     skip?: string;
     previous?: string;
