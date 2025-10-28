@@ -4,3 +4,23 @@ node_modules
 packages/mobile/android/keystore.properties
 packages/mobile/android/app/*.keystore
 *.jks
+
+# Firebase
+.firebase/
+
+# Environment files
+.env
+.env.*
+!.env.example
+.runtimeconfig.json
+
+# iOS secrets
+*.mobileprovision
+*.p12
+*.certSigningRequest
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output

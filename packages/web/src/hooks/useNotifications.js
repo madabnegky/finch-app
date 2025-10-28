@@ -25,7 +25,10 @@ const useNotifications = () => {
         const currentToken = await getToken(messaging, { vapidKey });
 
         if (currentToken) {
-          console.log('FCM Token:', currentToken);
+          // Only log token in development
+          if (import.meta.env.DEV) {
+            console.log('FCM Token:', currentToken);
+          }
           const userDocRef = doc(api.firestore, 'users', user.uid);
           await updateDoc(userDocRef, {
             fcmTokens: arrayUnion(currentToken)

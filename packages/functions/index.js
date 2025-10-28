@@ -200,7 +200,19 @@ function mapPlaidCategoryToFinch(plaidCategories) {
 }
 
 exports.generateProjections = functions.https.onRequest(async (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*');
+  // Whitelist of allowed origins
+  const allowedOrigins = [
+    'https://finch-app-v2.web.app',
+    'https://finch-app-v2.firebaseapp.com',
+    'http://localhost:5173', // Local development
+    'http://localhost:3000'  // Alternative local dev port
+  ];
+
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.set('Access-Control-Allow-Origin', origin);
+  }
+
   res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 

@@ -71,7 +71,9 @@ export async function registerDeviceForNotifications(userId: string): Promise<vo
 
     // Get FCM token
     const token = await messaging().getToken();
-    console.log('✅ FCM token saved to Firestore:', token);
+    if (__DEV__) {
+      console.log('✅ FCM token saved to Firestore:', token);
+    }
 
     if (!token) {
       console.warn('⚠️ No FCM token received');

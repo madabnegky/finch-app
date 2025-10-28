@@ -1,2 +1,16 @@
 node_modules/
 *.local
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+.runtimeconfig.json
+
+# Private keys
+*.key
+*.pem
+*.p12
+
+# Firebase
+.firebase/
