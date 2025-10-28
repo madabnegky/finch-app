@@ -39,6 +39,20 @@ exports.sendScheduledNotifications = functions.pubsub.schedule('every day 09:00'
             continue; // Skip users who haven't enabled notifications
         }
 
+        // Check user notification preferences
+        const preferencesDoc = await db.collection('users').doc(userId).collection('preferences').doc('settings').get();
+        const preferences = preferencesDoc.exists ? preferencesDoc.data() : {};
+
+        // Check master toggle
+        if (preferences.notificationsEnabled === false) {
+            continue; // Skip if notifications are disabled
+        }
+
+        // Check if daily alerts are enabled
+        if (preferences.dailyAlerts === false) {
+            continue; // Skip if daily alerts are disabled
+        }
+
         const accountsSnapshot = await db.collection('users').doc(userId).collection('accounts').get();
         const transactionsSnapshot = await db.collection('users').doc(userId).collection('transactions').get();
         

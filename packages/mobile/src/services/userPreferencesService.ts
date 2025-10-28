@@ -7,15 +7,28 @@ import auth from '@react-native-firebase/auth';
  */
 
 export interface UserPreferences {
+  // Master toggle
   notificationsEnabled: boolean;
+
+  // Granular notification controls
+  transactionNotifications: boolean;      // Real-time transaction alerts
+  paycheckNotifications: boolean;         // Income/paycheck notifications
+  morningSummaries: boolean;              // 7:30 AM batched overnight summaries
+  dailyAlerts: boolean;                   // 9 AM scheduled alerts (low balance, upcoming bills)
+
+  // Other preferences
   biometricAuthEnabled: boolean;
   hasCompletedOnboarding: boolean;
-  // Add more preferences as needed
+
   updatedAt: Date;
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   notificationsEnabled: true,
+  transactionNotifications: true,
+  paycheckNotifications: true,
+  morningSummaries: true,
+  dailyAlerts: true,
   biometricAuthEnabled: false,
   hasCompletedOnboarding: false,
   updatedAt: new Date(),

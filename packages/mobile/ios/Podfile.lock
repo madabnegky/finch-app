@@ -2139,6 +2139,8 @@ PODS:
   - React-Mapbuffer (0.74.5):
     - glog
     - React-debug
+  - react-native-biometrics (3.0.1):
+    - React-Core
   - react-native-plaid-link-sdk (12.6.0):
     - Plaid (~> 6.4.1)
     - React-Core
@@ -2531,6 +2533,7 @@ DEPENDENCIES:
   - React-jsitracing (from `../../../node_modules/react-native/ReactCommon/hermes/executor/`)
   - React-logger (from `../../../node_modules/react-native/ReactCommon/logger`)
   - React-Mapbuffer (from `../../../node_modules/react-native/ReactCommon`)
+  - react-native-biometrics (from `../../../node_modules/react-native-biometrics`)
   - react-native-plaid-link-sdk (from `../../../node_modules/react-native-plaid-link-sdk`)
   - react-native-safe-area-context (from `../../../node_modules/react-native-safe-area-context`)
   - React-nativeconfig (from `../../../node_modules/react-native/ReactCommon`)
@@ -2674,6 +2677,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/react-native/ReactCommon/logger"
   React-Mapbuffer:
     :path: "../../../node_modules/react-native/ReactCommon"
+  react-native-biometrics:
+    :path: "../../../node_modules/react-native-biometrics"
   react-native-plaid-link-sdk:
     :path: "../../../node_modules/react-native-plaid-link-sdk"
   react-native-safe-area-context:
@@ -2820,6 +2825,7 @@ SPEC CHECKSUMS:
   React-jsitracing: d73503c33d42ae2c0732945338cff966e41cc51e
   React-logger: 780b9ee9cec7d44eabc4093de90107c379078cb6
   React-Mapbuffer: 32481ad50f09c781bdb408b302757e0c9285d6db
+  react-native-biometrics: 43ed5b828646a7862dbc7945556446be00798e7d
   react-native-plaid-link-sdk: 7e3e7669a8a1b22595ead55a5d5778e637b354f5
   react-native-safe-area-context: df9763c5de6fa38883028e243a0b60123acb8858
   React-nativeconfig: f326487bc61eba3f0e328da6efb2711533dcac46

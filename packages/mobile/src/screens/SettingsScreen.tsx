@@ -14,6 +14,11 @@ import {
   updateUserPreferences,
   subscribeToUserPreferences
 } from '../services/userPreferencesService';
+import {
+  isBiometricAvailable,
+  getBiometricTypeName,
+  BiometricType
+} from '../services/biometricService';
 
 /**
  * Settings Screen
@@ -83,9 +88,25 @@ export function SettingsScreen() {
   const navigation = useNavigation();
   const { user, linkAccountWithEmail, linkAccountWithGoogle } = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [transactionNotifications, setTransactionNotifications] = useState(true);
+  const [paycheckNotifications, setPaycheckNotifications] = useState(true);
+  const [morningSummaries, setMorningSummaries] = useState(true);
+  const [dailyAlerts, setDailyAlerts] = useState(true);
   const [faceIdEnabled, setFaceIdEnabled] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricType, setBiometricType] = useState<BiometricType>(null);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showTermsOfService, setShowTermsOfService] = useState(false);
+
+  // Check biometric availability
+  useEffect(() => {
+    const checkBiometrics = async () => {
+      const { available, biometryType } = await isBiometricAvailable();
+      setBiometricAvailable(available);
+      setBiometricType(biometryType);
+    };
+    checkBiometrics();
+  }, []);
 
   // Load user preferences from Firestore
   useEffect(() => {
@@ -94,6 +115,10 @@ export function SettingsScreen() {
     // Subscribe to real-time preferences updates
     const unsubscribe = subscribeToUserPreferences((preferences) => {
       setNotificationsEnabled(preferences.notificationsEnabled);
+      setTransactionNotifications(preferences.transactionNotifications);
+      setPaycheckNotifications(preferences.paycheckNotifications);
+      setMorningSummaries(preferences.morningSummaries);
+      setDailyAlerts(preferences.dailyAlerts);
       setFaceIdEnabled(preferences.biometricAuthEnabled);
     });
 
@@ -115,6 +140,54 @@ export function SettingsScreen() {
     }
   };
 
+  // Handle transaction notifications toggle
+  const handleTransactionNotificationsToggle = async (value: boolean) => {
+    setTransactionNotifications(value);
+    try {
+      await updateUserPreferences({ transactionNotifications: value });
+    } catch (error) {
+      console.error('❌ Error saving transaction notifications preference:', error);
+      setTransactionNotifications(!value);
+      Alert.alert('Error', 'Failed to save preference. Please try again.');
+    }
+  };
+
+  // Handle paycheck notifications toggle
+  const handlePaycheckNotificationsToggle = async (value: boolean) => {
+    setPaycheckNotifications(value);
+    try {
+      await updateUserPreferences({ paycheckNotifications: value });
+    } catch (error) {
+      console.error('❌ Error saving paycheck notifications preference:', error);
+      setPaycheckNotifications(!value);
+      Alert.alert('Error', 'Failed to save preference. Please try again.');
+    }
+  };
+
+  // Handle morning summaries toggle
+  const handleMorningSummariesToggle = async (value: boolean) => {
+    setMorningSummaries(value);
+    try {
+      await updateUserPreferences({ morningSummaries: value });
+    } catch (error) {
+      console.error('❌ Error saving morning summaries preference:', error);
+      setMorningSummaries(!value);
+      Alert.alert('Error', 'Failed to save preference. Please try again.');
+    }
+  };
+
+  // Handle daily alerts toggle
+  const handleDailyAlertsToggle = async (value: boolean) => {
+    setDailyAlerts(value);
+    try {
+      await updateUserPreferences({ dailyAlerts: value });
+    } catch (error) {
+      console.error('❌ Error saving daily alerts preference:', error);
+      setDailyAlerts(!value);
+      Alert.alert('Error', 'Failed to save preference. Please try again.');
+    }
+  };
+
   // Handle biometric toggle
   const handleBiometricToggle = async (value: boolean) => {
     setFaceIdEnabled(value);
@@ -131,11 +204,11 @@ export function SettingsScreen() {
   };
 
   const handleConnectedAccounts = () => {
-    Alert.alert('Connected Accounts', 'Manage your linked bank accounts');
+    navigation.navigate('ConnectedAccounts' as never);
   };
 
   const handleSecurity = () => {
-    Alert.alert('Security', 'Manage your security settings');
+    navigation.navigate('Security' as never);
   };
 
   const handlePrivacy = () => {
@@ -304,11 +377,14 @@ export function SettingsScreen() {
             subtitle="Manage linked bank accounts"
             onPress={handleConnectedAccounts}
           />
-          <View style={styles.divider} />
+        </SettingSection>
+
+        {/* NOTIFICATIONS SECTION */}
+        <SettingSection title="Notifications">
           <SettingItem
             icon={notificationIcons.bell}
-            title="Notifications"
-            subtitle="Transaction alerts and reminders"
+            title="All Notifications"
+            subtitle="Master toggle for all alerts"
             onPress={() => {}}
             rightComponent={
               <Switch
@@ -320,6 +396,75 @@ export function SettingsScreen() {
             }
             showChevron={false}
           />
+
+          {notificationsEnabled && (
+            <>
+              <View style={styles.divider} />
+              <SettingItem
+                icon="credit-card"
+                title="Transaction Alerts"
+                subtitle="Real-time spending notifications (7:30 AM - 10 PM)"
+                onPress={() => {}}
+                rightComponent={
+                  <Switch
+                    value={transactionNotifications}
+                    onValueChange={handleTransactionNotificationsToggle}
+                    trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
+                    thumbColor={transactionNotifications ? brandColors.tealPrimary : brandColors.white}
+                  />
+                }
+                showChevron={false}
+              />
+              <View style={styles.divider} />
+              <SettingItem
+                icon="dollar-sign"
+                title="Paycheck Notifications"
+                subtitle="Get notified when income is deposited"
+                onPress={() => {}}
+                rightComponent={
+                  <Switch
+                    value={paycheckNotifications}
+                    onValueChange={handlePaycheckNotificationsToggle}
+                    trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
+                    thumbColor={paycheckNotifications ? brandColors.tealPrimary : brandColors.white}
+                  />
+                }
+                showChevron={false}
+              />
+              <View style={styles.divider} />
+              <SettingItem
+                icon="sunrise"
+                title="Morning Summaries"
+                subtitle="Daily 7:30 AM overnight transaction summary"
+                onPress={() => {}}
+                rightComponent={
+                  <Switch
+                    value={morningSummaries}
+                    onValueChange={handleMorningSummariesToggle}
+                    trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
+                    thumbColor={morningSummaries ? brandColors.tealPrimary : brandColors.white}
+                  />
+                }
+                showChevron={false}
+              />
+              <View style={styles.divider} />
+              <SettingItem
+                icon="alert-circle"
+                title="Daily Alerts"
+                subtitle="Daily 9 AM low balance and bill reminders"
+                onPress={() => {}}
+                rightComponent={
+                  <Switch
+                    value={dailyAlerts}
+                    onValueChange={handleDailyAlertsToggle}
+                    trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
+                    thumbColor={dailyAlerts ? brandColors.tealPrimary : brandColors.white}
+                  />
+                }
+                showChevron={false}
+              />
+            </>
+          )}
         </SettingSection>
 
         {/* SECURITY & PRIVACY SECTION */}
@@ -330,22 +475,26 @@ export function SettingsScreen() {
             subtitle="Password & authentication"
             onPress={handleSecurity}
           />
-          <View style={styles.divider} />
-          <SettingItem
-            icon={securityIcons.fingerprint}
-            title="Face ID / Touch ID"
-            subtitle="Unlock with biometrics"
-            onPress={() => {}}
-            rightComponent={
-              <Switch
-                value={faceIdEnabled}
-                onValueChange={handleBiometricToggle}
-                trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
-                thumbColor={faceIdEnabled ? brandColors.tealPrimary : brandColors.white}
+          {biometricAvailable && (
+            <>
+              <View style={styles.divider} />
+              <SettingItem
+                icon={securityIcons.fingerprint}
+                title={getBiometricTypeName(biometricType)}
+                subtitle="Unlock app with biometrics"
+                onPress={() => {}}
+                rightComponent={
+                  <Switch
+                    value={faceIdEnabled}
+                    onValueChange={handleBiometricToggle}
+                    trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
+                    thumbColor={faceIdEnabled ? brandColors.tealPrimary : brandColors.white}
+                  />
+                }
+                showChevron={false}
               />
-            }
-            showChevron={false}
-          />
+            </>
+          )}
           <View style={styles.divider} />
           <SettingItem
             icon={securityIcons.shield}

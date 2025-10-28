@@ -36,6 +36,20 @@ service cloud.firestore {
         // Rules for creating, updating, and deleting transactions.
         allow create, update, delete: if request.auth.uid == userId && isTransactionValid();
       }
+
+      // Rules for the 'preferences' subcollection
+      match /preferences/{preferenceId} {
+        // A user can read and write their own preferences
+        allow read, write: if request.auth.uid == userId;
+      }
+
+      // Rules for the 'pendingNotifications' subcollection
+      match /pendingNotifications/{notificationId} {
+        // A user can read their own pending notifications
+        allow read: if request.auth.uid == userId;
+        // Cloud Functions can write to pending notifications
+        allow write: if request.auth.uid == userId;
+      }
     }
   }
 

@@ -26,6 +26,93 @@ const project = process.env.GCLOUD_PROJECT || 'finch-app-v2';
 const location = 'us-central1';
 const queue = 'plaid-sync-queue';
 
+// ============================================================================
+// NOTIFICATION HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Check if current time is within active notification hours (7:30 AM - 10 PM)
+ * @param {string} userTimezone - User's timezone (e.g., 'America/New_York')
+ */
+function isInActiveHours(userTimezone = 'America/New_York') {
+  try {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: userTimezone,
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false
+    });
+
+    const parts = formatter.formatToParts(now);
+    const hour = parseInt(parts.find(p => p.type === 'hour').value);
+    const minute = parseInt(parts.find(p => p.type === 'minute').value);
+
+    // Active hours: 7:30 AM to 10 PM
+    if (hour < 7) return false;
+    if (hour === 7 && minute < 30) return false;
+    if (hour >= 22) return false;
+
+    return true;
+  } catch (error) {
+    functions.logger.error('Error checking active hours:', error);
+    return true; // Default to sending if error
+  }
+}
+
+/**
+ * Get next 7:30 AM timestamp in user's timezone
+ */
+function getNext730AM(userTimezone = 'America/New_York') {
+  try {
+    const now = new Date();
+
+    // Create date in user's timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: userTimezone,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false
+    });
+
+    const parts = formatter.formatToParts(now);
+    const year = parseInt(parts.find(p => p.type === 'year').value);
+    const month = parseInt(parts.find(p => p.type === 'month').value);
+    const day = parseInt(parts.find(p => p.type === 'day').value);
+    const hour = parseInt(parts.find(p => p.type === 'hour').value);
+    const minute = parseInt(parts.find(p => p.type === 'minute').value);
+
+    // Create 7:30 AM today
+    let scheduledDate = new Date(year, month - 1, day, 7, 30, 0);
+
+    // If already past 7:30 AM, schedule for tomorrow
+    if (hour > 7 || (hour === 7 && minute >= 30)) {
+      scheduledDate.setDate(scheduledDate.getDate() + 1);
+    }
+
+    return admin.firestore.Timestamp.fromDate(scheduledDate);
+  } catch (error) {
+    functions.logger.error('Error calculating next 7:30 AM:', error);
+    // Default to 8 hours from now
+    const fallback = new Date();
+    fallback.setHours(fallback.getHours() + 8);
+    return admin.firestore.Timestamp.fromDate(fallback);
+  }
+}
+
+/**
+ * Format currency for notifications
+ */
+function formatCurrency(amount) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD"
+  }).format(Math.abs(amount));
+}
+
 // Map Plaid categories to Finch categories
 function mapPlaidCategoryToFinch(plaidCategories) {
   if (!plaidCategories) {
@@ -1100,6 +1187,300 @@ exports.fetchPlaidRecurringTransactions = functions.https.onCall(async (data, co
   }
 });
 
+// ============================================================================
+// SMART NOTIFICATION FUNCTIONS
+// ============================================================================
+
+/**
+ * Send immediate transaction notification (during active hours 7:30 AM - 10 PM)
+ */
+async function sendImmediateTransactionNotification(userId, accountId, transaction, currentBalance) {
+  const { calculateProjections, getAvailableToSpend } = require('./projection');
+
+  try {
+    // Get user's FCM tokens and preferences
+    const userDoc = await db.collection('users').doc(userId).get();
+    const userData = userDoc.data();
+    const fcmTokens = userData?.fcmTokens || [];
+
+    if (fcmTokens.length === 0) {
+      functions.logger.info('No FCM tokens found for user, skipping notification');
+      return;
+    }
+
+    // Check user notification preferences
+    const preferencesDoc = await db.collection('users').doc(userId).collection('preferences').doc('settings').get();
+    const preferences = preferencesDoc.exists ? preferencesDoc.data() : {};
+
+    // Check master toggle
+    if (preferences.notificationsEnabled === false) {
+      functions.logger.info('Notifications disabled by user preference');
+      return;
+    }
+
+    // Check granular preferences based on notification type
+    const isIncome = transaction.type === 'income';
+    if (isIncome && preferences.paycheckNotifications === false) {
+      functions.logger.info('Paycheck notifications disabled by user preference');
+      return;
+    }
+
+    if (!isIncome && preferences.transactionNotifications === false) {
+      functions.logger.info('Transaction notifications disabled by user preference');
+      return;
+    }
+
+    // Calculate available to spend
+    const accountDoc = await db.collection(`users/${userId}/accounts`).doc(accountId).get();
+    const account = { id: accountId, ...accountDoc.data() };
+
+    const transactionsSnapshot = await db
+      .collection(`users/${userId}/transactions`)
+      .where('accountId', '==', accountId)
+      .get();
+    const transactions = transactionsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Run 60-day projection
+    const projections = calculateProjections([account], transactions, 60);
+    const accountProjections = projections.find(p => p.accountId === accountId)?.projections;
+    const availableToSpend = getAvailableToSpend(accountProjections);
+
+    // Get upcoming bills (next 7 days)
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    const upcomingBills = transactions.filter(t => {
+      if (!t.isRecurring || !t.recurringDetails?.nextDate || t.amount >= 0) return false;
+      const nextDate = t.recurringDetails.nextDate.toDate
+        ? t.recurringDetails.nextDate.toDate()
+        : new Date(t.recurringDetails.nextDate);
+      return nextDate <= nextWeek;
+    });
+
+    // Build notification based on available balance and transaction type
+    let title, body, priority;
+
+    // INCOME (Paycheck detection)
+    if (transaction.type === 'income') {
+      priority = 'default';
+      title = `💰 ${account.name} • ${transaction.merchantName}`;
+      body = `${formatCurrency(transaction.amount)} deposited\n` +
+             `Available to spend: ${formatCurrency(availableToSpend)} ✓`;
+    }
+    // EXPENSE - Critical (< $100 available)
+    else if (availableToSpend < 100) {
+      priority = 'high';
+      title = `🔴 LOW BALANCE ALERT`;
+      body = `${account.name} • ${transaction.merchantName}\n` +
+             `${formatCurrency(Math.abs(transaction.amount))} • Available: ${formatCurrency(availableToSpend)}`;
+
+      if (upcomingBills.length > 0) {
+        const nextBill = upcomingBills[0];
+        const billDate = nextBill.recurringDetails.nextDate.toDate
+          ? nextBill.recurringDetails.nextDate.toDate()
+          : new Date(nextBill.recurringDetails.nextDate);
+        const dayOfWeek = billDate.toLocaleDateString('en-US', { weekday: 'long' });
+        body += `\nUpcoming: ${nextBill.description} (${formatCurrency(Math.abs(nextBill.amount))}) due ${dayOfWeek}`;
+      }
+    }
+    // EXPENSE - Warning ($100-$250 available)
+    else if (availableToSpend < 250) {
+      priority = 'default';
+      title = `⚠️ ${account.name} • ${transaction.merchantName}`;
+      body = `${formatCurrency(Math.abs(transaction.amount))} • Available: ${formatCurrency(availableToSpend)} (Getting low)`;
+    }
+    // EXPENSE - Healthy (> $250 available)
+    else {
+      priority = 'default';
+      title = `${account.name} • ${transaction.merchantName}`;
+      body = `${formatCurrency(Math.abs(transaction.amount))} • Available: ${formatCurrency(availableToSpend)} ✓`;
+    }
+
+    // Send notification
+    await admin.messaging().sendToDevice(fcmTokens, {
+      notification: { title, body },
+      data: {
+        type: 'new_transaction',
+        transactionId: transaction.id,
+        accountId: accountId,
+        availableToSpend: availableToSpend.toString(),
+      },
+      android: {
+        priority,
+        channelId: priority === 'high' ? 'critical_alerts' : 'transactions',
+      },
+    });
+
+    functions.logger.info(`✅ Sent immediate notification for ${transaction.merchantName}`, {
+      availableToSpend,
+      priority
+    });
+  } catch (error) {
+    functions.logger.error('Error sending immediate notification:', error);
+  }
+}
+
+/**
+ * Send batched morning notification summarizing overnight transactions
+ */
+async function sendBatchedMorningNotification(userId, notifications) {
+  const { calculateProjections, getAvailableToSpend } = require('./projection');
+
+  try {
+    // Get user's FCM tokens and preferences
+    const userDoc = await db.collection('users').doc(userId).get();
+    const userData = userDoc.data();
+    const fcmTokens = userData?.fcmTokens || [];
+
+    if (fcmTokens.length === 0) return;
+
+    // Check user notification preferences
+    const preferencesDoc = await db.collection('users').doc(userId).collection('preferences').doc('settings').get();
+    const preferences = preferencesDoc.exists ? preferencesDoc.data() : {};
+
+    // Check master toggle
+    if (preferences.notificationsEnabled === false) {
+      functions.logger.info('Morning notifications disabled by user preference');
+      return;
+    }
+
+    // Check if morning summaries are enabled
+    if (preferences.morningSummaries === false) {
+      functions.logger.info('Morning summaries disabled by user preference');
+      return;
+    }
+
+    // Sort by timestamp (oldest first)
+    notifications.sort((a, b) => a.timestamp.seconds - b.timestamp.seconds);
+
+    // Get the account from the LAST transaction (most recent balance)
+    const lastNotification = notifications[notifications.length - 1];
+    const accountId = lastNotification.accountId;
+
+    // Calculate current available to spend
+    const accountDoc = await db.collection(`users/${userId}/accounts`).doc(accountId).get();
+    const account = { id: accountId, ...accountDoc.data() };
+
+    const transactionsSnapshot = await db
+      .collection(`users/${userId}/transactions`)
+      .where('accountId', '==', accountId)
+      .get();
+    const transactions = transactionsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    const projections = calculateProjections([account], transactions, 60);
+    const accountProjections = projections.find(p => p.accountId === accountId)?.projections;
+    const availableToSpend = getAvailableToSpend(accountProjections);
+
+    // Get upcoming bills
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    const upcomingBills = transactions.filter(t => {
+      if (!t.isRecurring || !t.recurringDetails?.nextDate || t.amount >= 0) return false;
+      const nextDate = t.recurringDetails.nextDate.toDate
+        ? t.recurringDetails.nextDate.toDate()
+        : new Date(t.recurringDetails.nextDate);
+      return nextDate <= nextWeek;
+    });
+
+    // Build batched notification
+    let title, body, priority;
+
+    const count = notifications.length;
+    const hasIncome = notifications.some(n => n.type === 'income');
+
+    // Single transaction
+    if (count === 1) {
+      const notif = notifications[0];
+
+      if (notif.type === 'income') {
+        title = `🌅 💰 Good morning!`;
+        body = `${notif.merchantName} • ${formatCurrency(notif.amount)} deposited\n` +
+               `Available to spend: ${formatCurrency(availableToSpend)} ✓`;
+      } else {
+        title = `🌅 Good morning!`;
+        body = `1 transaction while you were away\n\n` +
+               `${notif.merchantName} • ${formatCurrency(Math.abs(notif.amount))}\n`;
+
+        if (availableToSpend < 100) {
+          priority = 'high';
+          body += `🔴 Available: ${formatCurrency(availableToSpend)} (Critical!)`;
+        } else if (availableToSpend < 250) {
+          body += `⚠️ Available: ${formatCurrency(availableToSpend)} (Getting low)`;
+        } else {
+          body += `Available: ${formatCurrency(availableToSpend)} ✓`;
+        }
+      }
+    }
+    // Multiple transactions
+    else {
+      title = hasIncome ? `🌅 💰 Good morning!` : `🌅 Good morning!`;
+      body = `${count} transactions while you were away\n\n`;
+
+      // List first 3 transactions
+      const toShow = notifications.slice(0, 3);
+      const transactionList = toShow.map(n => {
+        const prefix = n.type === 'income' ? '+' : '';
+        return `${n.merchantName} (${prefix}${formatCurrency(n.amount)})`;
+      }).join(', ');
+
+      body += transactionList;
+
+      if (count > 3) {
+        body += `, +${count - 3} more`;
+      }
+
+      body += '\n';
+
+      // Available to spend
+      if (availableToSpend < 100) {
+        priority = 'high';
+        body += `🔴 Available: ${formatCurrency(availableToSpend)} (Critical!)`;
+      } else if (availableToSpend < 250) {
+        body += `⚠️ Available: ${formatCurrency(availableToSpend)} (Getting low)`;
+      } else {
+        body += `Available: ${formatCurrency(availableToSpend)} ${hasIncome ? '(Great!)' : '✓'}`;
+      }
+    }
+
+    // Add upcoming bill if low balance
+    if (availableToSpend < 250 && upcomingBills.length > 0) {
+      const nextBill = upcomingBills[0];
+      const billDate = nextBill.recurringDetails.nextDate.toDate
+        ? nextBill.recurringDetails.nextDate.toDate()
+        : new Date(nextBill.recurringDetails.nextDate);
+      const dayOfWeek = billDate.toLocaleDateString('en-US', { weekday: 'long' });
+      body += `\nUpcoming: ${nextBill.description} (${formatCurrency(Math.abs(nextBill.amount))}) due ${dayOfWeek}`;
+    }
+
+    // Send notification
+    await admin.messaging().sendToDevice(fcmTokens, {
+      notification: { title, body },
+      data: {
+        type: 'batched_morning_summary',
+        transactionCount: count.toString(),
+        accountId: accountId,
+        availableToSpend: availableToSpend.toString(),
+      },
+      android: {
+        priority: priority || 'default',
+        channelId: 'morning_summary',
+      },
+    });
+
+    functions.logger.info(`✅ Sent batched morning notification to user ${userId}`, {
+      transactionCount: count,
+      availableToSpend,
+    });
+  } catch (error) {
+    functions.logger.error('Error sending batched morning notification:', error);
+  }
+}
+
 /**
  * Webhook endpoint for Plaid real-time notifications
  */
@@ -1295,7 +1676,7 @@ exports.processSyncTask = functions.https.onRequest(async (req, res) => {
 
       // Only store transactions dated after account link
       if (linkedAt && txnDate >= linkedAt) {
-        await db.collection(`users/${userId}/transactions`).add({
+        const newTransactionRef = await db.collection(`users/${userId}/transactions`).add({
           accountId,
           plaidTransactionId: plaidTxn.transaction_id,
           plaidCategory: plaidTxn.category ? plaidTxn.category.join(' > ') : null,
@@ -1311,6 +1692,51 @@ exports.processSyncTask = functions.https.onRequest(async (req, res) => {
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         newTransactionCount++;
+
+        // SMART NOTIFICATION: Send immediately or queue for morning
+        // Only notify on POSTED transactions (not pending)
+        if (!plaidTxn.pending) {
+          try {
+            // Get user's timezone (default to Eastern)
+            const userDoc = await db.collection('users').doc(userId).get();
+            const userData = userDoc.data();
+            const userTimezone = userData?.timezone || 'America/New_York';
+
+            if (isInActiveHours(userTimezone)) {
+              // SEND IMMEDIATELY (7:30 AM - 10 PM)
+              functions.logger.info(`Sending immediate notification for ${plaidTxn.name}`);
+              await sendImmediateTransactionNotification(
+                userId,
+                accountId,
+                {
+                  id: newTransactionRef.id,
+                  merchantName: plaidTxn.merchant_name || plaidTxn.name,
+                  amount: amount,
+                  type: amount >= 0 ? 'income' : 'expense',
+                },
+                null // Balance will be fetched inside the function
+              );
+            } else {
+              // QUEUE FOR 7:30 AM
+              functions.logger.info(`Queuing notification for ${plaidTxn.name} - outside active hours`);
+              await db.collection(`users/${userId}/pendingNotifications`).add({
+                transactionId: newTransactionRef.id,
+                accountId: accountId,
+                accountName: accountDoc.data().name,
+                merchantName: plaidTxn.merchant_name || plaidTxn.name,
+                amount: amount,
+                type: amount >= 0 ? 'income' : 'expense',
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                scheduledFor: getNext730AM(userTimezone),
+                userTimezone: userTimezone,
+                processed: false,
+              });
+            }
+          } catch (notificationError) {
+            functions.logger.error('Error handling notification:', notificationError);
+            // Don't fail the entire sync if notification fails
+          }
+        }
       }
     }
 
@@ -1347,3 +1773,71 @@ exports.processSyncTask = functions.https.onRequest(async (req, res) => {
     res.status(500).send('Internal Server Error');
   }
 });
+
+// ============================================================================
+// SCHEDULED NOTIFICATION PROCESSOR
+// ============================================================================
+
+/**
+ * Process queued notifications every 15 minutes
+ * Sends batched morning summaries at 7:30 AM local time
+ */
+exports.sendQueuedNotifications = functions.pubsub
+  .schedule('every 15 minutes')
+  .timeZone('UTC')
+  .onRun(async (context) => {
+    const now = admin.firestore.Timestamp.now();
+
+    functions.logger.info('Checking for queued notifications to send...');
+
+    // Find all pending notifications scheduled for now or earlier
+    const pendingSnapshot = await db.collectionGroup('pendingNotifications')
+      .where('processed', '==', false)
+      .where('scheduledFor', '<=', now)
+      .get();
+
+    if (pendingSnapshot.empty) {
+      functions.logger.info('No queued notifications to send');
+      return null;
+    }
+
+    functions.logger.info(`Found ${pendingSnapshot.docs.length} queued notifications`);
+
+    // Group by user
+    const notificationsByUser = {};
+
+    pendingSnapshot.docs.forEach(doc => {
+      const userId = doc.ref.parent.parent.id;
+      if (!notificationsByUser[userId]) {
+        notificationsByUser[userId] = [];
+      }
+      notificationsByUser[userId].push({
+        id: doc.id,
+        ref: doc.ref,
+        ...doc.data()
+      });
+    });
+
+    // Process each user's queued notifications
+    for (const [userId, notifications] of Object.entries(notificationsByUser)) {
+      try {
+        await sendBatchedMorningNotification(userId, notifications);
+
+        // Mark all as processed
+        const batch = db.batch();
+        notifications.forEach(notif => {
+          batch.update(notif.ref, { processed: true, processedAt: admin.firestore.FieldValue.serverTimestamp() });
+        });
+        await batch.commit();
+
+        functions.logger.info(`✅ Processed ${notifications.length} notifications for user ${userId}`);
+      } catch (error) {
+        functions.logger.error(`Error processing notifications for user ${userId}:`, error);
+        // Continue with other users even if one fails
+      }
+    }
+
+    functions.logger.info(`Processed queued notifications for ${Object.keys(notificationsByUser).length} users`);
+
+    return null;
+  });

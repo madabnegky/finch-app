@@ -231,9 +231,9 @@ export const TermsOfServiceScreen = () => {
 
       <Section title="18. Governing Law">
         <Text style={styles.text}>
-          These Terms are governed by the laws of [Your State/Country], without regard to
-          conflict of law principles. Any disputes shall be resolved in the courts of
-          [Your Jurisdiction].
+          These Terms are governed by the laws of the State of Delaware, United States,
+          without regard to conflict of law principles. Any disputes shall be resolved in
+          the courts of the State of Delaware.
         </Text>
       </Section>
 

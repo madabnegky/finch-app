@@ -31,9 +31,12 @@ import { CalendarScreen } from './src/screens/CalendarScreen';
 import { ReportsScreen } from './src/screens/ReportsScreen';
 import { BudgetScreen } from './src/screens/BudgetScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { ConnectedAccountsScreen } from './src/screens/ConnectedAccountsScreen';
+import { SecurityScreen } from './src/screens/SecurityScreen';
 import { useAuth } from '../shared-logic/src/hooks/useAuth';
 import CustomDrawer from './src/components/CustomDrawer';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { BiometricAuthWrapper } from './src/components/BiometricAuthWrapper';
 
 // This creates the "stack" of screens and drawer
 const Stack = createNativeStackNavigator();
@@ -218,8 +221,12 @@ function AppNavigator() {
           // Not authenticated - show auth screen
           <Stack.Screen name="Auth" component={AuthScreen} />
         ) : (
-          // Authenticated - show drawer
-          <Stack.Screen name="Main" component={MainDrawer} />
+          // Authenticated - show drawer and settings screens
+          <>
+            <Stack.Screen name="Main" component={MainDrawer} />
+            <Stack.Screen name="ConnectedAccounts" component={ConnectedAccountsScreen} />
+            <Stack.Screen name="Security" component={SecurityScreen} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>
@@ -260,7 +267,9 @@ function App(): React.JSX.Element {
         tooltipComponent={CustomTooltip}
       >
         <AuthProvider>
-          <AppNavigator />
+          <BiometricAuthWrapper>
+            <AppNavigator />
+          </BiometricAuthWrapper>
         </AuthProvider>
       </TourGuideProvider>
     </ErrorBoundary>
