@@ -1,19 +1,19 @@
 import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
-import auth from '@react-native-firebase/auth';
 
 /**
  * Session timeout configuration
  */
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
-const WARNING_TIMEOUT_MS = 14 * 60 * 1000; // 14 minutes (1 min before logout)
+const WARNING_TIMEOUT_MS = 14 * 60 * 1000; // 14 minutes (1 min before lock)
 
 /**
- * Hook that automatically logs out the user after a period of inactivity
+ * Hook that automatically locks the app UI after a period of inactivity
+ * IMPORTANT: This LOCKS the UI but keeps the user logged in for push notifications
  * Inactivity is defined as the app being in the background or no user interaction
  *
  * @param onWarning Optional callback when session is about to expire (1 minute warning)
- * @param onTimeout Optional callback when session expires (before logout)
+ * @param onTimeout Optional callback when session expires (triggers UI lock)
  */
 export function useSessionTimeout(
   onWarning?: () => void,
@@ -36,23 +36,16 @@ export function useSessionTimeout(
       clearTimeout(warningTimeoutRef.current);
     }
 
-    // Set warning timeout (1 minute before logout)
+    // Set warning timeout (1 minute before lock)
     warningTimeoutRef.current = setTimeout(() => {
-      console.log('⚠️ Session expiring in 1 minute');
+      console.log('⚠️ Session expiring in 1 minute - app will lock');
       onWarning?.();
     }, WARNING_TIMEOUT_MS);
 
-    // Set logout timeout
-    timeoutRef.current = setTimeout(async () => {
-      console.log('⏰ Session timeout - logging out user');
+    // Set lock timeout - LOCKS UI, but keeps user logged in for notifications
+    timeoutRef.current = setTimeout(() => {
+      console.log('⏰ Session timeout - locking app (user stays logged in for notifications)');
       onTimeout?.();
-
-      try {
-        await auth().signOut();
-        console.log('✅ User logged out due to inactivity');
-      } catch (error) {
-        console.error('❌ Error logging out on timeout:', error);
-      }
     }, SESSION_TIMEOUT_MS);
   };
 
@@ -69,13 +62,9 @@ export function useSessionTimeout(
       const timeInBackground = Date.now() - lastActivityTimeRef.current;
 
       if (timeInBackground >= SESSION_TIMEOUT_MS) {
-        console.log('⏰ Session expired while app was in background');
+        console.log('⏰ Session expired while app was in background - locking UI');
         onTimeout?.();
-
-        // Sign out immediately
-        auth().signOut().catch((error) => {
-          console.error('❌ Error logging out on background timeout:', error);
-        });
+        // Note: User stays logged in for push notifications
       } else {
         // Reset timer since app is active again
         console.log('✅ App resumed - session still valid');
@@ -88,12 +77,6 @@ export function useSessionTimeout(
   };
 
   useEffect(() => {
-    // Only run if user is authenticated
-    const user = auth().currentUser;
-    if (!user) {
-      return;
-    }
-
     console.log('🔒 Session timeout initialized (15 min)');
 
     // Start the timer

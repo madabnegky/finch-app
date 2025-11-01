@@ -11,9 +11,38 @@
         {
           "fieldPath": "scheduledFor",
           "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "accounts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isPrimary",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "name",
+          "order": "ASCENDING"
         }
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "plaidItems",
+      "fieldPath": "__name__",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    }
+  ]
 }

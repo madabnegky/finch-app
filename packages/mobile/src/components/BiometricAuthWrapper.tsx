@@ -4,6 +4,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import { getUserPreferences } from '../services/userPreferencesService';
 import { authenticateWithBiometric, getBiometricTypeName, BiometricType, isBiometricAvailable } from '../services/biometricService';
+import { useSessionTimeout } from '../hooks/useSessionTimeout';
 import { brandColors } from '../theme/colors';
 
 interface BiometricAuthWrapperProps {
@@ -21,6 +22,22 @@ export function BiometricAuthWrapper({ children }: BiometricAuthWrapperProps) {
   const [isLocked, setIsLocked] = useState(false);
   const [biometricType, setBiometricType] = useState<BiometricType>(null);
   const [authenticationFailed, setAuthenticationFailed] = useState(false);
+  const [lockReason, setLockReason] = useState<'biometric' | 'timeout'>('biometric');
+
+  // Session timeout - locks the app after 15 minutes of inactivity
+  // User stays logged in for push notifications
+  useSessionTimeout(
+    () => {
+      // Warning callback (1 minute before lock)
+      console.log('⚠️ Session will lock in 1 minute');
+    },
+    () => {
+      // Timeout callback - lock the UI
+      console.log('⏰ Session timeout - locking app');
+      setLockReason('timeout');
+      setIsLocked(true);
+    }
+  );
 
   // Check if biometric auth should be prompted
   const checkAndPromptBiometric = async () => {
@@ -114,10 +131,14 @@ export function BiometricAuthWrapper({ children }: BiometricAuthWrapperProps) {
           />
         </View>
 
-        <Text style={styles.title}>Finch is Locked</Text>
+        <Text style={styles.title}>
+          {lockReason === 'timeout' ? 'Session Timed Out' : 'Finch is Locked'}
+        </Text>
         <Text style={styles.subtitle}>
           {authenticationFailed
             ? 'Authentication failed. Try again.'
+            : lockReason === 'timeout'
+            ? 'For your security, the app locked after 15 minutes of inactivity. You\'re still logged in and will receive notifications.'
             : `Use ${getBiometricTypeName(biometricType)} to unlock`}
         </Text>
 
@@ -169,7 +190,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: brandColors.textLight,
+    color: brandColors.textGray,
     textAlign: 'center',
     marginBottom: 32,
   },

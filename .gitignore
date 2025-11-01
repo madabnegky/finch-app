@@ -7,6 +7,11 @@ packages/mobile/android/app/*.keystore
 
 # Firebase
 .firebase/
+*firebase-adminsdk*.json
+
+# Google Services configs (contain API keys)
+google-services.json
+GoogleService-Info.plist
 
 # Environment files
 .env
@@ -18,6 +23,29 @@ packages/mobile/android/app/*.keystore
 *.mobileprovision
 *.p12
 *.certSigningRequest
+
+# Debug/test scripts (contain hardcoded credentials)
+check-*.js
+debug-*.js
+test-*.js
+trigger-*.js
+manual-*.js
+delete-*.js
+clear-*.js
+remove-*.js
+get-*.js
+send-*.js
+list-*.js
+
+# Build artifacts
+*.aab
+*.apk
+finch-android-*.aab
+finch-debug.apk
+
+# Documentation/notes (may contain sensitive info)
+*_NOTES*.md
+FIREBASE_SUPPORT_TICKET.md
 
 # Fastlane
 fastlane/report.xml

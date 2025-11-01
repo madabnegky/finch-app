@@ -34,11 +34,20 @@ const calculateProjections = (accounts, transactions, daysToProject = 60) => {
 
   const projections = [];
   for (const account of accounts) {
-    let balance = account.startingBalance;
-    const pastInstances = allInstances.filter(
-      (inst) => inst.accountId === account.id && new Date(inst.date) < today
-    );
-    balance += pastInstances.reduce((sum, inst) => sum + inst.amount, 0);
+    // If we have currentBalance, use it directly (it already includes past transactions)
+    // If we have startingBalance, calculate forward from there
+    let balance;
+    if (account.currentBalance !== undefined && account.currentBalance !== null) {
+      balance = account.currentBalance;
+    } else if (account.startingBalance !== undefined && account.startingBalance !== null) {
+      balance = account.startingBalance;
+      const pastInstances = allInstances.filter(
+        (inst) => inst.accountId === account.id && new Date(inst.date) < today
+      );
+      balance += pastInstances.reduce((sum, inst) => sum + inst.amount, 0);
+    } else {
+      balance = 0;
+    }
 
     const accountProjections = [];
     let currentBalance = balance;

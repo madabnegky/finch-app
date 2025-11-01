@@ -705,7 +705,8 @@ exports.syncTransactions = functions.https.onCall(async (data, context) => {
 
       // Only store transactions dated after account link (but we fetched historical for pattern detection)
       if (linkedAt && txnDate >= linkedAt) {
-        await db.collection(`users/${userId}/transactions`).add({
+        functions.logger.info(`Creating new transaction: ${plaidTxn.name} ($${amount})`);
+        const newTransactionRef = await db.collection(`users/${userId}/transactions`).add({
           accountId,
           plaidTransactionId: plaidTxn.transaction_id,
           plaidCategory: plaidTxn.category ? plaidTxn.category.join(' > ') : null,
@@ -721,6 +722,53 @@ exports.syncTransactions = functions.https.onCall(async (data, context) => {
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         newTransactionCount++;
+        functions.logger.info(`✅ Transaction created with ID: ${newTransactionRef.id}, isPending: ${plaidTxn.pending}`);
+
+        // Create notification for posted transactions (not pending)
+        if (!plaidTxn.pending) {
+          functions.logger.info(`Transaction is not pending, will send notification`);
+
+          try {
+            // Get user's timezone (default to Eastern)
+            const userDoc = await db.collection('users').doc(userId).get();
+            const userData = userDoc.data();
+            const userTimezone = userData?.timezone || 'America/New_York';
+
+            if (isInActiveHours(userTimezone)) {
+              // SEND IMMEDIATELY (7:30 AM - 10 PM)
+              functions.logger.info(`Sending immediate notification for ${plaidTxn.name}`);
+              await sendImmediateTransactionNotification(
+                userId,
+                accountId,
+                {
+                  id: newTransactionRef.id,
+                  merchantName: plaidTxn.merchant_name || plaidTxn.name,
+                  amount: amount,
+                  type: amount >= 0 ? 'income' : 'expense',
+                },
+                null // Balance will be fetched inside the function
+              );
+            } else {
+              // QUEUE FOR 7:30 AM
+              functions.logger.info(`Queuing notification for ${plaidTxn.name} - outside active hours`);
+              await db.collection(`users/${userId}/pendingNotifications`).add({
+                transactionId: newTransactionRef.id,
+                accountId: accountId,
+                accountName: accountDoc.data().name,
+                merchantName: plaidTxn.merchant_name || plaidTxn.name,
+                amount: amount,
+                type: amount >= 0 ? 'income' : 'expense',
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                scheduledFor: getNext730AM(userTimezone),
+                userTimezone: userTimezone,
+                processed: false,
+              });
+            }
+          } catch (notificationError) {
+            functions.logger.error('Error handling notification:', notificationError);
+            // Don't fail the entire sync if notification fails
+          }
+        }
       }
     }
 
@@ -728,6 +776,20 @@ exports.syncTransactions = functions.https.onCall(async (data, context) => {
     await db.collection(`users/${userId}/plaidItems`).doc(itemId).update({
       lastSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    // Update account balance from Plaid
+    const balanceResponse = await plaidClient.accountsBalanceGet({
+      access_token: accessToken,
+    });
+    const plaidAccount = balanceResponse.data.accounts.find(acc => acc.account_id === plaidAccountId);
+    if (plaidAccount) {
+      const newBalance = plaidAccount.balances.current || plaidAccount.balances.available || 0;
+      await db.collection(`users/${userId}/accounts`).doc(accountId).update({
+        currentBalance: newBalance,
+        lastPlaidBalance: newBalance,
+        lastBalanceSyncAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
 
     functions.logger.info(`Sync complete: ${newTransactionCount} new, ${deduplicatedCount} deduplicated`, {
       itemId,
@@ -1258,7 +1320,18 @@ async function sendImmediateTransactionNotification(userId, accountId, transacti
     // Run 60-day projection
     const projections = calculateProjections([account], transactions, 60);
     const accountProjections = projections.find(p => p.accountId === accountId)?.projections;
-    const availableToSpend = getAvailableToSpend(accountProjections);
+    const lowestBalance = accountProjections ? getAvailableToSpend(accountProjections) : account.currentBalance;
+
+    // Get goal allocations for this account
+    const goalsSnapshot = await db.collection(`users/${userId}/goals`)
+      .where('accountId', '==', accountId)
+      .get();
+    const totalGoalAllocations = goalsSnapshot.docs.reduce((sum, doc) => {
+      return sum + (doc.data().allocatedAmount || 0);
+    }, 0);
+
+    // Calculate true Available to Spend = Lowest Balance - Cushion - Goal Allocations
+    const availableToSpend = lowestBalance - (account.cushion || 0) - totalGoalAllocations;
 
     // Get upcoming bills (next 7 days)
     const nextWeek = new Date();
@@ -1310,25 +1383,53 @@ async function sendImmediateTransactionNotification(userId, accountId, transacti
       body = `${formatCurrency(Math.abs(transaction.amount))} • Available: ${formatCurrency(availableToSpend)} ✓`;
     }
 
-    // Send notification
-    await admin.messaging().sendToDevice(fcmTokens, {
-      notification: { title, body },
-      data: {
-        type: 'new_transaction',
-        transactionId: transaction.id,
-        accountId: accountId,
-        availableToSpend: availableToSpend.toString(),
-      },
-      android: {
-        priority,
-        channelId: priority === 'high' ? 'critical_alerts' : 'transactions',
-      },
+    // Send notification using modern FCM HTTP v1 API
+    // Send to each token individually (best practice for error handling)
+    const sendPromises = fcmTokens.map(async (token) => {
+      const message = {
+        token: token,
+        notification: {
+          title,
+          body,
+        },
+        data: {
+          type: 'new_transaction',
+          transactionId: transaction.id,
+          accountId: accountId,
+          availableToSpend: availableToSpend.toString(),
+        },
+        android: {
+          priority: priority === 'high' ? 'high' : 'normal',
+          notification: {
+            sound: 'default',
+            channelId: priority === 'high' ? 'critical_alerts' : 'transactions',
+          },
+        },
+      };
+
+      try {
+        const result = await admin.messaging().send(message);
+        functions.logger.info(`✅ Sent notification for ${transaction.merchantName}`, {
+          messageId: result,
+          availableToSpend,
+          priority
+        });
+        return { success: true, messageId: result };
+      } catch (error) {
+        // If token is invalid, remove it from user's fcmTokens array
+        if (error.code === 'messaging/registration-token-not-registered' ||
+            error.code === 'messaging/invalid-registration-token') {
+          functions.logger.warn(`Removing invalid FCM token: ${token.substring(0, 20)}...`);
+          await db.collection('users').doc(userId).update({
+            fcmTokens: admin.firestore.FieldValue.arrayRemove(token),
+          });
+        }
+        functions.logger.error(`Failed to send to token: ${error.message}`);
+        return { success: false, error: error.message };
+      }
     });
 
-    functions.logger.info(`✅ Sent immediate notification for ${transaction.merchantName}`, {
-      availableToSpend,
-      priority
-    });
+    await Promise.all(sendPromises);
   } catch (error) {
     functions.logger.error('Error sending immediate notification:', error);
   }

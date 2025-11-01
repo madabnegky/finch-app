@@ -138,11 +138,17 @@ const DashboardContent = () => {
         return;
       }
 
+      // Skip tour for users with real accounts (not anonymous/guest users)
+      if (user && !user.isAnonymous) {
+        console.log('⏭️ Skipping tour - user has a real account (not anonymous)');
+        return;
+      }
+
       try {
         const tourKey = `hasSeenDashboardTour_${user?.uid}`;
         const hasSeenTour = await AsyncStorage.getItem(tourKey);
 
-        console.log('🔍 Tour check - hasSeenTour:', hasSeenTour, 'canStart:', canStart, 'loading:', loading, 'accounts:', accounts.length);
+        console.log('🔍 Tour check - hasSeenTour:', hasSeenTour, 'canStart:', canStart, 'loading:', loading, 'accounts:', accounts.length, 'isAnonymous:', user?.isAnonymous);
 
         if (!hasSeenTour && canStart) {
           // Give extra time for UI to settle and tour zones to register
@@ -289,6 +295,8 @@ const DashboardContent = () => {
                 availableToSpend,
                 goalAllocations: totalAllocatedToGoals,
                 isPrimary: data.isPrimary || false,
+                plaidItemId: data.plaidItemId,
+                plaidAccountId: data.plaidAccountId,
               };
             });
 
@@ -1094,6 +1102,36 @@ const DashboardContent = () => {
                   </View>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={async () => {
+                      if (!selectedAccount.plaidItemId) {
+                        Alert.alert('Not a Plaid Account', 'This account is not linked to Plaid');
+                        return;
+                      }
+                      try {
+                        console.log('🔄 Refreshing transactions from Plaid...');
+                        Alert.alert('Syncing...', 'Fetching latest transactions from your bank');
+                        const syncTransactions = functions().httpsCallable('syncTransactions');
+                        const result = await syncTransactions({
+                          itemId: selectedAccount.plaidItemId,
+                          accountId: selectedAccount.id,
+                        });
+                        console.log('✅ Sync result:', result.data);
+                        const syncData = result.data as any;
+                        Alert.alert(
+                          'Sync Complete!',
+                          `Synced ${syncData.transactionCount || 0} new transaction(s)`
+                        );
+                      } catch (error: any) {
+                        console.error('❌ Sync error:', error);
+                        Alert.alert('Sync Failed', error.message || 'Could not sync transactions');
+                      }
+                    }}
+                    style={{ padding: 4 }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Icon name="refresh" size={18} color={brandColors.tealPrimary} />
+                  </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => {
                       setAccountToEdit(selectedAccount); // Set account to edit

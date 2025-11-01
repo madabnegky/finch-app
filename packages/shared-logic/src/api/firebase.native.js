@@ -11,6 +11,8 @@ GoogleSignin.configure({
   webClientId: '271671331037-90pnnqenl2enkc9es1gr6qcer1ugf8at.apps.googleusercontent.com',
   offlineAccess: false, // We don't need serverAuthCode for Firebase
   forceCodeForRefreshToken: false,
+  // Force account selection - don't auto-select previously used account
+  // Note: This is a hint to Google, but doesn't guarantee account picker on all devices
 });
 
 const api = {
@@ -48,9 +50,19 @@ const api = {
 
   signInWithGoogle: async () => {
     try {
+      // Sign out from Google first to force account selection
+      try {
+        if (await GoogleSignin.isSignedIn()) {
+          console.log('📤 Signing out from previous Google session to show account picker...');
+          await GoogleSignin.signOut();
+        }
+      } catch (signOutError) {
+        console.log('⚠️ Could not sign out from Google:', signOutError.message);
+      }
+
       // Check if your device supports Google Play
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      // Get the users ID token
+      // Get the users ID token - will show account picker since we signed out
       const userInfo = await GoogleSignin.signIn();
       // Handle both old and new response structures
       const idToken = userInfo.idToken || userInfo.data?.idToken;
@@ -79,16 +91,36 @@ const api = {
 
       console.log('🔗 Starting Google account linking for anonymous user:', currentUser.uid);
 
+      // AGGRESSIVE SIGN OUT - Sign out from both Google and clear cached tokens
+      try {
+        console.log('📤 Clearing Google session and cached tokens...');
+        if (await GoogleSignin.isSignedIn()) {
+          await GoogleSignin.revokeAccess(); // Revoke access tokens
+          await GoogleSignin.signOut(); // Sign out
+        }
+        console.log('✅ Google session cleared');
+      } catch (signOutError) {
+        console.log('⚠️ Could not clear Google session:', signOutError.message);
+        // Continue anyway
+      }
+
       // Check if your device supports Google Play
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
       // Get the users ID token and user info
-      console.log('📱 Opening Google Sign In...');
+      // Android will show account picker after revokeAccess
+      console.log('📱 Opening Google Sign In (should show account picker)...');
       const signInResult = await GoogleSignin.signIn();
-      const { idToken, user: googleUser } = signInResult;
+
+      // Handle both old and new response structures
+      const idToken = signInResult.idToken || signInResult.data?.idToken;
+      const googleUser = signInResult.user || signInResult.data?.user;
+
       console.log('✅ Google Sign In completed, idToken received:', !!idToken);
+      console.log('🔍 Sign-in result structure:', { hasIdToken: !!idToken, hasUser: !!googleUser, keys: Object.keys(signInResult) });
 
       if (!idToken) {
+        console.error('❌ No idToken found in response:', signInResult);
         throw new Error('Google Sign In did not return an ID token. Please try again.');
       }
 
@@ -117,6 +149,9 @@ const api = {
       console.error('❌ Google Account Linking error:', error);
       if (error.code === '12501') {
         throw new Error('Google Sign In was canceled. Please try again.');
+      }
+      if (error.code === 'auth/credential-already-in-use') {
+        throw new Error('This Google account is already linked to another Finch account. Please choose a different Google account.');
       }
       throw error;
     }
