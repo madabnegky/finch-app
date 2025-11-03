@@ -639,6 +639,7 @@ exports.syncTransactions = functions.https.onCall(async (data, context) => {
           account_ids: [plaidAccountId],
           count: 500,
           offset: offset,
+          include_personal_finance_category: true,
         },
       });
 
@@ -710,11 +711,12 @@ exports.syncTransactions = functions.https.onCall(async (data, context) => {
           accountId,
           plaidTransactionId: plaidTxn.transaction_id,
           plaidCategory: plaidTxn.category ? plaidTxn.category.join(' > ') : null,
+          plaidPersonalFinanceCategory: plaidTxn.personal_finance_category || null,
           merchantName: plaidTxn.merchant_name || plaidTxn.name,
           description: plaidTxn.name,
           amount,
           type: amount >= 0 ? 'income' : 'expense',
-          category: mapPlaidCategoryToFinch(plaidTxn.category),
+          category: mapPlaidCategoryToFinch(plaidTxn.personal_finance_category || plaidTxn.category),
           date: admin.firestore.Timestamp.fromDate(txnDate),
           isPending: plaidTxn.pending,
           source: 'plaid',
@@ -857,6 +859,7 @@ exports.identifyRecurringTransactions = functions.https.onCall(async (data, cont
           account_ids: [plaidAccountId],
           count: 500,
           offset: offset,
+          include_personal_finance_category: true,
         },
       });
 
@@ -958,7 +961,7 @@ exports.identifyRecurringTransactions = functions.https.onCall(async (data, cont
           occurrenceCount: transactions.length,
           isVariableAmount,
           nextDate: toDateInputString(nextDate),
-          category: mapPlaidCategoryToFinch(transactions[0].category),
+          category: mapPlaidCategoryToFinch(transactions[0].personal_finance_category || transactions[0].category),
         });
 
         functions.logger.info(`Detected recurring pattern: ${merchant} (${frequency})`, {
@@ -1605,27 +1608,19 @@ exports.plaidWebhook = functions.https.onRequest(async (req, res) => {
   try {
     if (webhook_type === 'TRANSACTIONS') {
       if (webhook_code === 'DEFAULT_UPDATE' || webhook_code === 'INITIAL_UPDATE') {
-        // Find the user and account associated with this item
-        const plaidItemsSnapshot = await db.collectionGroup('plaidItems')
-          .where(admin.firestore.FieldPath.documentId(), '==', item_id)
-          .get();
+        // Look up user and account from mapping collection
+        // This avoids the problematic collection group query
+        const mappingDoc = await db.collection('plaidItemsMap').doc(item_id).get();
 
-        if (plaidItemsSnapshot.empty) {
-          functions.logger.warn(`Plaid item ${item_id} not found in database`);
+        if (!mappingDoc.exists) {
+          functions.logger.warn(`Plaid item ${item_id} not found in plaidItemsMap`);
           res.status(200).send('OK');
           return;
         }
 
-        const plaidItemDoc = plaidItemsSnapshot.docs[0];
-        const userId = plaidItemDoc.ref.parent.parent.id; // Get user ID from path
+        const { userId, accountId } = mappingDoc.data();
 
-        // Find associated account
-        const accountsSnapshot = await db.collection(`users/${userId}/accounts`)
-          .where('plaidItemId', '==', item_id)
-          .get();
-
-        if (!accountsSnapshot.empty) {
-          const accountId = accountsSnapshot.docs[0].id;
+        if (userId && accountId) {
 
           functions.logger.info(`Triggering background sync for item ${item_id}, account ${accountId}`);
 
@@ -1662,13 +1657,12 @@ exports.plaidWebhook = functions.https.onRequest(async (req, res) => {
       }
     } else if (webhook_type === 'ITEM') {
       if (webhook_code === 'ERROR' || webhook_code === 'PENDING_EXPIRATION') {
-        // Update item status
-        const plaidItemsSnapshot = await db.collectionGroup('plaidItems')
-          .where(admin.firestore.FieldPath.documentId(), '==', item_id)
-          .get();
+        // Update item status using mapping collection
+        const mappingDoc = await db.collection('plaidItemsMap').doc(item_id).get();
 
-        if (!plaidItemsSnapshot.empty) {
-          await plaidItemsSnapshot.docs[0].ref.update({
+        if (mappingDoc.exists) {
+          const { userId } = mappingDoc.data();
+          await db.collection(`users/${userId}/plaidItems`).doc(item_id).update({
             status: 'login_required',
           });
         }
@@ -1747,6 +1741,7 @@ exports.processSyncTask = functions.https.onRequest(async (req, res) => {
           account_ids: [plaidAccountId],
           count: 500,
           offset: offset,
+          include_personal_finance_category: true,
         },
       });
 
@@ -1793,11 +1788,12 @@ exports.processSyncTask = functions.https.onRequest(async (req, res) => {
           accountId,
           plaidTransactionId: plaidTxn.transaction_id,
           plaidCategory: plaidTxn.category ? plaidTxn.category.join(' > ') : null,
+          plaidPersonalFinanceCategory: plaidTxn.personal_finance_category || null,
           merchantName: plaidTxn.merchant_name || plaidTxn.name,
           description: plaidTxn.name,
           amount,
           type: amount >= 0 ? 'income' : 'expense',
-          category: mapPlaidCategoryToFinch(plaidTxn.category),
+          category: mapPlaidCategoryToFinch(plaidTxn.personal_finance_category || plaidTxn.category),
           date: admin.firestore.Timestamp.fromDate(txnDate),
           isPending: plaidTxn.pending,
           source: 'plaid',
@@ -1954,3 +1950,11 @@ exports.sendQueuedNotifications = functions.pubsub
 
     return null;
   });
+
+// ============================================================================
+// DAILY SCHEDULED NOTIFICATIONS (9 AM)
+// ============================================================================
+
+// Import and export the 9 AM daily notification function
+const { sendScheduledNotifications } = require('./notifications');
+exports.sendScheduledNotifications = sendScheduledNotifications;
