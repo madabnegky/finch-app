@@ -17,14 +17,23 @@ import {
   TouchableOpacity,
   Modal,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import firestore from '@react-native-firebase/firestore';
-import { LineChart } from 'react-native-chart-kit';
+import { LineChart, PieChart } from 'react-native-chart-kit';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import FinchLogo from '../components/FinchLogo';
 import brandColors from '../theme/colors';
+import {
+  ExportPeriod,
+  EXPORT_PERIODS,
+  exportTransactionsCSV,
+  exportBudgetCSV,
+  exportAnalyticsCSV,
+  exportAllDataCSV,
+} from '../utils/csvExport';
 
 type Transaction = {
   id: string;
@@ -76,6 +85,11 @@ export const ReportsScreen: React.FC = () => {
   const [dateRange, setDateRange] = useState<DateRange>('30days');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  const [showExportPicker, setShowExportPicker] = useState(false);
+  const [exportPeriod, setExportPeriod] = useState<ExportPeriod>('this_month');
+  const [exporting, setExporting] = useState(false);
+  const [exportSectionExpanded, setExportSectionExpanded] = useState(false);
+  const [selectedSlice, setSelectedSlice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -118,6 +132,28 @@ export const ReportsScreen: React.FC = () => {
 
     return () => unsubscribe();
   }, [user, dateRange]);
+
+  // Auto-select top non-housing categories for the trend chart
+  useEffect(() => {
+    if (transactions.length === 0) return;
+
+    // Calculate category totals
+    const categoryTotals: { [key: string]: number } = {};
+    transactions.forEach((txn) => {
+      if (txn.type !== 'expense') return;
+      const category = txn.category || 'Uncategorized';
+      categoryTotals[category] = (categoryTotals[category] || 0) + Math.abs(txn.amount);
+    });
+
+    // Get top 3 non-housing categories
+    const topCategories = Object.entries(categoryTotals)
+      .filter(([category]) => category !== 'Housing')
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3)
+      .map(([category]) => category);
+
+    setSelectedCategories(new Set(topCategories));
+  }, [transactions]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -184,28 +220,58 @@ export const ReportsScreen: React.FC = () => {
       .slice(-6); // Last 6 months
   };
 
-  // Calculate income vs expenses trend (simplified monthly)
-  const getMonthlyTrend = () => {
-    const monthlyData: { [key: string]: { income: number; expenses: number } } = {};
+  // Calculate month-over-month comparison by category
+  const getMonthOverMonthComparison = () => {
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+
+    const currentMonthByCategory: { [category: string]: number } = {};
+    const lastMonthByCategory: { [category: string]: number } = {};
 
     transactions.forEach((txn) => {
+      if (txn.type !== 'expense') return;
+
       const txnDate = txn.date.toDate ? txn.date.toDate() : new Date(txn.date);
       const monthKey = `${txnDate.getFullYear()}-${String(txnDate.getMonth() + 1).padStart(2, '0')}`;
+      const category = txn.category || 'Uncategorized';
+      const amount = Math.abs(txn.amount);
 
-      if (!monthlyData[monthKey]) {
-        monthlyData[monthKey] = { income: 0, expenses: 0 };
-      }
-
-      if (txn.type === 'income') {
-        monthlyData[monthKey].income += Math.abs(txn.amount);
-      } else if (txn.type === 'expense') {
-        monthlyData[monthKey].expenses += Math.abs(txn.amount);
+      if (monthKey === currentMonthKey) {
+        currentMonthByCategory[category] = (currentMonthByCategory[category] || 0) + amount;
+      } else if (monthKey === lastMonthKey) {
+        lastMonthByCategory[category] = (lastMonthByCategory[category] || 0) + amount;
       }
     });
 
-    return Object.entries(monthlyData)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-6); // Last 6 months
+    // Get all unique categories
+    const allCategories = new Set([
+      ...Object.keys(currentMonthByCategory),
+      ...Object.keys(lastMonthByCategory)
+    ]);
+
+    const comparisons = Array.from(allCategories).map((category) => {
+      const currentAmount = currentMonthByCategory[category] || 0;
+      const lastAmount = lastMonthByCategory[category] || 0;
+      const change = currentAmount - lastAmount;
+      const percentChange = lastAmount > 0 ? ((change / lastAmount) * 100) : (currentAmount > 0 ? 100 : 0);
+
+      return {
+        category,
+        currentAmount,
+        lastAmount,
+        change,
+        percentChange,
+        color: CATEGORY_COLORS[category] || '#9CA3AF',
+      };
+    });
+
+    // Sort by absolute change (biggest changes first)
+    return comparisons
+      .filter(c => c.currentAmount > 0 || c.lastAmount > 0) // Only show categories with data
+      .sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
+      .slice(0, 5); // Top 5 biggest changes
   };
 
   // Toggle category selection
@@ -219,10 +285,38 @@ export const ReportsScreen: React.FC = () => {
     setSelectedCategories(newSelected);
   };
 
+  // Handle export
+  const handleExport = async (type: 'transactions' | 'budget' | 'analytics' | 'all') => {
+    if (!user) return;
+
+    setExporting(true);
+    try {
+      switch (type) {
+        case 'transactions':
+          await exportTransactionsCSV(user.uid, exportPeriod);
+          break;
+        case 'budget':
+          await exportBudgetCSV(user.uid, exportPeriod);
+          break;
+        case 'analytics':
+          await exportAnalyticsCSV(user.uid, exportPeriod);
+          break;
+        case 'all':
+          await exportAllDataCSV(user.uid, exportPeriod);
+          break;
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      Alert.alert('Error', 'Failed to export data. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const { totalIncome, totalExpenses, netSavings } = getKeyMetrics();
   const categoryData = getSpendingByCategory();
   const categoryTrends = getCategoryTrends();
-  const monthlyTrend = getMonthlyTrend();
+  const monthOverMonthData = getMonthOverMonthComparison();
   const totalSpending = categoryData.reduce((sum, cat) => sum + cat.amount, 0);
 
   // Get max value for chart scaling
@@ -299,6 +393,140 @@ export const ReportsScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* EXPORT DATA SECTION */}
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.exportToggleButton}
+            onPress={() => setExportSectionExpanded(!exportSectionExpanded)}
+            activeOpacity={0.7}
+          >
+            <Icon name="download" size={24} color={brandColors.tealPrimary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.exportToggleTitle}>Export Data</Text>
+              <Text style={styles.exportToggleSubtitle}>Download your financial data as CSV</Text>
+            </View>
+            <Icon
+              name={exportSectionExpanded ? "chevron-up" : "chevron-down"}
+              size={24}
+              color={brandColors.tealPrimary}
+            />
+          </TouchableOpacity>
+
+          {exportSectionExpanded && (
+            <View style={styles.exportExpandedContent}>
+              <View style={styles.exportPeriodPickerContainer}>
+                <TouchableOpacity
+                  style={styles.exportPeriodPicker}
+                  onPress={() => setShowExportPicker(true)}
+                >
+                  <Icon name="calendar-month" size={16} color={brandColors.tealPrimary} />
+                  <Text style={styles.exportPeriodPickerText}>
+                    {EXPORT_PERIODS.find(p => p.value === exportPeriod)?.label}
+                  </Text>
+                  <Icon name="chevron-down" size={16} color={brandColors.textGray} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.exportButtonsContainer}>
+                <TouchableOpacity
+                  style={styles.exportDataButton}
+                  onPress={() => handleExport('transactions')}
+                  disabled={exporting}
+                >
+                  {exporting ? (
+                    <ActivityIndicator size="small" color={brandColors.tealPrimary} />
+                  ) : (
+                    <Icon name="receipt" size={20} color={brandColors.tealPrimary} />
+                  )}
+                  <Text style={styles.exportDataButtonText}>Transactions</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.exportDataButton}
+                  onPress={() => handleExport('budget')}
+                  disabled={exporting}
+                >
+                  {exporting ? (
+                    <ActivityIndicator size="small" color={brandColors.tealPrimary} />
+                  ) : (
+                    <Icon name="wallet" size={20} color={brandColors.tealPrimary} />
+                  )}
+                  <Text style={styles.exportDataButtonText}>Budget</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.exportDataButton}
+                  onPress={() => handleExport('analytics')}
+                  disabled={exporting}
+                >
+                  {exporting ? (
+                    <ActivityIndicator size="small" color={brandColors.tealPrimary} />
+                  ) : (
+                    <Icon name="chart-bar" size={20} color={brandColors.tealPrimary} />
+                  )}
+                  <Text style={styles.exportDataButtonText}>Analytics</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.exportDataButton, styles.exportAllDataButton]}
+                  onPress={() => handleExport('all')}
+                  disabled={exporting}
+                >
+                  {exporting ? (
+                    <ActivityIndicator size="small" color={brandColors.white} />
+                  ) : (
+                    <Icon name="database-export" size={20} color={brandColors.white} />
+                  )}
+                  <Text style={[styles.exportDataButtonText, styles.exportAllDataButtonText]}>Export All</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* MONTH-OVER-MONTH COMPARISON */}
+        {monthOverMonthData.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.chartCard}>
+              <View style={styles.chartHeader}>
+                <View>
+                  <Text style={styles.chartTitle}>Month-over-Month Changes</Text>
+                  <Text style={styles.chartSubtitle}>Top category changes from last month</Text>
+                </View>
+              </View>
+
+              <View style={styles.comparisonContainer}>
+                {monthOverMonthData.map((item) => {
+                  const isIncrease = item.change > 0;
+                  const changeColor = isIncrease ? brandColors.error : brandColors.success;
+
+                  return (
+                    <View key={item.category} style={styles.comparisonRow}>
+                      <View style={[styles.barColorDot, { backgroundColor: item.color }]} />
+                      <Text style={styles.comparisonCategory} numberOfLines={1}>
+                        {item.category}
+                      </Text>
+                      <View style={{ flex: 1 }} />
+                      <Text style={styles.comparisonAmount}>
+                        {formatCurrency(item.currentAmount)}
+                      </Text>
+                      <Icon
+                        name={isIncrease ? 'arrow-up' : 'arrow-down'}
+                        size={16}
+                        color={changeColor}
+                        style={{ marginLeft: 8 }}
+                      />
+                      <Text style={[styles.comparisonPercent, { color: changeColor }]}>
+                        {Math.abs(item.percentChange).toFixed(0)}%
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* SPENDING BY CATEGORY CHART */}
         <View style={styles.section}>
           <View style={styles.chartCard}>
@@ -312,39 +540,64 @@ export const ReportsScreen: React.FC = () => {
             {categoryData.length === 0 ? (
               <Text style={styles.noDataText}>No spending data for this period</Text>
             ) : (
-              <View style={styles.barChartContainer}>
-                {categoryData.map((cat) => {
-                  const percentage = (cat.amount / maxValue) * 100;
-                  const displayPercentage = totalSpending > 0 ? ((cat.amount / totalSpending) * 100) : 0;
+              <View style={styles.pieChartRow}>
+                {/* Pie Chart */}
+                <View style={styles.pieChartLeft}>
+                  <PieChart
+                    data={categoryData.map((cat) => {
+                      const percentage = totalSpending > 0 ? (cat.amount / totalSpending) * 100 : 0;
+                      return {
+                        name: `${Math.round(percentage)}%`,
+                        population: cat.amount,
+                        color: cat.color,
+                        legendFontColor: brandColors.textDark,
+                        legendFontSize: 12,
+                      };
+                    })}
+                    width={200}
+                    height={180}
+                    chartConfig={{
+                      color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                    }}
+                    accessor="population"
+                    backgroundColor="transparent"
+                    paddingLeft="20"
+                    center={[10, 0]}
+                    absolute={false}
+                    hasLegend={false}
+                  />
+                </View>
 
-                  return (
-                    <View key={cat.name} style={styles.barRow}>
-                      <View style={styles.barLabelContainer}>
-                        <View style={[styles.barColorDot, { backgroundColor: cat.color }]} />
-                        <Text style={styles.barLabel} numberOfLines={1}>
-                          {cat.name}
-                        </Text>
-                      </View>
-                      <View style={styles.barChartRight}>
-                        <View style={styles.barContainer}>
-                          <View
-                            style={[
-                              styles.bar,
-                              {
-                                width: `${Math.max(percentage, 5)}%`,
-                                backgroundColor: cat.color,
-                              },
-                            ]}
-                          />
+                {/* Custom Interactive Legend */}
+                <View style={styles.pieLegendRight}>
+                  {categoryData.map((cat) => {
+                    const percentage = totalSpending > 0 ? (cat.amount / totalSpending) * 100 : 0;
+                    const isSelected = selectedSlice === cat.name;
+
+                    return (
+                      <TouchableOpacity
+                        key={cat.name}
+                        style={[styles.pieLegendItem, isSelected && styles.pieLegendItemSelected]}
+                        onPress={() => setSelectedSlice(isSelected ? null : cat.name)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.pieLegendDot, { backgroundColor: cat.color }]} />
+                        <View style={styles.pieLegendTextContainer}>
+                          <Text style={styles.pieLegendLabel} numberOfLines={1}>{cat.name}</Text>
+                          {isSelected && (
+                            <View style={styles.pieLegendDetails}>
+                              <Text style={styles.pieLegendAmount}>{formatCurrency(cat.amount)}</Text>
+                              <Text style={styles.pieLegendPercent}>{percentage.toFixed(1)}%</Text>
+                            </View>
+                          )}
                         </View>
-                        <View style={styles.barValues}>
-                          <Text style={styles.barAmount}>{formatCurrency(cat.amount)}</Text>
-                          <Text style={styles.barPercentage}>{displayPercentage.toFixed(0)}%</Text>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                })}
+                        {!isSelected && (
+                          <Text style={styles.pieLegendPercentCompact}>{Math.round(percentage)}%</Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
             )}
           </View>
@@ -446,77 +699,6 @@ export const ReportsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* INCOME VS EXPENSES TREND */}
-        <View style={styles.section}>
-          <View style={styles.chartCard}>
-            <View style={styles.chartHeader}>
-              <View>
-                <Text style={styles.chartTitle}>Income vs Expenses</Text>
-                <Text style={styles.chartSubtitle}>Monthly comparison</Text>
-              </View>
-            </View>
-
-            {monthlyTrend.length === 0 ? (
-              <Text style={styles.noDataText}>No data available</Text>
-            ) : (
-              <View style={styles.trendContainer}>
-                {/* Legend */}
-                <View style={styles.legendContainer}>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: brandColors.success }]} />
-                    <Text style={styles.legendText}>Income</Text>
-                  </View>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: brandColors.error }]} />
-                    <Text style={styles.legendText}>Expenses</Text>
-                  </View>
-                </View>
-
-                {/* Simplified bar chart */}
-                <View style={styles.trendChartContainer}>
-                  <View style={styles.trendChartBars}>
-                    {monthlyTrend.map(([monthKey, data], index) => {
-                      const maxMonthlyValue = Math.max(
-                        ...monthlyTrend.map(([, d]) => Math.max(d.income, d.expenses))
-                      );
-                      const incomeHeight = (data.income / maxMonthlyValue) * 100;
-                      const expenseHeight = (data.expenses / maxMonthlyValue) * 100;
-
-                      return (
-                        <View key={monthKey} style={styles.trendBarGroup}>
-                          <View style={styles.trendBars}>
-                            <View
-                              style={[
-                                styles.trendBar,
-                                {
-                                  height: `${Math.max(incomeHeight, 5)}%`,
-                                  backgroundColor: brandColors.success,
-                                },
-                              ]}
-                            />
-                            <View
-                              style={[
-                                styles.trendBar,
-                                {
-                                  height: `${Math.max(expenseHeight, 5)}%`,
-                                  backgroundColor: brandColors.error,
-                                },
-                              ]}
-                            />
-                          </View>
-                          <Text style={styles.trendLabel}>
-                            {new Date(monthKey + '-01').toLocaleDateString('en-US', { month: 'short' })}
-                          </Text>
-                        </View>
-                      );
-                    })}
-                  </View>
-                </View>
-              </View>
-            )}
-          </View>
-        </View>
-
         <View style={{ height: 40 }} />
       </ScrollView>
 
@@ -560,6 +742,45 @@ export const ReportsScreen: React.FC = () => {
                   {range.label}
                 </Text>
                 {range.value === dateRange && (
+                  <Icon name="check-circle" size={24} color={brandColors.orangeAccent} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* EXPORT PERIOD PICKER MODAL */}
+      <Modal
+        visible={showExportPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowExportPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowExportPicker(false)}
+        >
+          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Export Period</Text>
+              <TouchableOpacity onPress={() => setShowExportPicker(false)}>
+                <Icon name="close" size={24} color={brandColors.textDark} />
+              </TouchableOpacity>
+            </View>
+
+            {EXPORT_PERIODS.map((period) => (
+              <TouchableOpacity
+                key={period.value}
+                style={styles.dateRangeOption}
+                onPress={() => {
+                  setExportPeriod(period.value);
+                  setShowExportPicker(false);
+                }}
+              >
+                <Text style={styles.dateRangeOptionText}>{period.label}</Text>
+                {period.value === exportPeriod && (
                   <Icon name="check-circle" size={24} color={brandColors.orangeAccent} />
                 )}
               </TouchableOpacity>
@@ -674,17 +895,21 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
     borderLeftWidth: 4,
+    justifyContent: 'space-between',
+    minHeight: 85,
   },
   metricLabelCompact: {
     fontSize: 13,
     fontWeight: '600',
     color: brandColors.textGray,
     marginBottom: 8,
+    lineHeight: 16,
   },
   metricValueCompact: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     letterSpacing: -0.5,
+    lineHeight: 20,
   },
 
   // Chart Card
@@ -776,6 +1001,114 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: brandColors.textGray,
+  },
+
+  // Pie Chart
+  pieChartRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+  },
+  pieChartLeft: {
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  pieLegendRight: {
+    flex: 1,
+    gap: 6,
+    justifyContent: 'flex-start',
+    marginLeft: -30,
+  },
+  pieChartContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pieLegendContainer: {
+    width: '100%',
+    marginTop: 16,
+    gap: 8,
+  },
+  pieLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: brandColors.backgroundOffWhite,
+    borderRadius: 8,
+    gap: 8,
+  },
+  pieLegendItemSelected: {
+    backgroundColor: brandColors.tealPrimary + '10',
+    borderWidth: 1,
+    borderColor: brandColors.tealPrimary + '40',
+  },
+  pieLegendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  pieLegendTextContainer: {
+    flex: 1,
+  },
+  pieLegendLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: brandColors.textDark,
+  },
+  pieLegendDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 3,
+  },
+  pieLegendAmount: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: brandColors.tealPrimary,
+  },
+  pieLegendPercent: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: brandColors.textGray,
+  },
+  pieLegendPercentCompact: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: brandColors.textDark,
+    minWidth: 35,
+    textAlign: 'right',
+  },
+
+  // Month-over-Month Comparison
+  comparisonContainer: {
+    gap: 8,
+  },
+  comparisonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: brandColors.backgroundOffWhite,
+    borderRadius: 10,
+    gap: 10,
+  },
+  comparisonCategory: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: brandColors.textDark,
+    minWidth: 80,
+    maxWidth: 120,
+  },
+  comparisonAmount: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: brandColors.textDark,
+  },
+  comparisonPercent: {
+    fontSize: 14,
+    fontWeight: '700',
+    minWidth: 40,
+    textAlign: 'right',
   },
 
   // Trend Chart
@@ -1035,5 +1368,118 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 2,
     borderRadius: 4,
+  },
+
+  // Export modal styles
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  exportToggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: brandColors.white,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    gap: 16,
+    shadowColor: brandColors.textDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 2,
+    borderColor: brandColors.tealPrimary + '20',
+  },
+  exportToggleTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: brandColors.textDark,
+    marginBottom: 2,
+  },
+  exportToggleSubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: brandColors.textGray,
+  },
+  exportExpandedContent: {
+    backgroundColor: brandColors.white,
+    marginTop: 12,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    shadowColor: brandColors.textDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  exportPeriodPickerContainer: {
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  exportPeriodPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: brandColors.backgroundOffWhite,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: brandColors.tealPrimary + '40',
+  },
+  exportPeriodPickerText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: brandColors.textDark,
+  },
+  exportButtonsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 16,
+  },
+  exportDataButton: {
+    flex: 1,
+    minWidth: '47%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: brandColors.backgroundOffWhite,
+    borderWidth: 1,
+    borderColor: brandColors.tealPrimary + '40',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  exportDataButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: brandColors.tealPrimary,
+  },
+  exportAllDataButton: {
+    flex: 1,
+    minWidth: '100%',
+    backgroundColor: brandColors.tealPrimary,
+    borderColor: brandColors.tealPrimary,
+  },
+  exportAllDataButtonText: {
+    color: brandColors.white,
+  },
+  exportingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 16,
+    marginTop: 8,
+  },
+  exportingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: brandColors.textGray,
   },
 });
