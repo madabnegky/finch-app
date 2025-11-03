@@ -73,7 +73,7 @@ export const getDateRangeForPeriod = (period: ExportPeriod): { start: Date; end:
 };
 
 // Escape CSV field
-const escapeCSV = (field: any): string => {
+export const escapeCSV = (field: any): string => {
   if (field === null || field === undefined) return '';
   const str = String(field);
   if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -83,7 +83,7 @@ const escapeCSV = (field: any): string => {
 };
 
 // Convert array to CSV
-const arrayToCSV = (data: any[], headers: string[]): string => {
+export const arrayToCSV = (data: any[], headers: string[]): string => {
   const headerRow = headers.map(escapeCSV).join(',');
   const rows = data.map((row) =>
     headers.map((header) => escapeCSV(row[header])).join(',')
