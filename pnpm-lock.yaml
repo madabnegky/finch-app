@@ -137,6 +137,9 @@ importers:
       react-native-vector-icons:
         specifier: ^10.3.0
         version: 10.3.0
+      react-native-video:
+        specifier: ^6.0.0
+        version: 6.17.0(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0))(react@18.2.0)
       rn-tourguide:
         specifier: ^3.3.2
         version: 3.3.2(react@18.2.0)
@@ -6304,6 +6307,12 @@ packages:
     resolution: {integrity: sha512-IFQ0RE57819hOUdFvgK4FowM5aMXg7C7XKsuGLevqXkkIJatc3QopN0wYrb2IrzUgmdpfP+QVIbI3S6h7M0btw==}
     deprecated: react-native-vector-icons package has moved to a new model of per-icon-family packages. See the https://github.com/oblador/react-native-vector-icons/blob/master/MIGRATION.md on how to migrate
     hasBin: true
+
+  react-native-video@6.17.0:
+    resolution: {integrity: sha512-sslmQo5paSNLmSJ93t3lkC7kl4yFGIc+LWoBdu44hkL4EKG7OIZNd5iaX+/SedAdqecifJrOZHAozxHzVh3TsQ==}
+    peerDependencies:
+      react: 18.2.0
+      react-native: '*'
 
   react-native@0.74.5:
     resolution: {integrity: sha512-Bgg2WvxaGODukJMTZFTZBNMKVaROHLwSb8VAGEdrlvKwfb1hHg/3aXTUICYk7dwgAnb+INbGMwnF8yeAgIUmqw==}
@@ -15599,6 +15608,11 @@ snapshots:
     dependencies:
       prop-types: 15.8.1
       yargs: 16.2.0
+
+  react-native-video@6.17.0(react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0))(react@18.2.0):
+    dependencies:
+      react: 18.2.0
+      react-native: 0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0)
 
   react-native@0.74.5(@babel/core@7.28.4)(@babel/preset-env@7.28.3(@babel/core@7.28.4))(@types/react@18.3.26)(encoding@0.1.13)(react@18.2.0):
     dependencies:

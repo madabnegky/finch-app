@@ -11,7 +11,6 @@ import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import firestore from '@react-native-firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TourGuideProvider, TourGuideZone, useTourGuideController } from 'rn-tourguide';
 import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import { initializeDemoData } from '../services/demoDataService';
 import { generateTransactionInstances } from '../utils/transactionInstances';
@@ -22,10 +21,10 @@ import { TransferModal } from '../components/TransferModal';
 import { PlaidAccountPicker } from '../components/PlaidAccountPicker';
 import { AccountSetupModal } from '../components/AccountSetupModal';
 import { FirstAccountCongrats } from '../components/FirstAccountCongrats';
+import { WelcomeModal } from '../components/WelcomeModal';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { usePlaidLink } from '../components/PlaidLinkHandler';
 import FinchLogo from '../components/FinchLogo';
-import { CustomTooltip } from '../components/CustomTooltip';
 import functions from '@react-native-firebase/functions';
 import brandColors from '../theme/colors';
 import { accountIcons } from '../theme/icons';
@@ -88,12 +87,7 @@ const DashboardContent = () => {
   const [showFirstAccountCongrats, setShowFirstAccountCongrats] = useState(false);
   const [firstAccountInfo, setFirstAccountInfo] = useState<{ id: string; name: string } | null>(null);
   const [isInDemoMode, setIsInDemoMode] = useState(false); // true if user only has demo accounts
-
-  // Tour guide controller
-  const { canStart, start, eventEmitter, currentStep } = useTourGuideController();
-
-  // Refs for each tour zone to enable scrolling
-  const zoneRefs = React.useRef<{ [key: number]: View | null }>({});
+  const [showWelcome, setShowWelcome] = useState(false);
 
   // Shared handler for first account creation
   const handleFirstAccountCreated = async (accountId: string) => {
@@ -130,133 +124,41 @@ const DashboardContent = () => {
     initDemoDataForGuest();
   }, [user]);
 
-  // Auto-start tour for new users
+  // Auto-start welcome modal and tour for new users
   useEffect(() => {
-    const attemptTourStart = async () => {
+    const checkOnboardingStatus = async () => {
       // Only attempt if we have accounts loaded (not loading and accounts exist)
-      if (loading || accounts.length === 0) {
-        return;
-      }
-
-      // Skip tour for users with real accounts (not anonymous/guest users)
-      if (user && !user.isAnonymous) {
-        console.log('⏭️ Skipping tour - user has a real account (not anonymous)');
+      if (loading || accounts.length === 0 || !user) {
         return;
       }
 
       try {
-        const tourKey = `hasSeenDashboardTour_${user?.uid}`;
+        const welcomeKey = `hasSeenWelcomeModal_${user.uid}`;
+        const tourKey = `hasSeenDashboardTour_${user.uid}`;
+
+        const hasSeenWelcome = await AsyncStorage.getItem(welcomeKey);
         const hasSeenTour = await AsyncStorage.getItem(tourKey);
 
-        console.log('🔍 Tour check - hasSeenTour:', hasSeenTour, 'canStart:', canStart, 'loading:', loading, 'accounts:', accounts.length, 'isAnonymous:', user?.isAnonymous);
+        console.log('🔍 Onboarding check - hasSeenWelcome:', hasSeenWelcome, 'hasSeenTour:', hasSeenTour, 'isAnonymous:', user.isAnonymous);
 
-        if (!hasSeenTour && canStart) {
-          // Give extra time for UI to settle and tour zones to register
+        // Show welcome modal for ALL new users (guest and registered)
+        if (!hasSeenWelcome) {
+          console.log('👋 First time user - showing welcome modal');
           setTimeout(() => {
-            console.log('🎯 Starting onboarding tour automatically...');
-            start();
-          }, 2000);
+            setShowWelcome(true);
+          }, 500);
         }
       } catch (error) {
-        console.error('Error checking tour status:', error);
+        console.error('Error checking onboarding status:', error);
       }
     };
 
     // Show debug button immediately
     setShowDebugButton(true);
 
-    // Attempt tour start
-    attemptTourStart();
-  }, [canStart, loading, accounts.length]);
-
-  // Handle tour completion
-  useEffect(() => {
-    if (eventEmitter && user?.uid) {
-      const handleStop = async () => {
-        const tourKey = `hasSeenDashboardTour_${user.uid}`;
-        await AsyncStorage.setItem(tourKey, 'true');
-      };
-
-      eventEmitter.on('stop', handleStop);
-      return () => {
-        eventEmitter.off('stop', handleStop);
-      };
-    }
-  }, [eventEmitter, user?.uid]);
-
-  // Handle step changes to scroll to each zone
-  useEffect(() => {
-    console.log('🔧 Setting up tour event listeners, currentStep:', currentStep);
-
-    if (eventEmitter) {
-      const handleStepChange = (step?: any) => {
-        console.log('📍 Tour step change:', step);
-        if (!step || !step.order) return;
-
-        const zoneNumber = step.order;
-
-        // Zone order (WITH NEW GET STARTED BUTTON):
-        // Zone 1: Account Selector
-        // Zone 2: Available to Spend
-        // Zone 3: What If
-        // Zone 4: Breakdown
-        // Zone 5: Get Started button (in guest banner at top)
-
-        // Keep FAB collapsed during tour
-        setFabExpanded(false);
-
-        // Scroll to different positions based on zone
-        let scrollPosition = 0;
-
-        switch (zoneNumber) {
-          case 1: // Account selector - at top, minimal scroll
-            scrollPosition = 0;
-            break;
-          case 2: // Available to Spend - still near top
-            scrollPosition = 50;
-            break;
-          case 3: // What If - middle area
-            scrollPosition = 200;
-            break;
-          case 4: // Breakdown - lower middle
-            scrollPosition = 400;
-            break;
-          case 5: // Get Started button - scroll back to top to show the banner
-            scrollPosition = 0;
-            break;
-        }
-
-        console.log(`📍 Scrolling to zone ${zoneNumber} at position ${scrollPosition}`);
-
-        // Scroll immediately without animation for instant response
-        // Check for scrollViewRef at execution time, not setup time
-        if (scrollViewRef.current) {
-          scrollViewRef.current.scrollTo({
-            y: scrollPosition,
-            animated: false,
-          });
-        } else {
-          console.log('⚠️ ScrollView ref not available yet');
-        }
-      };
-
-      console.log('🔧 Registering event listeners...');
-      eventEmitter.on('stepChange', handleStepChange);
-      eventEmitter.on('start', handleStepChange);
-
-      // If tour is already started when we set up listeners, handle current step
-      if (currentStep) {
-        console.log('🔧 Tour already started, handling current step:', currentStep);
-        handleStepChange(currentStep);
-      }
-
-      return () => {
-        console.log('🔧 Cleaning up event listeners');
-        eventEmitter.off('stepChange', handleStepChange);
-        eventEmitter.off('start', handleStepChange);
-      };
-    }
-  }, [eventEmitter, currentStep]);
+    // Check onboarding status
+    checkOnboardingStatus();
+  }, [loading, accounts.length, user]);
 
   // Plaid state
   const [triggerPlaid, setTriggerPlaid] = useState(false);
@@ -738,6 +640,38 @@ const DashboardContent = () => {
     setShowWhatIf(false);
   };
 
+  // Welcome modal handlers
+  const handleStartTour = async () => {
+    if (!user) return;
+
+    try {
+      // Mark welcome as seen
+      const welcomeKey = `hasSeenWelcomeModal_${user.uid}`;
+      await AsyncStorage.setItem(welcomeKey, 'true');
+
+      // Close welcome modal
+      setShowWelcome(false);
+
+    } catch (error) {
+      console.error('Error saving welcome status:', error);
+    }
+  };
+
+  const handleSkipWelcome = async () => {
+    if (!user) return;
+
+    try {
+      // Mark welcome as seen
+      const welcomeKey = `hasSeenWelcomeModal_${user.uid}`;
+      await AsyncStorage.setItem(welcomeKey, 'true');
+
+      // Close welcome modal
+      setShowWelcome(false);
+    } catch (error) {
+      console.error('Error saving skip status:', error);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -944,22 +878,12 @@ const DashboardContent = () => {
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
-              <TourGuideZone
-                zone={4}
-                text="Tap the menu icon (☰) to access Goals, Calendar, Reports, and Settings. Goals let you set aside money for future expenses!"
-                shape="circle"
-                borderRadius={24}
-                maskOffset={4}
+              <TouchableOpacity
+                style={styles.menuButton}
+                onPress={() => (navigation as any).openDrawer()}
               >
-                <TouchableOpacity
-                  ref={(ref) => (zoneRefs.current[4] = ref)}
-                  style={styles.menuButton}
-                  onPress={() => (navigation as any).openDrawer()}
-                  collapsable={false}
-                >
-                  <Icon name="menu" size={24} color={brandColors.textDark} />
-                </TouchableOpacity>
-              </TourGuideZone>
+                <Icon name="menu" size={24} color={brandColors.textDark} />
+              </TouchableOpacity>
               <View style={styles.logoContainer}>
                 <FinchLogo size={32} />
               </View>
@@ -983,9 +907,11 @@ const DashboardContent = () => {
                 <TouchableOpacity
                   style={styles.debugButton}
                   onPress={async () => {
+                    const welcomeKey = `hasSeenWelcomeModal_${user?.uid}`;
                     const tourKey = `hasSeenDashboardTour_${user?.uid}`;
+                    await AsyncStorage.removeItem(welcomeKey);
                     await AsyncStorage.removeItem(tourKey);
-                    start();
+                    setShowWelcome(true);
                   }}
                 >
                   <Icon name="information-outline" size={20} color={brandColors.tealPrimary} />
@@ -1011,30 +937,26 @@ const DashboardContent = () => {
 
         {/* DEMO MODE BANNER - Phase 1: User exploring with demo data */}
         {user?.isAnonymous && isInDemoMode && (
-          <TourGuideZone
-            zone={5}
-            text="When you're ready, tap 'Get Started' and we'll help you add your first account and set up your recurring transactions!"
-            borderRadius={12}
-            maskOffset={4}
-            tooltipBottomOffset={100}
-          >
-            <View ref={(ref) => (zoneRefs.current[5] = ref)} style={styles.guestBanner} collapsable={false}>
-              <View style={styles.guestBannerContent}>
-                <Icon name="rocket-launch" size={24} color={brandColors.orangeAccent} />
-                <View style={styles.guestBannerTextContainer}>
-                  <Text style={styles.guestBannerTitle}>Demo Mode</Text>
-                  <Text style={styles.guestBannerSubtitle}>Exploring Finch with sample data</Text>
-                </View>
+          <View style={styles.guestBanner}>
+            <View style={styles.guestBannerContent}>
+              <View style={styles.guestBannerIconContainer}>
+                <Icon name="rocket-launch" size={28} color={brandColors.orangeAccent} />
               </View>
-              <TouchableOpacity
-                style={styles.getStartedButton}
-                onPress={() => setShowAccountSetup(true)}
-              >
-                <Text style={styles.getStartedButtonText}>Get Started</Text>
-                <Icon name="arrow-right" size={18} color={brandColors.white} />
-              </TouchableOpacity>
+              <View style={styles.guestBannerTextContainer}>
+                <Text style={styles.guestBannerTitle} numberOfLines={1}>You're in Demo Mode</Text>
+                <Text style={styles.guestBannerSubtitle} numberOfLines={2}>
+                  This is sample data. Create an account to track your real finances!
+                </Text>
+              </View>
             </View>
-          </TourGuideZone>
+            <TouchableOpacity
+              style={styles.getStartedButton}
+              onPress={() => setShowAccountSetup(true)}
+            >
+              <Text style={styles.getStartedButtonText}>Get Started</Text>
+              <Icon name="arrow-right" size={18} color={brandColors.white} />
+            </TouchableOpacity>
+          </View>
         )}
 
         {/* CREATE ACCOUNT BANNER - Phase 2: User has real data but still anonymous */}
@@ -1079,18 +1001,9 @@ const DashboardContent = () => {
         <View style={styles.section}>
           <View style={styles.primaryCard}>
             {/* Account Selector Dropdown */}
-            <TourGuideZone
-              zone={1}
-              text="This is your account selector. Once you add accounts, you can tap here to switch between them."
-              borderRadius={12}
-              maskOffset={4}
-              tooltipBottomOffset={20}
-            >
               <TouchableOpacity
-                ref={(ref) => (zoneRefs.current[1] = ref)}
                 style={styles.accountSelector}
                 onPress={() => setShowAccountPicker(true)}
-                collapsable={false}
               >
                 <View style={styles.accountSelectorLeft}>
                   <View style={[styles.accountIcon, { backgroundColor: brandColors.tealPrimary + '15' }]}>
@@ -1145,36 +1058,18 @@ const DashboardContent = () => {
                   <Icon name="chevron-down" size={20} color={brandColors.textGray} />
                 </View>
               </TouchableOpacity>
-            </TourGuideZone>
 
             {/* Available to Spend - Hero */}
-            <TourGuideZone
-              zone={2}
-              text="This is your Available to Spend - the money you can safely use right now based on your balance, upcoming bills, safety cushion, and goal allocations."
-              borderRadius={16}
-              maskOffset={4}
-              tooltipBottomOffset={100}
-            >
-              <View ref={(ref) => (zoneRefs.current[2] = ref)} style={styles.heroSection} collapsable={false}>
+              <View style={styles.heroSection}>
                 <Text style={styles.heroLabel}>AVAILABLE TO SPEND</Text>
                 <Text style={styles.heroAmount}>{formatCurrency(selectedAccount.availableToSpend)}</Text>
               </View>
-            </TourGuideZone>
 
             {/* Test a Purchase Card */}
-            <TourGuideZone
-              zone={3}
-              text="Use 'What If?' to simulate a purchase and see how it will affect your finances over the next 60 days before you spend."
-              borderRadius={12}
-              maskOffset={4}
-              tooltipBottomOffset={80}
-            >
               <TouchableOpacity
-                ref={(ref) => (zoneRefs.current[3] = ref)}
                 style={styles.testPurchaseCard}
                 onPress={() => setShowWhatIf(true)}
                 activeOpacity={0.7}
-                collapsable={false}
               >
                 <View style={styles.testPurchaseIcon}>
                   <Icon name="calculator" size={24} color={brandColors.tealPrimary} />
@@ -1187,17 +1082,11 @@ const DashboardContent = () => {
                 </View>
                 <Icon name="chevron-right" size={20} color={brandColors.textGray} />
               </TouchableOpacity>
-            </TourGuideZone>
 
             {/* Financial Breakdown */}
-            <TourGuideZone
-              zone={4}
-              text="Here's exactly how we calculated your Available to Spend. We factor in your current balance, upcoming income and bills, safety cushion, and goal savings."
-              borderRadius={12}
-              maskOffset={4}
-              tooltipBottomOffset={180}
-            >
-              <View ref={(ref) => (zoneRefs.current[4] = ref)} style={styles.breakdownSection} collapsable={false}>
+              <View
+                style={styles.breakdownSection}
+              >
                 <Text style={styles.breakdownTitle}>How we calculated this</Text>
                 <View style={styles.breakdownRows}>
                   <View style={styles.breakdownRow}>
@@ -1244,7 +1133,6 @@ const DashboardContent = () => {
                   </View>
                 </View>
               </View>
-            </TourGuideZone>
           </View>
         </View>
 
@@ -1282,27 +1170,27 @@ const DashboardContent = () => {
                 <Text style={styles.seeAllLink}>View All</Text>
               </TouchableOpacity>
             </View>
-              <View style={styles.billsContainer}>
-                {upcomingBills.map((bill, index) => {
-                  const categoryIcon = getCategoryIcon(bill.category, bill.type);
-                  return (
-                    <View key={index} style={styles.billCard}>
-                      <View style={styles.billLeft}>
-                        <View style={[styles.billIconContainer, { backgroundColor: categoryIcon.color + '10' }]}>
-                          <Icon name={categoryIcon.icon} size={20} color={categoryIcon.color} />
-                        </View>
-                        <View style={styles.billInfo}>
-                          <Text style={styles.billName}>{bill.name}</Text>
-                          <Text style={styles.billDate}>Due {bill.date} • {bill.daysAway} days</Text>
-                        </View>
+            <View style={styles.billsContainer}>
+              {upcomingBills.map((bill, index) => {
+                const categoryIcon = getCategoryIcon(bill.category, bill.type);
+                return (
+                  <View key={index} style={styles.billCard}>
+                    <View style={styles.billLeft}>
+                      <View style={[styles.billIconContainer, { backgroundColor: categoryIcon.color + '10' }]}>
+                        <Icon name={categoryIcon.icon} size={20} color={categoryIcon.color} />
                       </View>
-                      <View style={styles.billRight}>
-                        <Text style={styles.billAmount}>-{formatCurrency(bill.amount)}</Text>
+                      <View style={styles.billInfo}>
+                        <Text style={styles.billName}>{bill.name}</Text>
+                        <Text style={styles.billDate}>Due {bill.date} • {bill.daysAway} days</Text>
                       </View>
                     </View>
-                  );
-                })}
-              </View>
+                    <View style={styles.billRight}>
+                      <Text style={styles.billAmount}>-{formatCurrency(bill.amount)}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
           </View>
         )}
 
@@ -1388,7 +1276,7 @@ const DashboardContent = () => {
         </View>
       )}
 
-      {/* MAIN FAB - NO LONGER IN TOUR */}
+      {/* MAIN FAB */}
       <TouchableOpacity
         style={styles.fab}
         onPress={() => setFabExpanded(!fabExpanded)}
@@ -1554,24 +1442,22 @@ const DashboardContent = () => {
           }}
         />
       )}
+
+      {/* WELCOME MODAL */}
+      <WelcomeModal
+        visible={showWelcome}
+        onStartTour={handleStartTour}
+        onSkip={handleSkipWelcome}
+      />
     </View>
   );
 };
 
-// Export wrapper with TourGuideProvider and ErrorBoundary
+// Export wrapper with ErrorBoundary
 export const DashboardConcept4 = () => {
   return (
     <ErrorBoundary fallbackTitle="Dashboard Error" fallbackMessage="Something went wrong loading your dashboard. Your data is safe.">
-      <TourGuideProvider
-        borderRadius={16}
-        androidStatusBarVisible={true}
-        preventOutsideInteraction={false}
-        verticalOffset={0}
-        backdropColor="rgba(0, 0, 0, 0.7)"
-        tooltipComponent={CustomTooltip}
-      >
-        <DashboardContent />
-      </TourGuideProvider>
+      <DashboardContent />
     </ErrorBoundary>
   );
 };
@@ -1746,36 +1632,51 @@ const styles = StyleSheet.create({
 
   // Guest Mode Banner
   guestBanner: {
-    backgroundColor: brandColors.orangeAccent + '15',
-    borderWidth: 1,
+    backgroundColor: brandColors.orangeAccent + '20',
+    borderWidth: 2,
     borderColor: brandColors.orangeAccent,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: 18,
     marginHorizontal: 20,
     marginTop: 16,
-    borderRadius: 12,
+    borderRadius: 16,
+    shadowColor: brandColors.orangeAccent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  guestBannerIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: brandColors.orangeAccent + '30',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   guestBannerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
     flex: 1,
   },
   guestBannerTextContainer: {
     flex: 1,
   },
   guestBannerTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '800',
     color: brandColors.textDark,
-    marginBottom: 2,
+    marginBottom: 4,
+    letterSpacing: -0.3,
   },
   guestBannerSubtitle: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '600',
     color: brandColors.textGray,
+    lineHeight: 18,
   },
   getStartedButton: {
     backgroundColor: brandColors.orangeAccent,

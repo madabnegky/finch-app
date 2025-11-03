@@ -2146,6 +2146,49 @@ PODS:
     - React-Core
   - react-native-safe-area-context (4.10.5):
     - React-Core
+  - react-native-video (6.17.0):
+    - DoubleConversion
+    - glog
+    - hermes-engine
+    - RCT-Folly (= 2024.01.01.00)
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Codegen
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - react-native-video/Video (= 6.17.0)
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-rendererdebug
+    - React-utils
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - Yoga
+  - react-native-video/Video (6.17.0):
+    - DoubleConversion
+    - glog
+    - hermes-engine
+    - RCT-Folly (= 2024.01.01.00)
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Codegen
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-rendererdebug
+    - React-utils
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - Yoga
   - React-nativeconfig (0.74.5)
   - React-NativeModulesApple (0.74.5):
     - glog
@@ -2536,6 +2579,7 @@ DEPENDENCIES:
   - react-native-biometrics (from `../../../node_modules/react-native-biometrics`)
   - react-native-plaid-link-sdk (from `../../../node_modules/react-native-plaid-link-sdk`)
   - react-native-safe-area-context (from `../../../node_modules/react-native-safe-area-context`)
+  - react-native-video (from `../../../node_modules/react-native-video`)
   - React-nativeconfig (from `../../../node_modules/react-native/ReactCommon`)
   - React-NativeModulesApple (from `../../../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-perflogger (from `../../../node_modules/react-native/ReactCommon/reactperflogger`)
@@ -2683,6 +2727,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/react-native-plaid-link-sdk"
   react-native-safe-area-context:
     :path: "../../../node_modules/react-native-safe-area-context"
+  react-native-video:
+    :path: "../../../node_modules/react-native-video"
   React-nativeconfig:
     :path: "../../../node_modules/react-native/ReactCommon"
   React-NativeModulesApple:
@@ -2828,6 +2874,7 @@ SPEC CHECKSUMS:
   react-native-biometrics: 43ed5b828646a7862dbc7945556446be00798e7d
   react-native-plaid-link-sdk: 7e3e7669a8a1b22595ead55a5d5778e637b354f5
   react-native-safe-area-context: df9763c5de6fa38883028e243a0b60123acb8858
+  react-native-video: e4085f28bb32fce0fbbeb3d38c9ec9da655d7169
   React-nativeconfig: f326487bc61eba3f0e328da6efb2711533dcac46
   React-NativeModulesApple: ab18cfc286c91012535b94553222f455eedf2c53
   React-perflogger: ed4e0c65781521e0424f2e5e40b40cc7879d737e

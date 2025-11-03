@@ -36,6 +36,7 @@
     "react-native-screens": "4.4.0",
     "react-native-svg": "15.2.0",
     "react-native-vector-icons": "^10.3.0",
+    "react-native-video": "^6.0.0",
     "rn-tourguide": "^3.3.2"
   },
   "devDependencies": {

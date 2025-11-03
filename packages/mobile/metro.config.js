@@ -7,6 +7,8 @@ const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
  *
  * @type {import('metro-config').MetroConfig}
  */
+const defaultConfig = getDefaultConfig(__dirname);
+
 const config = {
   // 1. WATCH FOLDERS
   watchFolders: [
@@ -27,7 +29,9 @@ const config = {
     },
     // Support package.json exports
     unstable_enablePackageExports: true,
+    // Add video asset extensions to the defaults
+    assetExts: [...defaultConfig.resolver.assetExts, 'mp4', 'mov', 'avi', 'mkv', 'webm'],
   },
 };
 
-module.exports = mergeConfig(getDefaultConfig(__dirname), config);
+module.exports = mergeConfig(defaultConfig, config);
