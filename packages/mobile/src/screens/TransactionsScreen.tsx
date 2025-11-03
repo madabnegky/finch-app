@@ -20,6 +20,9 @@ import { generateTransactionInstances } from '../utils/transactionInstances';
 import { AddTransactionModal } from '../components/AddTransactionModal';
 import FinchLogo from '../components/FinchLogo';
 import brandColors from '../theme/colors';
+import { syncBudgetsWithRecurring } from '../services/budgetService';
+import { hasPremiumAccess } from '../utils/premiumAccess';
+import type { RecurringTransaction, UserProfile } from '../types';
 
 type Transaction = {
   id: string;
@@ -55,6 +58,7 @@ export const TransactionsScreen: React.FC = () => {
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   // Delete confirmation modal state
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
@@ -102,6 +106,27 @@ export const TransactionsScreen: React.FC = () => {
         (error) => {
           console.error('Error fetching accounts:', error);
           setAccounts([]);
+        }
+      );
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Fetch user profile
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = firestore()
+      .collection('users')
+      .doc(user.uid)
+      .onSnapshot(
+        (doc) => {
+          if (doc.exists) {
+            setUserProfile(doc.data() as UserProfile);
+          }
+        },
+        (error) => {
+          console.error('Error fetching user profile:', error);
         }
       );
 
@@ -207,6 +232,60 @@ export const TransactionsScreen: React.FC = () => {
     return new Date(Date.UTC(year, month - 1, day));
   };
 
+  // Helper function to sync budgets for premium users
+  const syncBudgetsIfPremium = async () => {
+    if (!user || !userProfile) return;
+
+    const isPremium = hasPremiumAccess(userProfile, user.uid);
+    if (!isPremium) {
+      console.log('⏭️ TransactionsScreen: User is not premium, skipping budget sync');
+      return;
+    }
+
+    try {
+      console.log('🔄 TransactionsScreen: Syncing budgets with recurring transactions...');
+
+      // Fetch all recurring transactions from /transactions where isRecurring: true
+      const recurringSnapshot = await firestore()
+        .collection(`users/${user.uid}/transactions`)
+        .get();
+
+      // Map to RecurringTransaction format - client-side filter for isRecurring: true
+      const recurringTransactionsForSync = recurringSnapshot.docs
+        .filter(doc => doc.data().isRecurring === true)
+        .map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            description: data.description || '',
+            amount: Math.abs(data.amount || 0),
+            type: data.type || 'expense',
+            category: data.category || 'Uncategorized',
+            frequency: (data.recurringDetails?.frequency || 'monthly') as any,
+            isActive: true,
+          };
+        }) as RecurringTransaction[];
+
+      console.log(`📋 TransactionsScreen: Found ${recurringTransactionsForSync.length} recurring transactions for budget sync`);
+
+      const result = await syncBudgetsWithRecurring(user.uid, recurringTransactionsForSync);
+      console.log(`✅ Budget sync complete: ${result.created} created, ${result.updated} updated, ${result.deleted} deleted`);
+
+      if (result.deleted > 0) {
+        Alert.alert(
+          'Budgets Updated',
+          `${result.deleted} budget${result.deleted > 1 ? 's' : ''} automatically removed after deleting recurring transaction.`
+        );
+      }
+    } catch (error) {
+      console.error('❌ TransactionsScreen: Error syncing budgets:', error);
+      Alert.alert(
+        'Budget Sync Error',
+        'Failed to sync budgets. Please try again.'
+      );
+    }
+  };
+
   // Handle delete transaction
   const handleDeletePress = (txn: Transaction) => {
     setTransactionToDelete(txn);
@@ -224,6 +303,11 @@ export const TransactionsScreen: React.FC = () => {
           .doc(transactionToDelete.id)
           .delete();
         console.log('Deleted entire recurring series:', transactionToDelete.id);
+
+        // Sync budgets after deleting recurring transaction
+        setTimeout(() => {
+          syncBudgetsIfPremium();
+        }, 500);
       } else if (transactionToDelete.isInstance && transactionToDelete.id) {
         const txnDate = transactionToDelete.date instanceof Date
           ? transactionToDelete.date
@@ -871,13 +955,13 @@ export const TransactionsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
   },
 
   // Header
@@ -907,20 +991,20 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: brandColors.orangeAccent + '15',
+    backgroundColor: brandColors.primary + '10',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '800',
-    color: brandColors.textDark,
+    fontWeight: '700',
+    color: brandColors.textPrimary,
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 13,
     fontWeight: '500',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
     marginTop: 2,
   },
   searchButton: {
@@ -943,16 +1027,16 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: brandColors.orangeAccent,
+    borderBottomColor: brandColors.primary,
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: brandColors.textGray,
+    fontWeight: '500',
+    color: brandColors.textSecondary,
   },
   activeTabText: {
-    color: brandColors.orangeAccent,
-    fontWeight: '700',
+    color: brandColors.primary,
+    fontWeight: '600',
   },
 
   // Filter Section
@@ -964,12 +1048,12 @@ const styles = StyleSheet.create({
     borderBottomColor: brandColors.border,
   },
   searchInput: {
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
     borderRadius: 12,
     padding: 12,
     fontSize: 15,
     fontWeight: '500',
-    color: brandColors.textDark,
+    color: brandColors.textPrimary,
     marginBottom: 12,
   },
   accountFilterScroll: {
@@ -978,19 +1062,19 @@ const styles = StyleSheet.create({
   filterChip: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: brandColors.backgroundOffWhite,
-    borderWidth: 1.5,
+    borderRadius: 12,
+    backgroundColor: brandColors.background,
+    borderWidth: 1,
     borderColor: brandColors.border,
   },
   filterChipActive: {
-    backgroundColor: brandColors.tealPrimary,
-    borderColor: brandColors.tealPrimary,
+    backgroundColor: brandColors.primary,
+    borderColor: brandColors.primary,
   },
   filterChipText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
   },
   filterChipTextActive: {
     color: brandColors.white,
@@ -1013,21 +1097,21 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: brandColors.lightGray + '50',
+    backgroundColor: brandColors.border + '50',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
   },
   emptyStateTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
     marginBottom: 8,
   },
   emptyStateText: {
     fontSize: 14,
     fontWeight: '500',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: 40,
   },
@@ -1035,14 +1119,11 @@ const styles = StyleSheet.create({
   // Transaction Card
   transactionCard: {
     backgroundColor: brandColors.white,
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: brandColors.border,
   },
   transactionContent: {
     flexDirection: 'row',
@@ -1068,14 +1149,14 @@ const styles = StyleSheet.create({
   },
   transactionName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
   },
   recurringBadge: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: brandColors.tealPrimary + '15',
+    backgroundColor: brandColors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1087,28 +1168,28 @@ const styles = StyleSheet.create({
   transactionDate: {
     fontSize: 13,
     fontWeight: '500',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
   },
   transactionMetaDot: {
     fontSize: 12,
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
   },
   transactionFrequency: {
     fontSize: 12,
     fontWeight: '500',
-    color: brandColors.tealPrimary,
+    color: brandColors.primary,
   },
   transactionCategory: {
     fontSize: 12,
     fontWeight: '500',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
   },
   transactionRight: {
     alignItems: 'flex-end',
   },
   transactionAmount: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   incomeAmount: {
     color: brandColors.success,
@@ -1132,7 +1213,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 10,
-    backgroundColor: brandColors.tealPrimary + '10',
+    backgroundColor: brandColors.primary + '10',
     borderRadius: 10,
   },
   actionButtonDanger: {
@@ -1140,8 +1221,8 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: brandColors.tealPrimary,
+    fontWeight: '500',
+    color: brandColors.primary,
   },
   actionButtonTextDanger: {
     color: brandColors.error,
@@ -1155,12 +1236,12 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: brandColors.orangeAccent,
+    backgroundColor: brandColors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 8,
   },
@@ -1174,7 +1255,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: brandColors.white,
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 24,
   },
   modalHeader: {
@@ -1191,15 +1272,15 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: brandColors.textDark,
+    fontWeight: '700',
+    color: brandColors.textPrimary,
     marginBottom: 8,
     textAlign: 'center',
   },
   modalMessage: {
     fontSize: 14,
     fontWeight: '500',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -1213,28 +1294,28 @@ const styles = StyleSheet.create({
   modalButton: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: brandColors.tealPrimary,
+    backgroundColor: brandColors.primary,
   },
   modalButtonSecondary: {
     backgroundColor: brandColors.white,
     borderWidth: 1.5,
-    borderColor: brandColors.tealPrimary,
+    borderColor: brandColors.primary,
   },
   modalButtonDanger: {
     backgroundColor: brandColors.error,
   },
   modalButtonText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     color: brandColors.white,
   },
   modalButtonTextSecondary: {
     fontSize: 15,
-    fontWeight: '700',
-    color: brandColors.tealPrimary,
+    fontWeight: '600',
+    color: brandColors.primary,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -1257,8 +1338,8 @@ const styles = StyleSheet.create({
   },
   editModalTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: brandColors.textDark,
+    fontWeight: '700',
+    color: brandColors.textPrimary,
   },
   editForm: {
     flex: 1,
@@ -1269,20 +1350,20 @@ const styles = StyleSheet.create({
   },
   formLabel: {
     fontSize: 13,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   formInput: {
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
     borderRadius: 12,
     padding: 14,
     fontSize: 16,
     fontWeight: '500',
-    color: brandColors.textDark,
-    borderWidth: 1.5,
+    color: brandColors.textPrimary,
+    borderWidth: 1,
     borderColor: brandColors.border,
   },
   typeButtons: {
@@ -1292,20 +1373,20 @@ const styles = StyleSheet.create({
   typeButton: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     alignItems: 'center',
-    backgroundColor: brandColors.backgroundOffWhite,
-    borderWidth: 1.5,
+    backgroundColor: brandColors.background,
+    borderWidth: 1,
     borderColor: brandColors.border,
   },
   typeButtonActive: {
-    backgroundColor: brandColors.tealPrimary,
-    borderColor: brandColors.tealPrimary,
+    backgroundColor: brandColors.primary,
+    borderColor: brandColors.primary,
   },
   typeButtonText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
   },
   typeButtonTextActive: {
     color: brandColors.white,
@@ -1316,19 +1397,19 @@ const styles = StyleSheet.create({
   accountOption: {
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: brandColors.backgroundOffWhite,
-    borderWidth: 1.5,
+    borderRadius: 10,
+    backgroundColor: brandColors.background,
+    borderWidth: 1,
     borderColor: brandColors.border,
   },
   accountOptionActive: {
-    backgroundColor: brandColors.tealPrimary,
-    borderColor: brandColors.tealPrimary,
+    backgroundColor: brandColors.primary,
+    borderColor: brandColors.primary,
   },
   accountOptionText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
   },
   accountOptionTextActive: {
     color: brandColors.white,
@@ -1340,20 +1421,20 @@ const styles = StyleSheet.create({
   frequencyButton: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: 10,
     alignItems: 'center',
-    backgroundColor: brandColors.backgroundOffWhite,
-    borderWidth: 1.5,
+    backgroundColor: brandColors.background,
+    borderWidth: 1,
     borderColor: brandColors.border,
   },
   frequencyButtonActive: {
-    backgroundColor: brandColors.tealPrimary,
-    borderColor: brandColors.tealPrimary,
+    backgroundColor: brandColors.primary,
+    borderColor: brandColors.primary,
   },
   frequencyButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
   },
   frequencyButtonTextActive: {
     color: brandColors.white,
@@ -1364,19 +1445,19 @@ const styles = StyleSheet.create({
     borderTopColor: brandColors.border,
   },
   saveButton: {
-    backgroundColor: brandColors.tealPrimary,
+    backgroundColor: brandColors.primary,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 10,
     alignItems: 'center',
-    shadowColor: brandColors.tealPrimary,
+    shadowColor: brandColors.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 4,
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: brandColors.white,
   },
 });

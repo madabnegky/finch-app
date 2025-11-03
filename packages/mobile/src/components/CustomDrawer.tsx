@@ -104,13 +104,14 @@ const styles = StyleSheet.create({
     backgroundColor: brandColors.white,
   },
 
-  // Header
+  // Header - Updated to professional minimal style
   header: {
     paddingTop: 60,
-    paddingBottom: 24,
+    paddingBottom: 20,
     paddingHorizontal: 20,
-    backgroundColor: brandColors.tealPrimary,
-    alignItems: 'center',
+    backgroundColor: brandColors.white, // Changed from tealPrimary to white
+    borderBottomWidth: 1,
+    borderBottomColor: brandColors.border,
   },
   logoContainer: {
     width: 48,
@@ -122,70 +123,67 @@ const styles = StyleSheet.create({
   brandName: {
     fontSize: 24,
     fontWeight: '800',
-    color: brandColors.white,
+    color: brandColors.textPrimary,
     letterSpacing: -0.5,
   },
   tagline: {
     fontSize: 12,
     fontWeight: '500',
-    color: brandColors.white + 'CC',
+    color: brandColors.textSecondary,
     marginTop: 4,
   },
 
   // Scroll Content
   scrollContent: {
     flex: 1,
-    paddingTop: 16,
+    paddingTop: 8,
   },
 
   // Section
   section: {
-    marginBottom: 24,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: brandColors.border,
   },
   sectionLabel: {
     fontSize: 11,
-    fontWeight: '700',
-    color: brandColors.textGray,
-    letterSpacing: 1,
-    marginLeft: 16,
+    fontWeight: '600',
+    color: brandColors.textTertiary, // Changed to lighter gray
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 20,
     marginBottom: 8,
   },
 
-  // Nav Item
+  // Nav Item - Updated to minimal style
   navItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginBottom: 4,
+    paddingHorizontal: 20,
+    marginBottom: 0,
     position: 'relative',
   },
   navItemActive: {
-    backgroundColor: brandColors.orangeAccent + '15',
+    backgroundColor: brandColors.background, // Subtle background
+    borderRightWidth: 3,
+    borderRightColor: brandColors.primary, // Blue indicator
   },
   activeIndicator: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 3,
-    backgroundColor: brandColors.tealPrimary,
-    borderTopRightRadius: 3,
-    borderBottomRightRadius: 3,
+    // No longer needed with border-right approach, but keeping for compatibility
+    display: 'none',
   },
   navIcon: {
-    marginRight: 16,
+    marginRight: 12,
   },
   navLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: brandColors.textGray,
+    fontSize: 15,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
   },
   navLabelActive: {
-    color: brandColors.orangeAccent,
-    fontWeight: '700',
+    color: brandColors.textPrimary, // Keep same color, just rely on background
+    fontWeight: '500',
   },
 
   // Footer
@@ -202,12 +200,12 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 12,
     fontWeight: '500',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
   },
   version: {
     fontSize: 10,
     fontWeight: '500',
-    color: brandColors.textGray + '80',
+    color: brandColors.textTertiary,
     marginLeft: 'auto',
   },
 });

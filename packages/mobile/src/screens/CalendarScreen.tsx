@@ -339,7 +339,7 @@ export const CalendarScreen: React.FC = () => {
             style={styles.menuButton}
             onPress={() => (navigation as any).openDrawer()}
           >
-            <Icon name="menu" size={24} color={brandColors.textDark} />
+            <Icon name="menu" size={24} color={brandColors.textPrimary} />
           </TouchableOpacity>
           <View style={styles.logoContainer}>
             <FinchLogo size={32} />
@@ -388,13 +388,13 @@ export const CalendarScreen: React.FC = () => {
             {/* Month Navigation */}
             <View style={styles.monthNav}>
               <TouchableOpacity onPress={() => navigateMonth('prev')} style={styles.navButton}>
-                <Icon name={actionIcons.chevronLeft} size={24} color={brandColors.tealPrimary} />
+                <Icon name={actionIcons.chevronLeft} size={24} color={brandColors.primary} />
               </TouchableOpacity>
               <Text style={styles.monthTitle}>
                 {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
               </Text>
               <TouchableOpacity onPress={() => navigateMonth('next')} style={styles.navButton}>
-                <Icon name={actionIcons.chevronRight} size={24} color={brandColors.tealPrimary} />
+                <Icon name={actionIcons.chevronRight} size={24} color={brandColors.primary} />
               </TouchableOpacity>
             </View>
 
@@ -410,7 +410,7 @@ export const CalendarScreen: React.FC = () => {
             {/* Calendar Grid */}
             {loading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={brandColors.tealPrimary} />
+                <ActivityIndicator size="large" color={brandColors.primary} />
               </View>
             ) : (
               <View style={styles.calendarGrid}>
@@ -425,7 +425,7 @@ export const CalendarScreen: React.FC = () => {
           <View style={styles.section}>
             <View style={styles.dateDetailsCard}>
               <View style={styles.dateHeader}>
-                <Icon name="calendar-check" size={24} color={brandColors.tealPrimary} />
+                <Icon name="calendar-check" size={24} color={brandColors.primary} />
                 <Text style={styles.dateTitle}>
                   {selectedDate.toLocaleDateString('en-US', {
                     weekday: 'long',
@@ -476,7 +476,7 @@ export const CalendarScreen: React.FC = () => {
                 </Text>
                 {selectedDateTransactions.length === 0 ? (
                   <View style={styles.noTransactionsContainer}>
-                    <Icon name="calendar-blank" size={48} color={brandColors.textGray} />
+                    <Icon name="calendar-blank" size={48} color={brandColors.textSecondary} />
                     <Text style={styles.noTransactionsText}>No transactions on this date</Text>
                   </View>
                 ) : (
@@ -525,7 +525,7 @@ export const CalendarScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
   },
 
   // Header
@@ -549,20 +549,20 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: brandColors.tealPrimary + '15',
+    backgroundColor: brandColors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 13,
     fontWeight: '500',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
     marginTop: 2,
   },
 
@@ -584,8 +584,8 @@ const styles = StyleSheet.create({
   },
   filterLabel: {
     fontSize: 14,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
     marginBottom: 12,
   },
   accountScrollContent: {
@@ -597,17 +597,17 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     backgroundColor: brandColors.white,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: brandColors.border,
   },
   accountChipActive: {
-    backgroundColor: brandColors.orangeAccent,
-    borderColor: brandColors.orangeAccent,
+    backgroundColor: brandColors.primary,
+    borderColor: brandColors.primary,
   },
   accountChipText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
   },
   accountChipTextActive: {
     color: brandColors.white,
@@ -616,13 +616,10 @@ const styles = StyleSheet.create({
   // Calendar Card
   calendarCard: {
     backgroundColor: brandColors.white,
-    borderRadius: 20,
+    borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: brandColors.border,
   },
   monthNav: {
     flexDirection: 'row',
@@ -635,8 +632,8 @@ const styles = StyleSheet.create({
   },
   monthTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
     letterSpacing: -0.3,
   },
   weekHeader: {
@@ -652,8 +649,8 @@ const styles = StyleSheet.create({
   },
   weekDayText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: brandColors.textGray,
+    fontWeight: '600',
+    color: brandColors.textSecondary,
     textTransform: 'uppercase',
   },
   calendarGrid: {
@@ -669,30 +666,30 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   selectedDay: {
-    backgroundColor: brandColors.orangeAccent,
+    backgroundColor: brandColors.primary,
     borderRadius: 12,
   },
   todayCell: {
     borderWidth: 2,
-    borderColor: brandColors.tealPrimary,
+    borderColor: brandColors.primary,
     borderRadius: 12,
   },
   dayText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
   },
   selectedDayText: {
     color: brandColors.white,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   todayText: {
-    fontWeight: '700',
-    color: brandColors.tealPrimary,
+    fontWeight: '600',
+    color: brandColors.primary,
   },
   transactionIndicator: {
     position: 'absolute',
-    bottom: 6,
+    bottom: 2,
     flexDirection: 'row',
     gap: 3,
   },
@@ -711,13 +708,10 @@ const styles = StyleSheet.create({
   // Date Details Card
   dateDetailsCard: {
     backgroundColor: brandColors.white,
-    borderRadius: 20,
+    borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: brandColors.border,
   },
   dateHeader: {
     flexDirection: 'row',
@@ -728,8 +722,8 @@ const styles = StyleSheet.create({
   dateTitle: {
     flex: 1,
     fontSize: 16,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
   },
 
   // Balance Summary
@@ -749,15 +743,15 @@ const styles = StyleSheet.create({
   balanceLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   balanceValue: {
     fontSize: 18,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
   },
   balanceDivider: {
     width: 1,
@@ -768,18 +762,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
     padding: 16,
     borderRadius: 12,
   },
   availableLabel: {
     fontSize: 14,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
   },
   availableValue: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 
   // Transactions Section
@@ -787,8 +781,8 @@ const styles = StyleSheet.create({
   },
   transactionsSectionTitle: {
     fontSize: 12,
-    fontWeight: '700',
-    color: brandColors.textGray,
+    fontWeight: '600',
+    color: brandColors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 12,
@@ -799,8 +793,8 @@ const styles = StyleSheet.create({
   },
   noTransactionsText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: brandColors.textGray,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
     marginTop: 12,
   },
   transactionItem: {
@@ -829,18 +823,18 @@ const styles = StyleSheet.create({
   },
   transactionName: {
     fontSize: 14,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
     marginBottom: 2,
   },
   transactionCategory: {
     fontSize: 12,
-    fontWeight: '500',
-    color: brandColors.textGray,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
   },
   transactionAmount: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     marginLeft: 12,
   },
 

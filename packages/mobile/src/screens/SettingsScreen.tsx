@@ -41,7 +41,7 @@ interface SettingItemProps {
 
 function SettingItem({
   icon,
-  iconColor = brandColors.tealPrimary,
+  iconColor = brandColors.primary,
   title,
   subtitle,
   onPress,
@@ -67,7 +67,7 @@ function SettingItem({
         )}
       </View>
       {rightComponent || (showChevron && (
-        <Icon name={actionIcons.chevronRight} size={20} color={brandColors.textGray} />
+        <Icon name={actionIcons.chevronRight} size={20} color={brandColors.textSecondary} />
       ))}
     </TouchableOpacity>
   );
@@ -331,11 +331,11 @@ export function SettingsScreen() {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Icon name="arrow-left" size={24} color={brandColors.textDark} />
+          <Icon name="arrow-left" size={24} color={brandColors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerLeft}>
           <View style={styles.headerIcon}>
-            <Icon name={navigationIcons.settings} size={24} color={brandColors.tealPrimary} />
+            <Icon name={navigationIcons.settings} size={24} color={brandColors.primary} />
           </View>
           <View>
             <Text style={styles.headerTitle}>Settings</Text>
@@ -361,7 +361,7 @@ export function SettingsScreen() {
             <View style={styles.divider} />
             <SettingItem
               icon="email"
-              iconColor={brandColors.tealPrimary}
+              iconColor={brandColors.primary}
               title="Create with Email"
               subtitle="Use your email address"
               onPress={handleLinkWithEmail}
@@ -390,8 +390,8 @@ export function SettingsScreen() {
               <Switch
                 value={notificationsEnabled}
                 onValueChange={handleNotificationToggle}
-                trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
-                thumbColor={notificationsEnabled ? brandColors.tealPrimary : brandColors.white}
+                trackColor={{ false: brandColors.border, true: brandColors.primaryLight }}
+                thumbColor={notificationsEnabled ? brandColors.primary : brandColors.white}
               />
             }
             showChevron={false}
@@ -409,8 +409,8 @@ export function SettingsScreen() {
                   <Switch
                     value={transactionNotifications}
                     onValueChange={handleTransactionNotificationsToggle}
-                    trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
-                    thumbColor={transactionNotifications ? brandColors.tealPrimary : brandColors.white}
+                    trackColor={{ false: brandColors.border, true: brandColors.primaryLight }}
+                    thumbColor={transactionNotifications ? brandColors.primary : brandColors.white}
                   />
                 }
                 showChevron={false}
@@ -425,8 +425,8 @@ export function SettingsScreen() {
                   <Switch
                     value={paycheckNotifications}
                     onValueChange={handlePaycheckNotificationsToggle}
-                    trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
-                    thumbColor={paycheckNotifications ? brandColors.tealPrimary : brandColors.white}
+                    trackColor={{ false: brandColors.border, true: brandColors.primaryLight }}
+                    thumbColor={paycheckNotifications ? brandColors.primary : brandColors.white}
                   />
                 }
                 showChevron={false}
@@ -441,8 +441,8 @@ export function SettingsScreen() {
                   <Switch
                     value={morningSummaries}
                     onValueChange={handleMorningSummariesToggle}
-                    trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
-                    thumbColor={morningSummaries ? brandColors.tealPrimary : brandColors.white}
+                    trackColor={{ false: brandColors.border, true: brandColors.primaryLight }}
+                    thumbColor={morningSummaries ? brandColors.primary : brandColors.white}
                   />
                 }
                 showChevron={false}
@@ -457,8 +457,8 @@ export function SettingsScreen() {
                   <Switch
                     value={dailyAlerts}
                     onValueChange={handleDailyAlertsToggle}
-                    trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
-                    thumbColor={dailyAlerts ? brandColors.tealPrimary : brandColors.white}
+                    trackColor={{ false: brandColors.border, true: brandColors.primaryLight }}
+                    thumbColor={dailyAlerts ? brandColors.primary : brandColors.white}
                   />
                 }
                 showChevron={false}
@@ -487,8 +487,8 @@ export function SettingsScreen() {
                   <Switch
                     value={faceIdEnabled}
                     onValueChange={handleBiometricToggle}
-                    trackColor={{ false: brandColors.border, true: brandColors.tealLight }}
-                    thumbColor={faceIdEnabled ? brandColors.tealPrimary : brandColors.white}
+                    trackColor={{ false: brandColors.border, true: brandColors.primaryLight }}
+                    thumbColor={faceIdEnabled ? brandColors.primary : brandColors.white}
                   />
                 }
                 showChevron={false}
@@ -560,7 +560,7 @@ export function SettingsScreen() {
               style={styles.modalCloseButton}
               onPress={() => setShowPrivacyPolicy(false)}
             >
-              <Icon name="close" size={24} color={brandColors.textDark} />
+              <Icon name="close" size={24} color={brandColors.textPrimary} />
             </TouchableOpacity>
           </View>
           <PrivacyPolicyScreen />
@@ -580,7 +580,7 @@ export function SettingsScreen() {
               style={styles.modalCloseButton}
               onPress={() => setShowTermsOfService(false)}
             >
-              <Icon name="close" size={24} color={brandColors.textDark} />
+              <Icon name="close" size={24} color={brandColors.textPrimary} />
             </TouchableOpacity>
           </View>
           <TermsOfServiceScreen />
@@ -593,7 +593,7 @@ export function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
   },
 
   // Header
@@ -612,7 +612,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -625,21 +625,21 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: brandColors.tealPrimary + '10',
+    backgroundColor: brandColors.primary + '10',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '800',
-    color: brandColors.textDark,
+    fontWeight: '700',
+    color: brandColors.textPrimary,
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 14,
     fontWeight: '500',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
     marginTop: 2,
   },
 
@@ -655,8 +655,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '700',
-    color: brandColors.textGray,
+    fontWeight: '600',
+    color: brandColors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 12,
@@ -664,13 +664,10 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     backgroundColor: brandColors.white,
-    borderRadius: 16,
+    borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: brandColors.border,
   },
 
   // Setting Items
@@ -685,7 +682,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: brandColors.tealPrimary + '10',
+    backgroundColor: brandColors.primary + '10',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -699,8 +696,8 @@ const styles = StyleSheet.create({
   },
   settingTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
     marginBottom: 2,
   },
   settingTitleDanger: {
@@ -708,8 +705,8 @@ const styles = StyleSheet.create({
   },
   settingSubtitle: {
     fontSize: 13,
-    fontWeight: '500',
-    color: brandColors.textGray,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
   },
 
   // Divider
@@ -742,7 +739,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -91,6 +91,7 @@ export const ReportsScreen: React.FC = () => {
   const [exportSectionExpanded, setExportSectionExpanded] = useState(false);
   const [selectedSlice, setSelectedSlice] = useState<string | null>(null);
 
+  // Fetch transactions
   useEffect(() => {
     if (!user) return;
 
@@ -330,7 +331,7 @@ export const ReportsScreen: React.FC = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={brandColors.tealPrimary} />
+        <ActivityIndicator size="large" color={brandColors.primary} />
       </View>
     );
   }
@@ -360,11 +361,11 @@ export const ReportsScreen: React.FC = () => {
               style={styles.dateRangeButton}
               onPress={() => setShowDatePicker(true)}
             >
-              <Icon name="calendar-range" size={18} color={brandColors.tealPrimary} />
+              <Icon name="calendar-range" size={18} color={brandColors.primary} />
               <Text style={styles.dateRangeText}>
                 {DATE_RANGES.find(d => d.value === dateRange)?.label}
               </Text>
-              <Icon name="chevron-down" size={16} color={brandColors.textGray} />
+              <Icon name="chevron-down" size={16} color={brandColors.textSecondary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -384,9 +385,9 @@ export const ReportsScreen: React.FC = () => {
                 {formatCurrency(totalExpenses)}
               </Text>
             </View>
-            <View style={[styles.metricCardCompact, { borderLeftColor: brandColors.tealPrimary }]}>
+            <View style={[styles.metricCardCompact, { borderLeftColor: brandColors.primary }]}>
               <Text style={styles.metricLabelCompact}>Net Savings</Text>
-              <Text style={[styles.metricValueCompact, { color: netSavings >= 0 ? brandColors.tealPrimary : brandColors.error }]}>
+              <Text style={[styles.metricValueCompact, { color: netSavings >= 0 ? brandColors.primary : brandColors.error }]}>
                 {formatCurrency(netSavings)}
               </Text>
             </View>
@@ -400,7 +401,7 @@ export const ReportsScreen: React.FC = () => {
             onPress={() => setExportSectionExpanded(!exportSectionExpanded)}
             activeOpacity={0.7}
           >
-            <Icon name="download" size={24} color={brandColors.tealPrimary} />
+            <Icon name="download" size={24} color={brandColors.primary} />
             <View style={{ flex: 1 }}>
               <Text style={styles.exportToggleTitle}>Export Data</Text>
               <Text style={styles.exportToggleSubtitle}>Download your financial data as CSV</Text>
@@ -408,7 +409,7 @@ export const ReportsScreen: React.FC = () => {
             <Icon
               name={exportSectionExpanded ? "chevron-up" : "chevron-down"}
               size={24}
-              color={brandColors.tealPrimary}
+              color={brandColors.primary}
             />
           </TouchableOpacity>
 
@@ -419,11 +420,11 @@ export const ReportsScreen: React.FC = () => {
                   style={styles.exportPeriodPicker}
                   onPress={() => setShowExportPicker(true)}
                 >
-                  <Icon name="calendar-month" size={16} color={brandColors.tealPrimary} />
+                  <Icon name="calendar-month" size={16} color={brandColors.primary} />
                   <Text style={styles.exportPeriodPickerText}>
                     {EXPORT_PERIODS.find(p => p.value === exportPeriod)?.label}
                   </Text>
-                  <Icon name="chevron-down" size={16} color={brandColors.textGray} />
+                  <Icon name="chevron-down" size={16} color={brandColors.textSecondary} />
                 </TouchableOpacity>
               </View>
 
@@ -434,9 +435,9 @@ export const ReportsScreen: React.FC = () => {
                   disabled={exporting}
                 >
                   {exporting ? (
-                    <ActivityIndicator size="small" color={brandColors.tealPrimary} />
+                    <ActivityIndicator size="small" color={brandColors.primary} />
                   ) : (
-                    <Icon name="receipt" size={20} color={brandColors.tealPrimary} />
+                    <Icon name="receipt" size={20} color={brandColors.primary} />
                   )}
                   <Text style={styles.exportDataButtonText}>Transactions</Text>
                 </TouchableOpacity>
@@ -447,9 +448,9 @@ export const ReportsScreen: React.FC = () => {
                   disabled={exporting}
                 >
                   {exporting ? (
-                    <ActivityIndicator size="small" color={brandColors.tealPrimary} />
+                    <ActivityIndicator size="small" color={brandColors.primary} />
                   ) : (
-                    <Icon name="wallet" size={20} color={brandColors.tealPrimary} />
+                    <Icon name="wallet" size={20} color={brandColors.primary} />
                   )}
                   <Text style={styles.exportDataButtonText}>Budget</Text>
                 </TouchableOpacity>
@@ -460,9 +461,9 @@ export const ReportsScreen: React.FC = () => {
                   disabled={exporting}
                 >
                   {exporting ? (
-                    <ActivityIndicator size="small" color={brandColors.tealPrimary} />
+                    <ActivityIndicator size="small" color={brandColors.primary} />
                   ) : (
-                    <Icon name="chart-bar" size={20} color={brandColors.tealPrimary} />
+                    <Icon name="chart-bar" size={20} color={brandColors.primary} />
                   )}
                   <Text style={styles.exportDataButtonText}>Analytics</Text>
                 </TouchableOpacity>
@@ -766,7 +767,7 @@ export const ReportsScreen: React.FC = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Export Period</Text>
               <TouchableOpacity onPress={() => setShowExportPicker(false)}>
-                <Icon name="close" size={24} color={brandColors.textDark} />
+                <Icon name="close" size={24} color={brandColors.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -781,7 +782,7 @@ export const ReportsScreen: React.FC = () => {
               >
                 <Text style={styles.dateRangeOptionText}>{period.label}</Text>
                 {period.value === exportPeriod && (
-                  <Icon name="check-circle" size={24} color={brandColors.orangeAccent} />
+                  <Icon name="check-circle" size={24} color={brandColors.primary} />
                 )}
               </TouchableOpacity>
             ))}
@@ -795,13 +796,13 @@ export const ReportsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
   },
 
   // Header
@@ -830,20 +831,20 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: brandColors.orangeAccent + '15',
+    backgroundColor: brandColors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '800',
-    color: brandColors.textDark,
+    fontWeight: '700',
+    color: brandColors.textPrimary,
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 13,
     fontWeight: '500',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
     marginTop: 2,
   },
   dateRangeButton: {
@@ -852,13 +853,13 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: brandColors.tealPrimary + '10',
-    borderRadius: 20,
+    backgroundColor: brandColors.primaryLight,
+    borderRadius: 12,
   },
   dateRangeText: {
     fontSize: 13,
     fontWeight: '600',
-    color: brandColors.tealPrimary,
+    color: brandColors.primary,
   },
 
   // Section
@@ -874,8 +875,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
     letterSpacing: -0.5,
   },
 
@@ -891,23 +892,25 @@ const styles = StyleSheet.create({
     padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
     borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: brandColors.border,
     justifyContent: 'space-between',
     minHeight: 85,
   },
   metricLabelCompact: {
     fontSize: 13,
     fontWeight: '600',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
     marginBottom: 8,
     lineHeight: 16,
   },
   metricValueCompact: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: -0.5,
     lineHeight: 20,
   },
@@ -915,32 +918,34 @@ const styles = StyleSheet.create({
   // Chart Card
   chartCard: {
     backgroundColor: brandColors.white,
-    borderRadius: 20,
+    borderRadius: 12,
     padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.05,
     shadowRadius: 12,
     elevation: 4,
+    borderWidth: 1,
+    borderColor: brandColors.border,
   },
   chartHeader: {
     marginBottom: 20,
   },
   chartTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
     letterSpacing: -0.5,
     marginBottom: 4,
   },
   chartSubtitle: {
     fontSize: 13,
     fontWeight: '500',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
   },
   noDataText: {
     fontSize: 14,
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
     textAlign: 'center',
     paddingVertical: 40,
   },
@@ -966,7 +971,7 @@ const styles = StyleSheet.create({
   barLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: brandColors.textDark,
+    color: brandColors.textPrimary,
     flex: 1,
   },
   barChartRight: {
@@ -977,7 +982,7 @@ const styles = StyleSheet.create({
   barContainer: {
     flex: 1,
     height: 32,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
     borderRadius: 8,
     overflow: 'hidden',
   },
@@ -994,13 +999,13 @@ const styles = StyleSheet.create({
   },
   barAmount: {
     fontSize: 14,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
   },
   barPercentage: {
     fontSize: 12,
-    fontWeight: '600',
-    color: brandColors.textGray,
+    fontWeight: '500',
+    color: brandColors.textSecondary,
   },
 
   // Pie Chart
@@ -1033,14 +1038,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 6,
     paddingHorizontal: 10,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
     borderRadius: 8,
     gap: 8,
   },
   pieLegendItemSelected: {
-    backgroundColor: brandColors.tealPrimary + '10',
+    backgroundColor: brandColors.primaryLight,
     borderWidth: 1,
-    borderColor: brandColors.tealPrimary + '40',
+    borderColor: brandColors.primary + '40',
   },
   pieLegendDot: {
     width: 10,
@@ -1053,7 +1058,7 @@ const styles = StyleSheet.create({
   pieLegendLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: brandColors.textDark,
+    color: brandColors.textPrimary,
   },
   pieLegendDetails: {
     flexDirection: 'row',
@@ -1064,17 +1069,17 @@ const styles = StyleSheet.create({
   pieLegendAmount: {
     fontSize: 13,
     fontWeight: '700',
-    color: brandColors.tealPrimary,
+    color: brandColors.primary,
   },
   pieLegendPercent: {
     fontSize: 12,
     fontWeight: '600',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
   },
   pieLegendPercentCompact: {
     fontSize: 12,
     fontWeight: '700',
-    color: brandColors.textDark,
+    color: brandColors.textPrimary,
     minWidth: 35,
     textAlign: 'right',
   },
@@ -1088,21 +1093,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 14,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
     borderRadius: 10,
     gap: 10,
   },
   comparisonCategory: {
     fontSize: 14,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
     minWidth: 80,
     maxWidth: 120,
   },
   comparisonAmount: {
     fontSize: 14,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
   },
   comparisonPercent: {
     fontSize: 14,
@@ -1133,7 +1138,7 @@ const styles = StyleSheet.create({
   legendText: {
     fontSize: 13,
     fontWeight: '600',
-    color: brandColors.textDark,
+    color: brandColors.textPrimary,
   },
   trendChartContainer: {
     height: 180,
@@ -1165,8 +1170,8 @@ const styles = StyleSheet.create({
   },
   trendLabel: {
     fontSize: 11,
-    fontWeight: '600',
-    color: brandColors.textGray,
+    fontWeight: '500',
+    color: brandColors.textSecondary,
     textAlign: 'center',
   },
 
@@ -1210,22 +1215,22 @@ const styles = StyleSheet.create({
   },
   topCategoryName: {
     fontSize: 15,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
     marginBottom: 4,
   },
   topCategoryPercentage: {
     fontSize: 12,
     fontWeight: '500',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
   },
   topCategoryRight: {
     alignItems: 'flex-end',
   },
   topCategoryAmount: {
     fontSize: 16,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
   },
 
   // Modal
@@ -1236,8 +1241,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: brandColors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     paddingTop: 24,
     paddingBottom: 40,
     paddingHorizontal: 20,
@@ -1250,8 +1255,8 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: brandColors.textDark,
+    fontWeight: '700',
+    color: brandColors.textPrimary,
   },
   dateRangeOption: {
     flexDirection: 'row',
@@ -1260,21 +1265,21 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 8,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
   },
   dateRangeOptionActive: {
-    backgroundColor: brandColors.tealPrimary + '10',
+    backgroundColor: brandColors.primaryLight,
     borderWidth: 2,
-    borderColor: brandColors.orangeAccent,
+    borderColor: brandColors.primary,
   },
   dateRangeOptionText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
   },
   dateRangeOptionTextActive: {
-    color: brandColors.tealPrimary,
-    fontWeight: '700',
+    color: brandColors.primary,
+    fontWeight: '600',
   },
 
   // Category Pills
@@ -1290,15 +1295,15 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 2,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
   },
   categoryPillActive: {
     backgroundColor: brandColors.white,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -1309,13 +1314,13 @@ const styles = StyleSheet.create({
   },
   categoryPillText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: brandColors.textGray,
+    fontWeight: '500',
+    color: brandColors.textSecondary,
     maxWidth: 100,
   },
   categoryPillTextActive: {
-    color: brandColors.textDark,
-    fontWeight: '700',
+    color: brandColors.textPrimary,
+    fontWeight: '600',
   },
 
   // Simple Area Chart
@@ -1348,8 +1353,8 @@ const styles = StyleSheet.create({
   },
   monthLabel: {
     fontSize: 11,
-    fontWeight: '600',
-    color: brandColors.textGray,
+    fontWeight: '500',
+    color: brandColors.textSecondary,
     textAlign: 'center',
   },
   chartYAxis: {
@@ -1362,8 +1367,8 @@ const styles = StyleSheet.create({
   },
   chartYAxisLabel: {
     fontSize: 10,
-    fontWeight: '600',
-    color: brandColors.textGray,
+    fontWeight: '500',
+    color: brandColors.textSecondary,
     backgroundColor: brandColors.white + 'EE',
     paddingHorizontal: 4,
     paddingVertical: 2,
@@ -1382,38 +1387,40 @@ const styles = StyleSheet.create({
     backgroundColor: brandColors.white,
     paddingVertical: 16,
     paddingHorizontal: 20,
-    borderRadius: 16,
+    borderRadius: 12,
     gap: 16,
-    shadowColor: brandColors.textDark,
+    shadowColor: brandColors.textPrimary,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
-    borderWidth: 2,
-    borderColor: brandColors.tealPrimary + '20',
+    borderWidth: 1,
+    borderColor: brandColors.border,
   },
   exportToggleTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
     marginBottom: 2,
   },
   exportToggleSubtitle: {
     fontSize: 13,
     fontWeight: '500',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
   },
   exportExpandedContent: {
     backgroundColor: brandColors.white,
     marginTop: 12,
     paddingVertical: 20,
     paddingHorizontal: 20,
-    borderRadius: 16,
-    shadowColor: brandColors.textDark,
+    borderRadius: 12,
+    shadowColor: brandColors.textPrimary,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: brandColors.border,
   },
   exportPeriodPickerContainer: {
     alignItems: 'center',
@@ -1423,17 +1430,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: brandColors.tealPrimary + '40',
+    borderColor: brandColors.border,
   },
   exportPeriodPickerText: {
     fontSize: 13,
     fontWeight: '600',
-    color: brandColors.textDark,
+    color: brandColors.textPrimary,
   },
   exportButtonsContainer: {
     flexDirection: 'row',
@@ -1448,9 +1455,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
     borderWidth: 1,
-    borderColor: brandColors.tealPrimary + '40',
+    borderColor: brandColors.border,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -1458,13 +1465,13 @@ const styles = StyleSheet.create({
   exportDataButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: brandColors.tealPrimary,
+    color: brandColors.primary,
   },
   exportAllDataButton: {
     flex: 1,
     minWidth: '100%',
-    backgroundColor: brandColors.tealPrimary,
-    borderColor: brandColors.tealPrimary,
+    backgroundColor: brandColors.primary,
+    borderColor: brandColors.primary,
   },
   exportAllDataButtonText: {
     color: brandColors.white,
@@ -1480,6 +1487,6 @@ const styles = StyleSheet.create({
   exportingText: {
     fontSize: 14,
     fontWeight: '600',
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
   },
 });

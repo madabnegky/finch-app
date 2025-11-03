@@ -17,6 +17,9 @@ import { useAuth } from '../../../shared-logic/src/hooks/useAuth';
 import { brandColors } from '../theme/colors';
 import { validateAmount, validateDescription, validateDate } from '../utils/validation';
 import { formatErrorForAlert } from '../utils/errorMessages';
+import { syncBudgetsWithRecurring } from '../services/budgetService';
+import { hasPremiumAccess } from '../utils/premiumAccess';
+import type { UserProfile, RecurringTransaction } from '../types';
 
 const EXPENSE_CATEGORIES = [
   'Housing',
@@ -65,6 +68,28 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  // Fetch user profile for premium status
+  useEffect(() => {
+    if (!user || !visible) return;
+
+    const unsubscribe = firestore()
+      .collection('users')
+      .doc(user.uid)
+      .onSnapshot(
+        (doc) => {
+          if (doc && doc.exists) {
+            setUserProfile(doc.data() as UserProfile);
+          }
+        },
+        (error) => {
+          console.error('Error fetching user profile:', error);
+        }
+      );
+
+    return () => unsubscribe();
+  }, [user, visible]);
 
   // Fetch accounts
   useEffect(() => {
@@ -87,6 +112,61 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
     return () => unsubscribe();
   }, [user, visible]);
+
+  // Helper function to sync budgets for premium users after recurring transaction changes
+  const syncBudgetsIfPremium = async () => {
+    if (!user || !userProfile) return;
+
+    const isPremium = hasPremiumAccess(userProfile, user.uid);
+    if (!isPremium) {
+      console.log('⏭️ AddTransactionModal: User is not premium, skipping budget sync');
+      return;
+    }
+
+    try {
+      console.log('🔄 AddTransactionModal: Syncing budgets with recurring transactions...');
+
+      // Fetch all transactions and filter client-side for isRecurring: true
+      const recurringSnapshot = await firestore()
+        .collection(`users/${user.uid}/transactions`)
+        .get();
+
+      // Map to RecurringTransaction format (partial - only what's needed for budgets)
+      // Client-side filter for isRecurring: true
+      const recurringTransactions = recurringSnapshot.docs
+        .filter(doc => doc.data().isRecurring === true)
+        .map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            description: data.description || '',
+            amount: Math.abs(data.amount || 0),
+            type: data.type || 'expense',
+            category: data.category || 'Uncategorized',
+            frequency: (data.recurringDetails?.frequency || 'monthly') as any,
+            isActive: true,
+          };
+        }) as RecurringTransaction[];
+
+      console.log(`📋 Found ${recurringTransactions.length} recurring transactions for budget sync`);
+
+      const result = await syncBudgetsWithRecurring(user.uid, recurringTransactions);
+      console.log(`✅ Budget sync complete: ${result.created} created, ${result.updated} updated, ${result.deleted} deleted`);
+
+      if (result.created > 0) {
+        Alert.alert(
+          'Budgets Updated',
+          `${result.created} budget${result.created > 1 ? 's' : ''} automatically created from your recurring transactions!`
+        );
+      }
+    } catch (error) {
+      console.error('❌ Error syncing budgets:', error);
+      Alert.alert(
+        'Budget Sync Error',
+        'Failed to sync budgets with recurring transactions. Please try again.'
+      );
+    }
+  };
 
   const handleSave = async () => {
     // Validate transaction description
@@ -163,6 +243,14 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       await firestore()
         .collection(`users/${user?.uid}/transactions`)
         .add(transactionData);
+
+      // If this was a recurring transaction, sync budgets for premium users
+      if (isRecurring) {
+        console.log('💰 Recurring transaction saved, triggering budget sync...');
+        setTimeout(() => {
+          syncBudgetsIfPremium();
+        }, 500);
+      }
 
       // Reset form
       setName('');

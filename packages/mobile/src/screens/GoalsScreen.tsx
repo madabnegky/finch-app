@@ -302,7 +302,7 @@ export const GoalsScreen = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={brandColors.tealPrimary} />
+        <ActivityIndicator size="large" color={brandColors.primary} />
       </View>
     );
   }
@@ -317,7 +317,7 @@ export const GoalsScreen = () => {
               style={styles.menuButton}
               onPress={() => (navigation as any).openDrawer()}
             >
-              <Icon name="menu" size={24} color={brandColors.textDark} />
+              <Icon name="menu" size={24} color={brandColors.textPrimary} />
             </TouchableOpacity>
             <View style={styles.logoContainer}>
               <FinchLogo size={32} />
@@ -352,7 +352,7 @@ export const GoalsScreen = () => {
           {goals.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconContainer}>
-                <Icon name="flag-variant-outline" size={48} color={brandColors.textGray} />
+                <Icon name="flag-variant-outline" size={48} color={brandColors.textTertiary} />
               </View>
               <Text style={styles.emptyStateTitle}>No Goals Yet</Text>
               <Text style={styles.emptyStateText}>
@@ -373,13 +373,13 @@ export const GoalsScreen = () => {
                     <View style={styles.goalHeader}>
                       <View style={styles.goalTitleRow}>
                         <View style={styles.goalIconContainer}>
-                          <Icon name="flag-variant" size={20} color={brandColors.orangeAccent} />
+                          <Icon name="flag-variant" size={20} color={brandColors.primary} />
                         </View>
                         <Text style={styles.goalName}>{goal.name}</Text>
                         <Icon
                           name={isExpanded ? "chevron-up" : "chevron-down"}
                           size={20}
-                          color={brandColors.textGray}
+                          color={brandColors.textSecondary}
                         />
                       </View>
 
@@ -423,7 +423,7 @@ export const GoalsScreen = () => {
                         handleAllocate(goal);
                       }}
                     >
-                      <Icon name="plus-circle" size={18} color={brandColors.white} />
+                      <Icon name="plus-circle" size={16} color={brandColors.primary} />
                       <Text style={styles.goalActionTextPrimary}>Add Funds</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -436,8 +436,8 @@ export const GoalsScreen = () => {
                     >
                       <Icon
                         name="minus-circle"
-                        size={18}
-                        color={(goal.allocatedAmount || 0) > 0 ? brandColors.tealPrimary : brandColors.lightGray}
+                        size={16}
+                        color={(goal.allocatedAmount || 0) > 0 ? brandColors.primary : brandColors.textTertiary}
                       />
                       <Text style={[
                         styles.goalActionTextSecondary,
@@ -453,7 +453,7 @@ export const GoalsScreen = () => {
                         handleEditGoal(goal);
                       }}
                     >
-                      <Icon name="pencil" size={18} color={brandColors.textGray} />
+                      <Icon name="pencil" size={16} color={brandColors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.goalActionIconButton}
@@ -462,7 +462,7 @@ export const GoalsScreen = () => {
                         handleDeleteGoal(goal);
                       }}
                     >
-                      <Icon name="delete" size={18} color={brandColors.error} />
+                      <Icon name="delete" size={16} color={brandColors.error} />
                     </TouchableOpacity>
                   </View>
 
@@ -569,20 +569,20 @@ export const GoalsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
   },
 
-  // Header
+  // Header - Updated to professional minimal
   header: {
     backgroundColor: brandColors.white,
     paddingTop: 60,
-    paddingBottom: 20,
+    paddingBottom: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: brandColors.border,
@@ -602,23 +602,22 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   logoContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: brandColors.orangeAccent + '15',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: brandColors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: brandColors.textDark,
-    letterSpacing: -0.5,
+    fontSize: 20,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
   },
   headerSubtitle: {
     fontSize: 13,
-    fontWeight: '500',
-    color: brandColors.textGray,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
     marginTop: 2,
   },
   headerButton: {
@@ -628,56 +627,54 @@ const styles = StyleSheet.create({
   // Section
   section: {
     paddingHorizontal: 20,
-    marginTop: 24,
+    marginTop: 20,
   },
 
-  // Summary Card
+  // Summary Card - Subtle design
   summaryCard: {
     backgroundColor: brandColors.white,
     padding: 20,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: brandColors.border,
   },
   summaryLabel: {
     fontSize: 11,
-    fontWeight: '700',
-    color: brandColors.textGray,
-    letterSpacing: 1.2,
-    marginBottom: 12,
+    fontWeight: '600',
+    color: brandColors.textTertiary,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 8,
   },
   summaryAmount: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: brandColors.tealPrimary,
-    letterSpacing: -1.5,
-    marginBottom: 6,
+    fontSize: 32,
+    fontWeight: '700',
+    color: brandColors.primary,
+    letterSpacing: -0.5,
+    marginBottom: 4,
   },
   summaryTarget: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: brandColors.textGray,
-    marginBottom: 20,
+    fontSize: 14,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
+    marginBottom: 16,
   },
   progressBarOuter: {
-    height: 10,
-    backgroundColor: brandColors.lightGray,
-    borderRadius: 5,
+    height: 6,
+    backgroundColor: brandColors.background,
+    borderRadius: 3,
     overflow: 'hidden',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: brandColors.tealPrimary,
-    borderRadius: 5,
+    backgroundColor: brandColors.primary,
+    borderRadius: 3,
   },
   progressPercent: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: brandColors.tealPrimary,
+    fontSize: 12,
+    fontWeight: '500',
+    color: brandColors.textSecondary,
   },
 
   // Empty State
@@ -686,198 +683,188 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: brandColors.lightGray + '50',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: brandColors.background,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   emptyStateTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontSize: 18,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
     marginBottom: 8,
   },
   emptyStateText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: brandColors.textGray,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
     paddingHorizontal: 40,
   },
 
-  // Goal Card
+  // Goal Card - Compact professional design
   goalCard: {
     backgroundColor: brandColors.white,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: brandColors.border,
   },
   goalHeader: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   goalTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   goalIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: brandColors.orangeAccent + '15',
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: brandColors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
   },
   goalName: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontSize: 16,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
   },
   deadlineBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    marginTop: 8,
-    marginBottom: 12,
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    marginBottom: 8,
     alignSelf: 'flex-start',
   },
   deadlineText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '500',
   },
   goalAmounts: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   goalSaved: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: brandColors.textDark,
+    fontSize: 20,
+    fontWeight: '700',
+    color: brandColors.textPrimary,
   },
   goalOf: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: brandColors.textGray,
+    fontSize: 13,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
   },
   goalTarget: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: brandColors.textGray,
+    fontSize: 14,
+    fontWeight: '500',
+    color: brandColors.textSecondary,
   },
   goalProgressBar: {
-    height: 8,
-    backgroundColor: brandColors.lightGray,
-    borderRadius: 4,
+    height: 6,
+    backgroundColor: brandColors.background,
+    borderRadius: 3,
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   goalProgressFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 3,
   },
   goalProgressText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: brandColors.textGray,
+    fontSize: 11,
+    fontWeight: '500',
+    color: brandColors.textSecondary,
   },
 
-  // Goal Actions
+  // Goal Actions - Text link style (preserving TouchableOpacity)
   goalActions: {
     flexDirection: 'row',
     gap: 8,
-    paddingTop: 16,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: brandColors.border,
   },
   goalActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 0,
   },
   goalActionPrimary: {
-    backgroundColor: brandColors.tealPrimary,
     flex: 1,
-    justifyContent: 'center',
   },
   goalActionSecondary: {
-    backgroundColor: brandColors.white,
-    borderWidth: 1.5,
-    borderColor: brandColors.tealPrimary,
     flex: 1,
-    justifyContent: 'center',
   },
   goalActionTextPrimary: {
     fontSize: 14,
-    fontWeight: '700',
-    color: brandColors.white,
+    fontWeight: '500',
+    color: brandColors.primary,
   },
   goalActionTextSecondary: {
     fontSize: 14,
-    fontWeight: '700',
-    color: brandColors.tealPrimary,
+    fontWeight: '500',
+    color: brandColors.primary,
   },
   goalActionTextDisabled: {
-    color: brandColors.lightGray,
+    color: brandColors.textTertiary,
   },
   goalActionIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: brandColors.backgroundOffWhite,
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },
 
   // History
   historySection: {
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: brandColors.border,
   },
   historyTitle: {
     fontSize: 11,
-    fontWeight: '700',
-    color: brandColors.textGray,
-    letterSpacing: 1,
-    marginBottom: 12,
+    fontWeight: '600',
+    color: brandColors.textTertiary,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 10,
   },
   historyEmpty: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: brandColors.textGray,
+    fontSize: 13,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
     fontStyle: 'italic',
   },
   historyItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
+    gap: 10,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: brandColors.border + '50',
+    borderBottomColor: brandColors.borderLight,
   },
   historyIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -885,32 +872,32 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   historyAmount: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontSize: 14,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
     marginBottom: 2,
   },
   historyMeta: {
     fontSize: 12,
-    fontWeight: '500',
-    color: brandColors.textGray,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
   },
   historyRight: {
     alignItems: 'flex-end',
   },
   historyBalanceLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: brandColors.textGray,
+    fontSize: 10,
+    fontWeight: '500',
+    color: brandColors.textTertiary,
     marginBottom: 2,
   },
   historyBalance: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: brandColors.tealPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+    color: brandColors.primary,
   },
 
-  // FAB
+  // FAB - Updated to primary blue
   fab: {
     position: 'absolute',
     bottom: 24,
@@ -918,12 +905,12 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: brandColors.orangeAccent,
+    backgroundColor: brandColors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 8,
   },

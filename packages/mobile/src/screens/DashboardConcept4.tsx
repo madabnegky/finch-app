@@ -28,6 +28,9 @@ import FinchLogo from '../components/FinchLogo';
 import functions from '@react-native-firebase/functions';
 import brandColors from '../theme/colors';
 import { accountIcons } from '../theme/icons';
+import { calculateAvailableToSpend } from '../services/availableToSpendService';
+import { hasPremiumAccess } from '../utils/premiumAccess';
+import type { Budget, RecurringTransaction as RecurringTransactionType, Goal as GoalType, UserProfile } from '../types';
 
 type Account = {
   id: string;
@@ -88,6 +91,9 @@ const DashboardContent = () => {
   const [firstAccountInfo, setFirstAccountInfo] = useState<{ id: string; name: string } | null>(null);
   const [isInDemoMode, setIsInDemoMode] = useState(false); // true if user only has demo accounts
   const [showWelcome, setShowWelcome] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransactionType[]>([]);
 
   // Shared handler for first account creation
   const handleFirstAccountCreated = async (accountId: string) => {
@@ -186,7 +192,27 @@ const DashboardContent = () => {
                 .filter(goalDoc => goalDoc.data().accountId === doc.id)
                 .reduce((sum, goalDoc) => sum + (goalDoc.data().allocatedAmount || 0), 0);
 
-              const availableToSpend = (data.currentBalance || 0) - (data.cushion || 0) - totalAllocatedToGoals;
+              // Convert goals for this account to proper format for service
+              const accountGoals: GoalType[] = goalsSnapshot.docs
+                .filter(goalDoc => goalDoc.data().accountId === doc.id)
+                .map(goalDoc => ({
+                  id: goalDoc.id,
+                  ...goalDoc.data(),
+                  monthlyAmount: goalDoc.data().allocatedAmount || 0, // Map allocatedAmount to monthlyAmount
+                } as GoalType));
+
+              // Calculate available-to-spend (same formula for free and premium)
+              // Formula: Balance - Goals - Recurring Expenses
+              const isPremium = hasPremiumAccess(userProfile, user?.uid);
+              console.log(`💎 Dashboard: isPremium = ${isPremium}, recurring count = ${recurringTransactions.length}`);
+              const { available } = calculateAvailableToSpend(
+                (data.currentBalance || 0) - (data.cushion || 0), // Use balance after cushion
+                accountGoals,
+                recurringTransactions,
+                isPremium
+              );
+
+              const availableToSpend = available;
 
               return {
                 id: doc.id,
@@ -264,6 +290,97 @@ const DashboardContent = () => {
       unsubscribeTransactions();
       unsubscribeGoals();
     };
+  }, [user]);
+
+  // Fetch user profile for premium status
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = firestore()
+      .collection('users')
+      .doc(user.uid)
+      .onSnapshot(
+        (doc) => {
+          if (doc && doc.exists) {
+            setUserProfile(doc.data() as UserProfile);
+          }
+        },
+        (error) => {
+          console.error('Error fetching user profile:', error);
+        }
+      );
+
+    return unsubscribe;
+  }, [user]);
+
+  // Fetch budgets (for premium tier calculation)
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = firestore()
+      .collection(`users/${user.uid}/budgets`)
+      .onSnapshot(
+        (snapshot) => {
+          if (!snapshot) {
+            setBudgets([]);
+            return;
+          }
+          const budgetsData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+          } as Budget));
+          setBudgets(budgetsData);
+        },
+        (error) => {
+          console.error('Error fetching budgets:', error);
+          setBudgets([]);
+        }
+      );
+
+    return unsubscribe;
+  }, [user]);
+
+  // Fetch recurring transactions from /transactions (client-side filter for isRecurring: true)
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = firestore()
+      .collection(`users/${user.uid}/transactions`)
+      .onSnapshot(
+        (snapshot) => {
+          if (!snapshot) {
+            setRecurringTransactions([]);
+            return;
+          }
+
+          // Map transactions to recurring transaction format - client-side filter for isRecurring
+          const recurringData = snapshot.docs
+            .filter(doc => doc.data().isRecurring === true) // Client-side filter
+            .map(doc => {
+              const data = doc.data();
+              const freq = data.recurringDetails?.frequency || 'monthly';
+
+              return {
+                id: doc.id,
+                description: data.description || '',
+                amount: Math.abs(data.amount || 0),
+                type: data.type || 'expense',
+                category: data.category || 'Uncategorized',
+                frequency: freq as 'weekly' | 'biweekly' | 'monthly' | 'yearly',
+                isActive: true, // Assume active if in transactions
+              } as RecurringTransactionType;
+            });
+
+          console.log(`📋 Fetched ${recurringData.length} recurring transactions from /transactions (client-side filter)`);
+          setRecurringTransactions(recurringData);
+        },
+        (error) => {
+          console.error('Error fetching recurring transactions:', error);
+          setRecurringTransactions([]);
+        }
+      );
+
+    return unsubscribe;
   }, [user]);
 
   // Plaid handlers
@@ -1465,13 +1582,13 @@ export const DashboardConcept4 = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
   },
   emptyContainer: {
     flex: 1,
@@ -1481,37 +1598,34 @@ const styles = StyleSheet.create({
   },
   emptyCard: {
     backgroundColor: brandColors.white,
-    borderRadius: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: brandColors.border,
     padding: 40,
     alignItems: 'center',
     width: '100%',
     maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
   },
   emptyIconContainer: {
     width: 140,
     height: 140,
     borderRadius: 70,
-    backgroundColor: brandColors.tealPrimary + '15',
+    backgroundColor: brandColors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
   },
   emptyText: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: brandColors.textDark,
+    fontSize: 22,
+    fontWeight: '700',
+    color: brandColors.textPrimary,
     marginBottom: 12,
     letterSpacing: -0.5,
   },
   emptySubtext: {
     fontSize: 15,
-    fontWeight: '500',
-    color: brandColors.textGray,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 32,
@@ -1521,45 +1635,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: brandColors.orangeAccent,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
+    backgroundColor: brandColors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 8,
     width: '100%',
     justifyContent: 'center',
     marginBottom: 12,
-    shadowColor: brandColors.orangeAccent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   emptyButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: brandColors.white,
   },
   emptyButtonSecondary: {
     paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
+    paddingHorizontal: 28,
+    borderRadius: 8,
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: brandColors.border,
   },
   emptyButtonSecondaryText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
   },
 
   // Header
   header: {
     backgroundColor: brandColors.white,
     paddingTop: 60,
-    paddingBottom: 20,
+    paddingBottom: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: brandColors.border,
@@ -1582,19 +1691,19 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: brandColors.orangeAccent + '15',
+    backgroundColor: brandColors.primary + '10',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerGreeting: {
     fontSize: 13,
-    fontWeight: '500',
-    color: brandColors.textGray,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
   },
   headerName: {
     fontSize: 20,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
   },
   profileButton: {
     padding: 2,
@@ -1603,56 +1712,51 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    borderWidth: 2,
-    borderColor: brandColors.orangeAccent,
+    borderWidth: 1,
+    borderColor: brandColors.border,
   },
   profilePlaceholder: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: brandColors.tealPrimary,
+    backgroundColor: brandColors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: brandColors.orangeAccent,
+    borderWidth: 1,
+    borderColor: brandColors.border,
   },
   profileInitial: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: brandColors.white,
   },
   debugButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: brandColors.tealPrimary + '15',
+    backgroundColor: brandColors.primary + '10',
     justifyContent: 'center',
     alignItems: 'center',
   },
 
   // Guest Mode Banner
   guestBanner: {
-    backgroundColor: brandColors.orangeAccent + '20',
-    borderWidth: 2,
-    borderColor: brandColors.orangeAccent,
+    backgroundColor: brandColors.warning + '10',
+    borderWidth: 1,
+    borderColor: brandColors.warning,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 18,
+    padding: 16,
     marginHorizontal: 20,
     marginTop: 16,
-    borderRadius: 16,
-    shadowColor: brandColors.orangeAccent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
+    borderRadius: 12,
   },
   guestBannerIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: brandColors.orangeAccent + '30',
+    backgroundColor: brandColors.warning + '15',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1667,19 +1771,18 @@ const styles = StyleSheet.create({
   },
   guestBannerTitle: {
     fontSize: 14,
-    fontWeight: '800',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
     marginBottom: 4,
-    letterSpacing: -0.3,
   },
   guestBannerSubtitle: {
     fontSize: 13,
-    fontWeight: '600',
-    color: brandColors.textGray,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
     lineHeight: 18,
   },
   getStartedButton: {
-    backgroundColor: brandColors.orangeAccent,
+    backgroundColor: brandColors.primary,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -1689,7 +1792,7 @@ const styles = StyleSheet.create({
   },
   getStartedButtonText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: brandColors.white,
   },
 
@@ -1717,13 +1820,13 @@ const styles = StyleSheet.create({
   },
   saveAccountBannerTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#92400E', // Amber dark text
     marginBottom: 2,
   },
   saveAccountBannerSubtitle: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '400',
     color: '#78350F', // Amber darker text
   },
   createAccountButton: {
@@ -1737,13 +1840,13 @@ const styles = StyleSheet.create({
   },
   createAccountButtonText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: brandColors.white,
   },
 
   // What If Banner
   whatIfBanner: {
-    backgroundColor: brandColors.orangeAccent,
+    backgroundColor: brandColors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1760,7 +1863,7 @@ const styles = StyleSheet.create({
   },
   whatIfText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: brandColors.white,
     flex: 1,
   },
@@ -1771,36 +1874,33 @@ const styles = StyleSheet.create({
   // Section
   section: {
     paddingHorizontal: 20,
-    marginTop: 24,
+    marginTop: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: brandColors.textDark,
-    letterSpacing: -0.5,
+    fontSize: 18,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
+    letterSpacing: -0.3,
   },
   seeAllLink: {
     fontSize: 14,
-    fontWeight: '600',
-    color: brandColors.tealPrimary,
+    fontWeight: '500',
+    color: brandColors.primary,
   },
 
   // Primary Card
   primaryCard: {
     backgroundColor: brandColors.white,
-    borderRadius: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: brandColors.border,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
   },
   accountSelector: {
     flexDirection: 'row',
@@ -1819,20 +1919,20 @@ const styles = StyleSheet.create({
   accountIcon: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   accountSelectorLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: brandColors.textGray,
+    fontWeight: '500',
+    color: brandColors.textSecondary,
     marginBottom: 4,
   },
   accountSelectorName: {
     fontSize: 16,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
   },
 
   // Hero Section
@@ -1842,15 +1942,15 @@ const styles = StyleSheet.create({
   },
   heroLabel: {
     fontSize: 11,
-    fontWeight: '700',
-    color: brandColors.textGray,
+    fontWeight: '600',
+    color: brandColors.textSecondary,
     letterSpacing: 1.2,
     marginBottom: 8,
   },
   heroAmount: {
-    fontSize: 52,
-    fontWeight: '800',
-    color: brandColors.tealPrimary,
+    fontSize: 48,
+    fontWeight: '700',
+    color: brandColors.primary,
     letterSpacing: -2,
     marginBottom: 10,
   },
@@ -1859,9 +1959,9 @@ const styles = StyleSheet.create({
   testPurchaseCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: brandColors.tealPrimary + '08',
+    backgroundColor: brandColors.primary + '05',
     borderWidth: 1,
-    borderColor: brandColors.tealPrimary + '20',
+    borderColor: brandColors.border,
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
@@ -1871,7 +1971,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: brandColors.tealPrimary + '15',
+    backgroundColor: brandColors.primary + '10',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1881,27 +1981,27 @@ const styles = StyleSheet.create({
   },
   testPurchaseTitle: {
     fontSize: 15,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
     marginBottom: 2,
   },
   testPurchaseSubtitle: {
     fontSize: 12,
-    fontWeight: '500',
-    color: brandColors.textGray,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
     lineHeight: 16,
   },
 
   // Breakdown Section
   breakdownSection: {
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
     padding: 14,
     borderRadius: 12,
   },
   breakdownTitle: {
     fontSize: 12,
-    fontWeight: '700',
-    color: brandColors.textGray,
+    fontWeight: '600',
+    color: brandColors.textSecondary,
     marginBottom: 10,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -1926,16 +2026,16 @@ const styles = StyleSheet.create({
   },
   breakdownLabel: {
     fontSize: 14,
-    fontWeight: '500',
-    color: brandColors.textDark,
+    fontWeight: '400',
+    color: brandColors.textPrimary,
   },
   breakdownValue: {
     fontSize: 15,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
   },
   breakdownNegative: {
-    color: brandColors.textGray,
+    color: brandColors.textSecondary,
   },
   breakdownPositive: {
     color: brandColors.success,
@@ -1947,13 +2047,13 @@ const styles = StyleSheet.create({
   },
   breakdownTotal: {
     fontSize: 15,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
   },
   breakdownTotalValue: {
     fontSize: 18,
-    fontWeight: '800',
-    color: brandColors.tealPrimary,
+    fontWeight: '700',
+    color: brandColors.primary,
   },
 
   // Stats Row
@@ -1964,25 +2064,22 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     backgroundColor: brandColors.white,
+    borderWidth: 1,
+    borderColor: brandColors.border,
     padding: 16,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 12,
   },
   statLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: brandColors.textGray,
+    fontWeight: '500',
+    color: brandColors.textSecondary,
     marginTop: 8,
     marginBottom: 6,
   },
   statValue: {
     fontSize: 18,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
   },
 
   // Bills
@@ -1994,13 +2091,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: brandColors.white,
+    borderWidth: 1,
+    borderColor: brandColors.border,
     padding: 16,
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
   billLeft: {
     flexDirection: 'row',
@@ -2020,21 +2114,21 @@ const styles = StyleSheet.create({
   },
   billName: {
     fontSize: 15,
-    fontWeight: '600',
-    color: brandColors.textDark,
+    fontWeight: '500',
+    color: brandColors.textPrimary,
     marginBottom: 4,
   },
   billDate: {
     fontSize: 12,
-    fontWeight: '500',
-    color: brandColors.textGray,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
   },
   billRight: {
     alignItems: 'flex-end',
   },
   billAmount: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: brandColors.error,
   },
 
@@ -2043,17 +2137,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 20,
     bottom: 32,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: brandColors.orangeAccent,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: brandColors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 4,
   },
   fabBackdrop: {
     position: 'absolute',
@@ -2066,7 +2160,7 @@ const styles = StyleSheet.create({
   fabMenu: {
     position: 'absolute',
     right: 20,
-    bottom: 104,
+    bottom: 100,
     gap: 12,
   },
   fabMenuItem: {
@@ -2078,28 +2172,28 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: brandColors.tealPrimary,
+    backgroundColor: brandColors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 3,
   },
   fabMenuLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: brandColors.white,
-    backgroundColor: brandColors.tealPrimary,
+    backgroundColor: brandColors.primary,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 3,
   },
 
   // Modal
@@ -2110,8 +2204,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: brandColors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     paddingTop: 24,
     paddingBottom: 40,
     paddingHorizontal: 20,
@@ -2124,22 +2218,24 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: brandColors.textDark,
+    fontWeight: '700',
+    color: brandColors.textPrimary,
   },
   accountOption: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 12,
     marginBottom: 8,
-    backgroundColor: brandColors.backgroundOffWhite,
+    backgroundColor: brandColors.background,
+    borderWidth: 1,
+    borderColor: brandColors.border,
     position: 'relative',
     overflow: 'hidden',
   },
   accountOptionActive: {
-    backgroundColor: brandColors.tealPrimary + '10',
-    borderWidth: 2,
-    borderColor: brandColors.orangeAccent,
+    backgroundColor: brandColors.primary + '08',
+    borderWidth: 1,
+    borderColor: brandColors.primary,
   },
   accountOptionMain: {
     flexDirection: 'row',
@@ -2168,14 +2264,14 @@ const styles = StyleSheet.create({
   },
   accountOptionName: {
     fontSize: 16,
-    fontWeight: '700',
-    color: brandColors.textDark,
+    fontWeight: '600',
+    color: brandColors.textPrimary,
     marginBottom: 4,
   },
   accountOptionType: {
     fontSize: 13,
-    fontWeight: '500',
-    color: brandColors.textGray,
+    fontWeight: '400',
+    color: brandColors.textSecondary,
     textTransform: 'capitalize',
   },
   accountOptionRight: {
@@ -2184,14 +2280,14 @@ const styles = StyleSheet.create({
   },
   accountOptionLabel: {
     fontSize: 11,
-    fontWeight: '600',
-    color: brandColors.textGray,
+    fontWeight: '500',
+    color: brandColors.textSecondary,
     marginBottom: 4,
   },
   accountOptionAmount: {
     fontSize: 17,
-    fontWeight: '700',
-    color: brandColors.tealPrimary,
+    fontWeight: '600',
+    color: brandColors.primary,
   },
   accountOptionCheck: {
     position: 'absolute',
