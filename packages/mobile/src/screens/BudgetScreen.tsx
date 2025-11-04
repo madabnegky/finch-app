@@ -338,7 +338,8 @@ export const BudgetScreen: React.FC = () => {
       const category = txn.category || 'Uncategorized';
       const amount = Math.abs(txn.amount);
 
-      if (txnDate >= currentMonthStart) {
+      // Only count transactions that have actually occurred (date <= now)
+      if (txnDate >= currentMonthStart && txnDate <= now) {
         currentMonthSpending[category] = (currentMonthSpending[category] || 0) + amount;
       } else if (txnDate >= lastMonthStart && txnDate <= lastMonthEnd) {
         lastMonthSpending[category] = (lastMonthSpending[category] || 0) + amount;

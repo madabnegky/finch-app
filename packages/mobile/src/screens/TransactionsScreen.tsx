@@ -529,7 +529,7 @@ export const TransactionsScreen: React.FC = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={brandColors.tealPrimary} />
+        <ActivityIndicator size="large" color={brandColors.primary} />
       </View>
     );
   }
@@ -544,7 +544,7 @@ export const TransactionsScreen: React.FC = () => {
               style={styles.menuButton}
               onPress={() => (navigation as any).openDrawer()}
             >
-              <Icon name="menu" size={24} color={brandColors.textDark} />
+              <Icon name="menu" size={24} color={brandColors.textPrimary} />
             </TouchableOpacity>
             <View style={styles.logoContainer}>
               <FinchLogo size={32} />
@@ -555,7 +555,7 @@ export const TransactionsScreen: React.FC = () => {
             </View>
           </View>
           <TouchableOpacity style={styles.searchButton}>
-            <Icon name="magnify" size={24} color={brandColors.textDark} />
+            <Icon name="magnify" size={24} color={brandColors.textPrimary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -582,7 +582,7 @@ export const TransactionsScreen: React.FC = () => {
           placeholder="Search transactions..."
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholderTextColor={brandColors.textGray}
+          placeholderTextColor={brandColors.textSecondary}
         />
 
         <ScrollView
@@ -617,7 +617,7 @@ export const TransactionsScreen: React.FC = () => {
         {filteredTransactions.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconContainer}>
-              <Icon name="receipt-text-outline" size={48} color={brandColors.textGray} />
+              <Icon name="receipt-text-outline" size={48} color={brandColors.textSecondary} />
             </View>
             <Text style={styles.emptyStateTitle}>No Transactions</Text>
             <Text style={styles.emptyStateText}>
@@ -651,7 +651,7 @@ export const TransactionsScreen: React.FC = () => {
                       <Text style={styles.transactionName}>{displayName}</Text>
                       {txn.isInstance && (
                         <View style={styles.recurringBadge}>
-                          <Icon name="repeat" size={12} color={brandColors.textGray} />
+                          <Icon name="repeat" size={12} color={brandColors.textSecondary} />
                         </View>
                       )}
                     </View>
@@ -687,7 +687,7 @@ export const TransactionsScreen: React.FC = () => {
                     style={styles.actionButton}
                     onPress={() => handleEditPress(txn)}
                   >
-                    <Icon name="pencil" size={16} color={brandColors.tealPrimary} />
+                    <Icon name="pencil" size={16} color={brandColors.primary} />
                     <Text style={styles.actionButtonText}>Edit</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -770,8 +770,8 @@ export const TransactionsScreen: React.FC = () => {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <View style={[styles.modalIconContainer, { backgroundColor: brandColors.tealPrimary + '15' }]}>
-                <Icon name="pencil-circle" size={32} color={brandColors.tealPrimary} />
+              <View style={[styles.modalIconContainer, { backgroundColor: brandColors.primary + '15' }]}>
+                <Icon name="pencil-circle" size={32} color={brandColors.primary} />
               </View>
               <Text style={styles.modalTitle}>Edit Recurring Transaction</Text>
               <Text style={styles.modalMessage}>
@@ -806,7 +806,7 @@ export const TransactionsScreen: React.FC = () => {
         <View style={styles.editModalContainer}>
           <View style={styles.editModalHeader}>
             <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-              <Icon name="close" size={24} color={brandColors.textDark} />
+              <Icon name="close" size={24} color={brandColors.textPrimary} />
             </TouchableOpacity>
             <Text style={styles.editModalTitle}>Edit Transaction</Text>
             <View style={{ width: 24 }} />
@@ -820,7 +820,7 @@ export const TransactionsScreen: React.FC = () => {
                 value={editDescription}
                 onChangeText={setEditDescription}
                 placeholder="Enter description"
-                placeholderTextColor={brandColors.textGray}
+                placeholderTextColor={brandColors.textSecondary}
               />
             </View>
 
@@ -832,7 +832,7 @@ export const TransactionsScreen: React.FC = () => {
                 onChangeText={setEditAmount}
                 placeholder="0.00"
                 keyboardType="decimal-pad"
-                placeholderTextColor={brandColors.textGray}
+                placeholderTextColor={brandColors.textSecondary}
               />
             </View>
 
@@ -865,7 +865,7 @@ export const TransactionsScreen: React.FC = () => {
                 value={editCategory}
                 onChangeText={setEditCategory}
                 placeholder="Enter category"
-                placeholderTextColor={brandColors.textGray}
+                placeholderTextColor={brandColors.textSecondary}
               />
             </View>
 
@@ -876,7 +876,7 @@ export const TransactionsScreen: React.FC = () => {
                 value={editDate}
                 onChangeText={setEditDate}
                 placeholder="YYYY-MM-DD"
-                placeholderTextColor={brandColors.textGray}
+                placeholderTextColor={brandColors.textSecondary}
               />
             </View>
 
@@ -1127,7 +1127,7 @@ const styles = StyleSheet.create({
   },
   transactionContent: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
     marginBottom: 12,
   },
@@ -1137,6 +1137,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 0,
   },
   transactionDetails: {
     flex: 1,
@@ -1186,6 +1187,8 @@ const styles = StyleSheet.create({
   },
   transactionRight: {
     alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingTop: 2,
   },
   transactionAmount: {
     fontSize: 18,

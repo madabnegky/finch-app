@@ -37,8 +37,8 @@ android {
         applicationId "com.finchandroid"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 12
-        versionName "1.2.0"
+        versionCode 14
+        versionName "1.2.2"
     }
     signingConfigs {
         debug {
@@ -61,7 +61,8 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            signingConfig signingConfigs.release
+            // Temporarily disabled - will sign manually with jarsigner
+            // signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             shrinkResources enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
