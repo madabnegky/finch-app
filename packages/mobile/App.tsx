@@ -19,6 +19,7 @@ import {
   setupNotificationOpenHandler,
   setupTokenRefreshHandler,
 } from './src/services/notificationService';
+import { initializeRevenueCat } from './src/services/subscriptionService';
 
 // Import our screens
 import { SplashScreen } from './src/screens/SplashScreen';
@@ -201,6 +202,17 @@ function AppNavigator() {
       unsubscribeTokenRefresh();
       unsubscribeNotificationOpen();
     };
+  }, [user]);
+
+  // Initialize RevenueCat when user logs in
+  useEffect(() => {
+    if (!user) return;
+
+    console.log('💰 Initializing RevenueCat for user:', user.uid);
+
+    initializeRevenueCat(user.uid).catch((error) => {
+      console.error('Failed to initialize RevenueCat:', error);
+    });
   }, [user]);
 
   if (loading) {

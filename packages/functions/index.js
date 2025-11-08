@@ -662,6 +662,7 @@ exports.syncTransactions = functions.https.onCall(async (data, context) => {
 
     let newTransactionCount = 0;
     let deduplicatedCount = 0;
+    const newTransactionsForNotification = []; // Collect new transactions for batched notification
 
     // Process each Plaid transaction
     for (const plaidTxn of allTransactions) {
@@ -726,51 +727,56 @@ exports.syncTransactions = functions.https.onCall(async (data, context) => {
         newTransactionCount++;
         functions.logger.info(`✅ Transaction created with ID: ${newTransactionRef.id}, isPending: ${plaidTxn.pending}`);
 
-        // Create notification for posted transactions (not pending)
+        // Collect posted transactions for batched notification
         if (!plaidTxn.pending) {
-          functions.logger.info(`Transaction is not pending, will send notification`);
+          newTransactionsForNotification.push({
+            id: newTransactionRef.id,
+            merchantName: plaidTxn.merchant_name || plaidTxn.name,
+            amount: amount,
+            type: amount >= 0 ? 'income' : 'expense',
+          });
+        }
+      }
+    }
 
-          try {
-            // Get user's timezone (default to Eastern)
-            const userDoc = await db.collection('users').doc(userId).get();
-            const userData = userDoc.data();
-            const userTimezone = userData?.timezone || 'America/New_York';
+    // Send batched notification or queue for morning
+    if (newTransactionsForNotification.length > 0) {
+      try {
+        // Get user's timezone (default to Eastern)
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.data();
+        const userTimezone = userData?.timezone || 'America/New_York';
 
-            if (isInActiveHours(userTimezone)) {
-              // SEND IMMEDIATELY (7:30 AM - 10 PM)
-              functions.logger.info(`Sending immediate notification for ${plaidTxn.name}`);
-              await sendImmediateTransactionNotification(
-                userId,
-                accountId,
-                {
-                  id: newTransactionRef.id,
-                  merchantName: plaidTxn.merchant_name || plaidTxn.name,
-                  amount: amount,
-                  type: amount >= 0 ? 'income' : 'expense',
-                },
-                null // Balance will be fetched inside the function
-              );
-            } else {
-              // QUEUE FOR 7:30 AM
-              functions.logger.info(`Queuing notification for ${plaidTxn.name} - outside active hours`);
-              await db.collection(`users/${userId}/pendingNotifications`).add({
-                transactionId: newTransactionRef.id,
-                accountId: accountId,
-                accountName: accountDoc.data().name,
-                merchantName: plaidTxn.merchant_name || plaidTxn.name,
-                amount: amount,
-                type: amount >= 0 ? 'income' : 'expense',
-                timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                scheduledFor: getNext730AM(userTimezone),
-                userTimezone: userTimezone,
-                processed: false,
-              });
-            }
-          } catch (notificationError) {
-            functions.logger.error('Error handling notification:', notificationError);
-            // Don't fail the entire sync if notification fails
+        if (isInActiveHours(userTimezone)) {
+          // SEND IMMEDIATELY (7:30 AM - 10 PM) - Batched
+          functions.logger.info(`Sending batched immediate notification for ${newTransactionsForNotification.length} transactions`);
+          await sendImmediateTransactionNotification(
+            userId,
+            accountId,
+            newTransactionsForNotification, // Pass array for batching
+            null
+          );
+        } else {
+          // QUEUE FOR 7:30 AM - Queue each transaction
+          functions.logger.info(`Queuing ${newTransactionsForNotification.length} notifications for 7:30 AM`);
+          for (const txn of newTransactionsForNotification) {
+            await db.collection(`users/${userId}/pendingNotifications`).add({
+              transactionId: txn.id,
+              accountId: accountId,
+              accountName: accountDoc.data().name,
+              merchantName: txn.merchantName,
+              amount: txn.amount,
+              type: txn.type,
+              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              scheduledFor: getNext730AM(userTimezone),
+              userTimezone: userTimezone,
+              processed: false,
+            });
           }
         }
+      } catch (notificationError) {
+        functions.logger.error('Error handling batched notification:', notificationError);
+        // Don't fail the entire sync if notification fails
       }
     }
 
@@ -1270,11 +1276,16 @@ exports.fetchPlaidRecurringTransactions = functions.https.onCall(async (data, co
 
 /**
  * Send immediate transaction notification (during active hours 7:30 AM - 10 PM)
+ * Supports both single transaction and batched multiple transactions
  */
-async function sendImmediateTransactionNotification(userId, accountId, transaction, currentBalance) {
+async function sendImmediateTransactionNotification(userId, accountId, transactions, currentBalance) {
   const { calculateProjections, getAvailableToSpend } = require('./projection');
 
   try {
+    // Support both single transaction (legacy) and array of transactions (batched)
+    const transactionArray = Array.isArray(transactions) ? transactions : [transactions];
+    const isBatched = transactionArray.length > 1;
+
     // Get user's FCM tokens and preferences
     const userDoc = await db.collection('users').doc(userId).get();
     const userData = userDoc.data();
@@ -1295,14 +1306,16 @@ async function sendImmediateTransactionNotification(userId, accountId, transacti
       return;
     }
 
-    // Check granular preferences based on notification type
-    const isIncome = transaction.type === 'income';
-    if (isIncome && preferences.paycheckNotifications === false) {
+    // Check granular preferences
+    const hasIncome = transactionArray.some(t => t.type === 'income');
+    const hasExpense = transactionArray.some(t => t.type === 'expense');
+
+    if (hasIncome && preferences.paycheckNotifications === false && !hasExpense) {
       functions.logger.info('Paycheck notifications disabled by user preference');
       return;
     }
 
-    if (!isIncome && preferences.transactionNotifications === false) {
+    if (hasExpense && preferences.transactionNotifications === false && !hasIncome) {
       functions.logger.info('Transaction notifications disabled by user preference');
       return;
     }
@@ -1315,13 +1328,13 @@ async function sendImmediateTransactionNotification(userId, accountId, transacti
       .collection(`users/${userId}/transactions`)
       .where('accountId', '==', accountId)
       .get();
-    const transactions = transactionsSnapshot.docs.map(doc => ({
+    const allTransactions = transactionsSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
 
     // Run 60-day projection
-    const projections = calculateProjections([account], transactions, 60);
+    const projections = calculateProjections([account], allTransactions, 60);
     const accountProjections = projections.find(p => p.accountId === accountId)?.projections;
     const lowestBalance = accountProjections ? getAvailableToSpend(accountProjections) : account.currentBalance;
 
@@ -1339,7 +1352,7 @@ async function sendImmediateTransactionNotification(userId, accountId, transacti
     // Get upcoming bills (next 7 days)
     const nextWeek = new Date();
     nextWeek.setDate(nextWeek.getDate() + 7);
-    const upcomingBills = transactions.filter(t => {
+    const upcomingBills = allTransactions.filter(t => {
       if (!t.isRecurring || !t.recurringDetails?.nextDate || t.amount >= 0) return false;
       const nextDate = t.recurringDetails.nextDate.toDate
         ? t.recurringDetails.nextDate.toDate()
@@ -1350,40 +1363,92 @@ async function sendImmediateTransactionNotification(userId, accountId, transacti
     // Build notification based on available balance and transaction type
     let title, body, priority;
 
-    // INCOME (Paycheck detection)
-    if (transaction.type === 'income') {
-      priority = 'default';
-      title = `💰 ${account.name} • ${transaction.merchantName}`;
-      body = `${formatCurrency(transaction.amount)} deposited\n` +
-             `Available to spend: ${formatCurrency(availableToSpend)} ✓`;
-    }
-    // EXPENSE - Critical (< $100 available)
-    else if (availableToSpend < 100) {
-      priority = 'high';
-      title = `🔴 LOW BALANCE ALERT`;
-      body = `${account.name} • ${transaction.merchantName}\n` +
-             `${formatCurrency(Math.abs(transaction.amount))} • Available: ${formatCurrency(availableToSpend)}`;
+    // BATCHED TRANSACTIONS (multiple transactions)
+    if (isBatched) {
+      const count = transactionArray.length;
+      const totalAmount = transactionArray.reduce((sum, t) => sum + t.amount, 0);
 
-      if (upcomingBills.length > 0) {
-        const nextBill = upcomingBills[0];
-        const billDate = nextBill.recurringDetails.nextDate.toDate
-          ? nextBill.recurringDetails.nextDate.toDate()
-          : new Date(nextBill.recurringDetails.nextDate);
-        const dayOfWeek = billDate.toLocaleDateString('en-US', { weekday: 'long' });
-        body += `\nUpcoming: ${nextBill.description} (${formatCurrency(Math.abs(nextBill.amount))}) due ${dayOfWeek}`;
+      // Calculate net impact
+      const netImpact = Math.abs(totalAmount);
+      const isNetIncome = totalAmount > 0;
+
+      functions.logger.info(`Batching ${count} transactions, net impact: ${formatCurrency(totalAmount)}`);
+
+      if (isNetIncome) {
+        // Net positive (more income than expenses)
+        priority = 'default';
+        title = `💰 ${account.name}`;
+        body = `${count} transactions occurred\n` +
+               `Net: +${formatCurrency(netImpact)}\n` +
+               `Available to spend: ${formatCurrency(availableToSpend)} ✓`;
+      } else {
+        // Net negative (expenses)
+        if (availableToSpend < 100) {
+          priority = 'high';
+          title = `🔴 LOW BALANCE ALERT`;
+          body = `${account.name} • ${count} transactions occurred\n` +
+                 `Spent: ${formatCurrency(netImpact)} • Available: ${formatCurrency(availableToSpend)}`;
+
+          if (upcomingBills.length > 0) {
+            const nextBill = upcomingBills[0];
+            const billDate = nextBill.recurringDetails.nextDate.toDate
+              ? nextBill.recurringDetails.nextDate.toDate()
+              : new Date(nextBill.recurringDetails.nextDate);
+            const dayOfWeek = billDate.toLocaleDateString('en-US', { weekday: 'long' });
+            body += `\nUpcoming: ${nextBill.description} (${formatCurrency(Math.abs(nextBill.amount))}) due ${dayOfWeek}`;
+          }
+        } else if (availableToSpend < 250) {
+          priority = 'default';
+          title = `⚠️ ${account.name}`;
+          body = `${count} transactions occurred • ${formatCurrency(netImpact)} spent\n` +
+                 `Available: ${formatCurrency(availableToSpend)} (Getting low)`;
+        } else {
+          priority = 'default';
+          title = `${account.name}`;
+          body = `${count} transactions occurred • ${formatCurrency(netImpact)} spent\n` +
+                 `Available: ${formatCurrency(availableToSpend)} ✓`;
+        }
       }
     }
-    // EXPENSE - Warning ($100-$250 available)
-    else if (availableToSpend < 250) {
-      priority = 'default';
-      title = `⚠️ ${account.name} • ${transaction.merchantName}`;
-      body = `${formatCurrency(Math.abs(transaction.amount))} • Available: ${formatCurrency(availableToSpend)} (Getting low)`;
-    }
-    // EXPENSE - Healthy (> $250 available)
+    // SINGLE TRANSACTION (original behavior)
     else {
-      priority = 'default';
-      title = `${account.name} • ${transaction.merchantName}`;
-      body = `${formatCurrency(Math.abs(transaction.amount))} • Available: ${formatCurrency(availableToSpend)} ✓`;
+      const transaction = transactionArray[0];
+
+      // INCOME (Paycheck detection)
+      if (transaction.type === 'income') {
+        priority = 'default';
+        title = `💰 ${account.name} • ${transaction.merchantName}`;
+        body = `${formatCurrency(transaction.amount)} deposited\n` +
+               `Available to spend: ${formatCurrency(availableToSpend)} ✓`;
+      }
+      // EXPENSE - Critical (< $100 available)
+      else if (availableToSpend < 100) {
+        priority = 'high';
+        title = `🔴 LOW BALANCE ALERT`;
+        body = `${account.name} • ${transaction.merchantName}\n` +
+               `${formatCurrency(Math.abs(transaction.amount))} • Available: ${formatCurrency(availableToSpend)}`;
+
+        if (upcomingBills.length > 0) {
+          const nextBill = upcomingBills[0];
+          const billDate = nextBill.recurringDetails.nextDate.toDate
+            ? nextBill.recurringDetails.nextDate.toDate()
+            : new Date(nextBill.recurringDetails.nextDate);
+          const dayOfWeek = billDate.toLocaleDateString('en-US', { weekday: 'long' });
+          body += `\nUpcoming: ${nextBill.description} (${formatCurrency(Math.abs(nextBill.amount))}) due ${dayOfWeek}`;
+        }
+      }
+      // EXPENSE - Warning ($100-$250 available)
+      else if (availableToSpend < 250) {
+        priority = 'default';
+        title = `⚠️ ${account.name} • ${transaction.merchantName}`;
+        body = `${formatCurrency(Math.abs(transaction.amount))} • Available: ${formatCurrency(availableToSpend)} (Getting low)`;
+      }
+      // EXPENSE - Healthy (> $250 available)
+      else {
+        priority = 'default';
+        title = `${account.name} • ${transaction.merchantName}`;
+        body = `${formatCurrency(Math.abs(transaction.amount))} • Available: ${formatCurrency(availableToSpend)} ✓`;
+      }
     }
 
     // Send notification using modern FCM HTTP v1 API
@@ -1396,8 +1461,8 @@ async function sendImmediateTransactionNotification(userId, accountId, transacti
           body,
         },
         data: {
-          type: 'new_transaction',
-          transactionId: transaction.id,
+          type: isBatched ? 'batched_transactions' : 'new_transaction',
+          transactionCount: transactionArray.length.toString(),
           accountId: accountId,
           availableToSpend: availableToSpend.toString(),
         },
@@ -1412,8 +1477,9 @@ async function sendImmediateTransactionNotification(userId, accountId, transacti
 
       try {
         const result = await admin.messaging().send(message);
-        functions.logger.info(`✅ Sent notification for ${transaction.merchantName}`, {
+        functions.logger.info(`✅ Sent ${isBatched ? 'batched' : 'single'} notification`, {
           messageId: result,
+          transactionCount: transactionArray.length,
           availableToSpend,
           priority
         });
@@ -1763,6 +1829,7 @@ exports.processSyncTask = functions.https.onRequest(async (req, res) => {
     }));
 
     let newTransactionCount = 0;
+    const newTransactionsForNotification = []; // Collect new transactions for batched notification
 
     // Process each Plaid transaction
     for (const plaidTxn of allTransactions) {
@@ -1802,50 +1869,56 @@ exports.processSyncTask = functions.https.onRequest(async (req, res) => {
         });
         newTransactionCount++;
 
-        // SMART NOTIFICATION: Send immediately or queue for morning
-        // Only notify on POSTED transactions (not pending)
+        // Collect posted transactions for batched notification
         if (!plaidTxn.pending) {
-          try {
-            // Get user's timezone (default to Eastern)
-            const userDoc = await db.collection('users').doc(userId).get();
-            const userData = userDoc.data();
-            const userTimezone = userData?.timezone || 'America/New_York';
+          newTransactionsForNotification.push({
+            id: newTransactionRef.id,
+            merchantName: plaidTxn.merchant_name || plaidTxn.name,
+            amount: amount,
+            type: amount >= 0 ? 'income' : 'expense',
+          });
+        }
+      }
+    }
 
-            if (isInActiveHours(userTimezone)) {
-              // SEND IMMEDIATELY (7:30 AM - 10 PM)
-              functions.logger.info(`Sending immediate notification for ${plaidTxn.name}`);
-              await sendImmediateTransactionNotification(
-                userId,
-                accountId,
-                {
-                  id: newTransactionRef.id,
-                  merchantName: plaidTxn.merchant_name || plaidTxn.name,
-                  amount: amount,
-                  type: amount >= 0 ? 'income' : 'expense',
-                },
-                null // Balance will be fetched inside the function
-              );
-            } else {
-              // QUEUE FOR 7:30 AM
-              functions.logger.info(`Queuing notification for ${plaidTxn.name} - outside active hours`);
-              await db.collection(`users/${userId}/pendingNotifications`).add({
-                transactionId: newTransactionRef.id,
-                accountId: accountId,
-                accountName: accountDoc.data().name,
-                merchantName: plaidTxn.merchant_name || plaidTxn.name,
-                amount: amount,
-                type: amount >= 0 ? 'income' : 'expense',
-                timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                scheduledFor: getNext730AM(userTimezone),
-                userTimezone: userTimezone,
-                processed: false,
-              });
-            }
-          } catch (notificationError) {
-            functions.logger.error('Error handling notification:', notificationError);
-            // Don't fail the entire sync if notification fails
+    // Send batched notification or queue for morning
+    if (newTransactionsForNotification.length > 0) {
+      try {
+        // Get user's timezone (default to Eastern)
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.data();
+        const userTimezone = userData?.timezone || 'America/New_York';
+
+        if (isInActiveHours(userTimezone)) {
+          // SEND IMMEDIATELY (7:30 AM - 10 PM) - Batched
+          functions.logger.info(`Sending batched immediate notification for ${newTransactionsForNotification.length} transactions`);
+          await sendImmediateTransactionNotification(
+            userId,
+            accountId,
+            newTransactionsForNotification, // Pass array for batching
+            null
+          );
+        } else {
+          // QUEUE FOR 7:30 AM - Queue each transaction
+          functions.logger.info(`Queuing ${newTransactionsForNotification.length} notifications for 7:30 AM`);
+          for (const txn of newTransactionsForNotification) {
+            await db.collection(`users/${userId}/pendingNotifications`).add({
+              transactionId: txn.id,
+              accountId: accountId,
+              accountName: accountDoc.data().name,
+              merchantName: txn.merchantName,
+              amount: txn.amount,
+              type: txn.type,
+              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              scheduledFor: getNext730AM(userTimezone),
+              userTimezone: userTimezone,
+              processed: false,
+            });
           }
         }
+      } catch (notificationError) {
+        functions.logger.error('Error handling batched notification:', notificationError);
+        // Don't fail the entire sync if notification fails
       }
     }
 
@@ -1947,6 +2020,343 @@ exports.sendQueuedNotifications = functions.pubsub
     }
 
     functions.logger.info(`Processed queued notifications for ${Object.keys(notificationsByUser).length} users`);
+
+    return null;
+  });
+
+// ============================================================================
+// FINANCIAL HEALTH SCORE CALCULATION
+// ============================================================================
+
+/**
+ * Calculate Financial Health Score (0-100) for a user
+ * Components:
+ * - Available Balance Cushion (30 pts)
+ * - Days Until Broke (25 pts)
+ * - Budget Adherence (20 pts)
+ * - Emergency Fund Progress (15 pts)
+ * - Recurring Bills Covered (10 pts)
+ */
+async function calculateFinancialHealthScore(userId) {
+  const { calculateProjections, getAvailableToSpend } = require('./projection');
+
+  try {
+    functions.logger.info(`Calculating health score for user ${userId}`);
+
+    // Get all accounts
+    const accountsSnapshot = await db.collection(`users/${userId}/accounts`).get();
+    const accounts = accountsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    if (accounts.length === 0) {
+      functions.logger.info('No accounts found, skipping health score calculation');
+      return null;
+    }
+
+    // Get all transactions
+    const transactionsSnapshot = await db.collection(`users/${userId}/transactions`).get();
+    const transactions = transactionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Calculate projections for all accounts
+    const allProjections = calculateProjections(accounts, transactions, 60);
+
+    let totalScore = 0;
+    const breakdown = {};
+
+    // === 1. AVAILABLE BALANCE CUSHION (30 points) ===
+    let totalAvailableToSpend = 0;
+    for (const account of accounts) {
+      const accountProjections = allProjections.find(p => p.accountId === account.id)?.projections;
+      const lowestBalance = accountProjections ? getAvailableToSpend(accountProjections) : account.currentBalance;
+
+      // Get goal allocations
+      const goalsSnapshot = await db.collection(`users/${userId}/goals`)
+        .where('accountId', '==', account.id)
+        .get();
+      const goalAllocations = goalsSnapshot.docs.reduce((sum, doc) => sum + (doc.data().allocatedAmount || 0), 0);
+
+      const availableToSpend = lowestBalance - (account.cushion || 0) - goalAllocations;
+      totalAvailableToSpend += availableToSpend;
+    }
+
+    let cushionScore = 0;
+    if (totalAvailableToSpend >= 500) cushionScore = 30;
+    else if (totalAvailableToSpend >= 250) cushionScore = 20;
+    else if (totalAvailableToSpend >= 100) cushionScore = 10;
+    else cushionScore = 0;
+
+    totalScore += cushionScore;
+    breakdown.availableCushion = {
+      score: cushionScore,
+      maxScore: 30,
+      amount: totalAvailableToSpend
+    };
+
+    // === 2. DAYS UNTIL BROKE (25 points) ===
+    let daysUntilBroke = 60; // Default to max if never broke
+    for (const projectionData of allProjections) {
+      for (let i = 0; i < projectionData.projections.length; i++) {
+        const day = projectionData.projections[i];
+        const account = accounts.find(a => a.id === projectionData.accountId);
+
+        // Get goal allocations
+        const goalsSnapshot = await db.collection(`users/${userId}/goals`)
+          .where('accountId', '==', account.id)
+          .get();
+        const goalAllocations = goalsSnapshot.docs.reduce((sum, doc) => sum + (doc.data().allocatedAmount || 0), 0);
+
+        const availableBalance = day.balance - (account.cushion || 0) - goalAllocations;
+
+        if (availableBalance <= 0) {
+          daysUntilBroke = Math.min(daysUntilBroke, i);
+          break;
+        }
+      }
+    }
+
+    let daysScore = 0;
+    if (daysUntilBroke >= 30) daysScore = 25;
+    else if (daysUntilBroke >= 14) daysScore = 18;
+    else if (daysUntilBroke >= 7) daysScore = 10;
+    else daysScore = 0;
+
+    totalScore += daysScore;
+    breakdown.daysUntilBroke = {
+      score: daysScore,
+      maxScore: 25,
+      days: daysUntilBroke
+    };
+
+    // === 3. BUDGET ADHERENCE (20 points) ===
+    // Check if user has budgets set up
+    const budgetsSnapshot = await db.collection(`users/${userId}/budgets`).get();
+    const budgets = budgetsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    let budgetScore = 10; // Default neutral score if no budgets
+    let categoriesOver = 0;
+
+    if (budgets.length > 0) {
+      // Calculate current month spending by category
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      const currentMonthTransactions = transactions.filter(t => {
+        const txnDate = t.date?.toDate ? t.date.toDate() : new Date(t.date);
+        return txnDate >= firstDayOfMonth && t.amount < 0 && !t.isRecurring;
+      });
+
+      const spendingByCategory = {};
+      currentMonthTransactions.forEach(t => {
+        const category = t.category || 'Uncategorized';
+        spendingByCategory[category] = (spendingByCategory[category] || 0) + Math.abs(t.amount);
+      });
+
+      // Check each budget
+      budgets.forEach(budget => {
+        const spent = spendingByCategory[budget.category] || 0;
+        if (spent > budget.limit) {
+          categoriesOver++;
+        }
+      });
+
+      if (categoriesOver === 0) budgetScore = 20;
+      else if (categoriesOver <= 2) budgetScore = 12;
+      else budgetScore = 5;
+    }
+
+    totalScore += budgetScore;
+    breakdown.budgetAdherence = {
+      score: budgetScore,
+      maxScore: 20,
+      categoriesOver,
+      hasBudgets: budgets.length > 0
+    };
+
+    // === 4. EMERGENCY FUND PROGRESS (15 points) ===
+    // Look for goals marked as emergency fund
+    const goalsSnapshot = await db.collection(`users/${userId}/goals`).get();
+    const emergencyGoals = goalsSnapshot.docs.filter(doc => {
+      const goal = doc.data();
+      return goal.name?.toLowerCase().includes('emergency') ||
+             goal.category?.toLowerCase().includes('emergency');
+    });
+
+    let emergencyScore = 0;
+    let monthsCovered = 0;
+
+    if (emergencyGoals.length > 0) {
+      // Calculate total emergency fund amount
+      const totalEmergencyFund = emergencyGoals.reduce((sum, doc) => {
+        return sum + (doc.data().allocatedAmount || 0);
+      }, 0);
+
+      // Estimate monthly expenses (recurring bills + average spending)
+      const recurringExpenses = transactions.filter(t => t.isRecurring && t.amount < 0);
+      const monthlyBills = recurringExpenses.reduce((sum, t) => {
+        const amount = Math.abs(t.amount);
+        // Convert to monthly equivalent
+        if (t.recurringDetails?.frequency === 'weekly') return sum + (amount * 4);
+        if (t.recurringDetails?.frequency === 'biweekly') return sum + (amount * 2);
+        if (t.recurringDetails?.frequency === 'yearly') return sum + (amount / 12);
+        return sum + amount; // monthly
+      }, 0);
+
+      // Estimate average monthly spending from last 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentTransactions = transactions.filter(t => {
+        const txnDate = t.date?.toDate ? t.date.toDate() : new Date(t.date);
+        return txnDate >= thirtyDaysAgo && t.amount < 0 && !t.isRecurring;
+      });
+      const monthlySpending = recentTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+      const estimatedMonthlyExpenses = monthlyBills + monthlySpending;
+      monthsCovered = estimatedMonthlyExpenses > 0 ? totalEmergencyFund / estimatedMonthlyExpenses : 0;
+
+      if (monthsCovered >= 6) emergencyScore = 15;
+      else if (monthsCovered >= 3) emergencyScore = 10;
+      else if (monthsCovered >= 1) emergencyScore = 5;
+      else emergencyScore = 0;
+    }
+
+    totalScore += emergencyScore;
+    breakdown.emergencyFund = {
+      score: emergencyScore,
+      maxScore: 15,
+      monthsCovered: Math.round(monthsCovered * 10) / 10
+    };
+
+    // === 5. RECURRING BILLS COVERED (10 points) ===
+    const upcomingBills = transactions.filter(t => {
+      if (!t.isRecurring || !t.recurringDetails?.nextDate || t.amount >= 0) return false;
+      const nextDate = t.recurringDetails.nextDate.toDate
+        ? t.recurringDetails.nextDate.toDate()
+        : new Date(t.recurringDetails.nextDate);
+      const next30Days = new Date();
+      next30Days.setDate(next30Days.getDate() + 30);
+      return nextDate <= next30Days;
+    });
+
+    let billsAtRisk = [];
+    for (const bill of upcomingBills) {
+      const billAmount = Math.abs(bill.amount);
+      const billDate = bill.recurringDetails.nextDate.toDate
+        ? bill.recurringDetails.nextDate.toDate()
+        : new Date(bill.recurringDetails.nextDate);
+
+      // Check if available balance at bill date covers the bill
+      const account = accounts.find(a => a.id === bill.accountId);
+      const accountProjections = allProjections.find(p => p.accountId === bill.accountId)?.projections;
+
+      if (accountProjections) {
+        const daysUntilBill = Math.floor((billDate - new Date()) / (1000 * 60 * 60 * 24));
+        const dayIndex = Math.min(daysUntilBill, accountProjections.length - 1);
+        const balanceAtBillDate = accountProjections[dayIndex]?.balance || 0;
+
+        // Get goal allocations
+        const goalsSnapshot = await db.collection(`users/${userId}/goals`)
+          .where('accountId', '==', account.id)
+          .get();
+        const goalAllocations = goalsSnapshot.docs.reduce((sum, doc) => sum + (doc.data().allocatedAmount || 0), 0);
+
+        const availableAtBillDate = balanceAtBillDate - (account.cushion || 0) - goalAllocations;
+
+        if (availableAtBillDate < billAmount) {
+          billsAtRisk.push(bill.description);
+        }
+      }
+    }
+
+    let billsScore = 0;
+    if (billsAtRisk.length === 0 && upcomingBills.length > 0) billsScore = 10;
+    else if (billsAtRisk.length <= 1) billsScore = 5;
+    else billsScore = 0;
+
+    totalScore += billsScore;
+    breakdown.billsCovered = {
+      score: billsScore,
+      maxScore: 10,
+      billsAtRisk: billsAtRisk.length,
+      totalUpcomingBills: upcomingBills.length
+    };
+
+    // === DETERMINE TREND ===
+    const previousScoreDoc = await db.collection(`users/${userId}/healthScore`).doc('current').get();
+    let trend = 'stable';
+    let previousScore = null;
+
+    if (previousScoreDoc.exists) {
+      previousScore = previousScoreDoc.data().score;
+      if (totalScore > previousScore + 5) trend = 'improving';
+      else if (totalScore < previousScore - 5) trend = 'declining';
+    }
+
+    // === SAVE TO FIRESTORE ===
+    const healthScoreData = {
+      score: totalScore,
+      lastCalculated: admin.firestore.FieldValue.serverTimestamp(),
+      breakdown,
+      trend,
+      previousScore
+    };
+
+    await db.collection(`users/${userId}/healthScore`).doc('current').set(healthScoreData);
+
+    functions.logger.info(`✅ Health score calculated for user ${userId}: ${totalScore}/100`);
+
+    return healthScoreData;
+
+  } catch (error) {
+    functions.logger.error(`Error calculating health score for user ${userId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Callable function to manually trigger health score calculation
+ */
+exports.calculateHealthScore = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const userId = context.auth.uid;
+  const healthScore = await calculateFinancialHealthScore(userId);
+
+  if (!healthScore) {
+    throw new functions.https.HttpsError('internal', 'Failed to calculate health score');
+  }
+
+  return healthScore;
+});
+
+/**
+ * Scheduled function to calculate health scores for all users daily at 9 AM
+ */
+exports.calculateDailyHealthScores = functions.pubsub
+  .schedule('0 9 * * *')
+  .timeZone('UTC')
+  .onRun(async (context) => {
+    functions.logger.info('Starting daily health score calculations');
+
+    try {
+      const usersSnapshot = await db.collection('users').get();
+      let calculatedCount = 0;
+      let errorCount = 0;
+
+      for (const userDoc of usersSnapshot.docs) {
+        try {
+          await calculateFinancialHealthScore(userDoc.id);
+          calculatedCount++;
+        } catch (error) {
+          functions.logger.error(`Failed to calculate health score for user ${userDoc.id}:`, error);
+          errorCount++;
+        }
+      }
+
+      functions.logger.info(`Daily health score calculation complete: ${calculatedCount} successful, ${errorCount} errors`);
+    } catch (error) {
+      functions.logger.error('Error in daily health score calculation:', error);
+    }
 
     return null;
   });

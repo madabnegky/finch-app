@@ -64,10 +64,9 @@ export async function registerDeviceForNotifications(userId: string): Promise<vo
       return;
     }
 
-    // Register for remote messages first (required for iOS)
-    if (Platform.OS === 'ios') {
-      await messaging().registerDeviceForRemoteMessages();
-    }
+    // Note: registerDeviceForRemoteMessages() is not needed
+    // Firebase automatically registers for remote messages when you call getToken()
+    // See: https://rnfirebase.io/messaging/usage#ios---requesting-permissions
 
     // Get FCM token
     const token = await messaging().getToken();

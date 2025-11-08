@@ -19,6 +19,8 @@ import {
   getBiometricTypeName,
   BiometricType
 } from '../services/biometricService';
+import { PremiumStatusCard } from '../components/PremiumStatusCard';
+import { PremiumUpgradeModal } from '../components/PremiumUpgradeModal';
 
 /**
  * Settings Screen
@@ -97,6 +99,7 @@ export function SettingsScreen() {
   const [biometricType, setBiometricType] = useState<BiometricType>(null);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showTermsOfService, setShowTermsOfService] = useState(false);
+  const [showPremiumUpgrade, setShowPremiumUpgrade] = useState(false);
 
   // Check biometric availability
   useEffect(() => {
@@ -348,6 +351,14 @@ export function SettingsScreen() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
+        {/* PREMIUM STATUS SECTION */}
+        <View style={styles.premiumSection}>
+          <PremiumStatusCard
+            userId={user?.uid || ''}
+            onUpgrade={() => setShowPremiumUpgrade(true)}
+          />
+        </View>
+
         {/* CREATE ACCOUNT SECTION - Only show for guest users */}
         {user?.isAnonymous && (
           <SettingSection title="Upgrade Your Account">
@@ -586,6 +597,12 @@ export function SettingsScreen() {
           <TermsOfServiceScreen />
         </View>
       </Modal>
+
+      {/* Premium Upgrade Modal */}
+      <PremiumUpgradeModal
+        visible={showPremiumUpgrade}
+        onClose={() => setShowPremiumUpgrade(false)}
+      />
     </View>
   );
 }
@@ -646,6 +663,12 @@ const styles = StyleSheet.create({
   // Scroll View
   scrollView: {
     flex: 1,
+  },
+
+  // Premium Section
+  premiumSection: {
+    marginTop: 20,
+    paddingHorizontal: 20,
   },
 
   // Sections

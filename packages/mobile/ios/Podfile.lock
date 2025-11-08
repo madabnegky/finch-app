@@ -1211,6 +1211,8 @@ PODS:
   - PromisesObjC (2.4.0)
   - PromisesSwift (2.4.0):
     - PromisesObjC (= 2.4.0)
+  - PurchasesHybridCommon (17.16.0):
+    - RevenueCat (= 5.46.1)
   - RCT-Folly (2024.01.01.00):
     - boost
     - DoubleConversion
@@ -2141,6 +2143,8 @@ PODS:
     - React-debug
   - react-native-biometrics (3.0.1):
     - React-Core
+  - react-native-blob-util (0.19.11):
+    - React-Core
   - react-native-plaid-link-sdk (12.6.0):
     - Plaid (~> 6.4.1)
     - React-Core
@@ -2419,6 +2423,7 @@ PODS:
     - React-perflogger (= 0.74.5)
     - React-utils (= 0.74.5)
   - RecaptchaInterop (100.0.0)
+  - RevenueCat (5.46.1)
   - RNCAsyncStorage (2.2.0):
     - React-Core
   - RNDateTimePicker (8.4.5):
@@ -2472,6 +2477,9 @@ PODS:
     - Yoga
   - RNGoogleSignin (13.3.1):
     - GoogleSignIn (~> 7.1)
+    - React-Core
+  - RNPurchases (9.6.3):
+    - PurchasesHybridCommon (= 17.16.0)
     - React-Core
   - RNReanimated (3.10.1):
     - DoubleConversion
@@ -2577,6 +2585,7 @@ DEPENDENCIES:
   - React-logger (from `../../../node_modules/react-native/ReactCommon/logger`)
   - React-Mapbuffer (from `../../../node_modules/react-native/ReactCommon`)
   - react-native-biometrics (from `../../../node_modules/react-native-biometrics`)
+  - react-native-blob-util (from `../../../node_modules/react-native-blob-util`)
   - react-native-plaid-link-sdk (from `../../../node_modules/react-native-plaid-link-sdk`)
   - react-native-safe-area-context (from `../../../node_modules/react-native-safe-area-context`)
   - react-native-video (from `../../../node_modules/react-native-video`)
@@ -2613,6 +2622,7 @@ DEPENDENCIES:
   - "RNFBMessaging (from `../../../node_modules/@react-native-firebase/messaging`)"
   - RNGestureHandler (from `../../../node_modules/react-native-gesture-handler`)
   - "RNGoogleSignin (from `../../../node_modules/@react-native-google-signin/google-signin`)"
+  - RNPurchases (from `../../../node_modules/react-native-purchases`)
   - RNReanimated (from `../../../node_modules/react-native-reanimated`)
   - RNScreens (from `../../../node_modules/react-native-screens`)
   - RNSVG (from `../../../node_modules/react-native-svg`)
@@ -2654,7 +2664,9 @@ SPEC REPOS:
     - Plaid
     - PromisesObjC
     - PromisesSwift
+    - PurchasesHybridCommon
     - RecaptchaInterop
+    - RevenueCat
     - SocketRocket
 
 EXTERNAL SOURCES:
@@ -2723,6 +2735,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/react-native/ReactCommon"
   react-native-biometrics:
     :path: "../../../node_modules/react-native-biometrics"
+  react-native-blob-util:
+    :path: "../../../node_modules/react-native-blob-util"
   react-native-plaid-link-sdk:
     :path: "../../../node_modules/react-native-plaid-link-sdk"
   react-native-safe-area-context:
@@ -2795,6 +2809,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/react-native-gesture-handler"
   RNGoogleSignin:
     :path: "../../../node_modules/@react-native-google-signin/google-signin"
+  RNPurchases:
+    :path: "../../../node_modules/react-native-purchases"
   RNReanimated:
     :path: "../../../node_modules/react-native-reanimated"
   RNScreens:
@@ -2847,6 +2863,7 @@ SPEC CHECKSUMS:
   Plaid: 8a212ed955d480364e0deb7fed93625b29811e9d
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   PromisesSwift: 9d77319bbe72ebf6d872900551f7eeba9bce2851
+  PurchasesHybridCommon: 806c4cb4f287dc125d6e885a1bbf5df326e681b0
   RCT-Folly: 5dc73daec3476616d19e8a53f0156176f7b55461
   RCTDeprecation: 3afceddffa65aee666dafd6f0116f1d975db1584
   RCTRequired: ec1239bc9d8bf63e10fb92bd8b26171a9258e0c1
@@ -2872,6 +2889,7 @@ SPEC CHECKSUMS:
   React-logger: 780b9ee9cec7d44eabc4093de90107c379078cb6
   React-Mapbuffer: 32481ad50f09c781bdb408b302757e0c9285d6db
   react-native-biometrics: 43ed5b828646a7862dbc7945556446be00798e7d
+  react-native-blob-util: f7234c91ad0e3faeee51b3edee80b61553f74993
   react-native-plaid-link-sdk: 7e3e7669a8a1b22595ead55a5d5778e637b354f5
   react-native-safe-area-context: df9763c5de6fa38883028e243a0b60123acb8858
   react-native-video: e4085f28bb32fce0fbbeb3d38c9ec9da655d7169
@@ -2899,6 +2917,7 @@ SPEC CHECKSUMS:
   React-utils: 3c4b8677afc614f15357ad66fcc3e61bc21a42db
   ReactCommon: cfb89afbdafafbf049c719db9cb61ac4d38af434
   RecaptchaInterop: 7d1a4a01a6b2cb1610a47ef3f85f0c411434cb21
+  RevenueCat: 5615e87d418134b3087370429b17ce92eafe2354
   RNCAsyncStorage: b44e8a4e798c3e1f56bffccd0f591f674fb9198f
   RNDateTimePicker: 8c12d12e8660697c2e176d2f98775764431c141f
   RNFBApp: 0e66b9f844efdf2ac3fa2b30e64c9db41a263b3d
@@ -2909,6 +2928,7 @@ SPEC CHECKSUMS:
   RNFBMessaging: 70b12c9f22c7c9d5011ac9b12ac2bafbfb081267
   RNGestureHandler: 5d95b0a3cffed8325ed0c181f4f411c1dcd49317
   RNGoogleSignin: 576a84dd0407b912e7a0adf07492de9feb79e5d9
+  RNPurchases: 2b619cb831307871d227c6495916d439cf57743e
   RNReanimated: 29533404792c6a5559e7787f847e28afd2987961
   RNScreens: e9e27421c4a75b537ca40886e5736d4fcf04c715
   RNSVG: 0e7deccab0678200815104223aadd5ca734dd41d

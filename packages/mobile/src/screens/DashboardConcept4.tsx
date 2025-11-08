@@ -23,13 +23,15 @@ import { AccountSetupModal } from '../components/AccountSetupModal';
 import { FirstAccountCongrats } from '../components/FirstAccountCongrats';
 import { WelcomeModal } from '../components/WelcomeModal';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { HealthScoreCard } from '../components/HealthScoreCard';
+import { PremiumUpgradeModal } from '../components/PremiumUpgradeModal';
 import { usePlaidLink } from '../components/PlaidLinkHandler';
 import FinchLogo from '../components/FinchLogo';
 import functions from '@react-native-firebase/functions';
 import brandColors from '../theme/colors';
 import { accountIcons } from '../theme/icons';
 import { calculateAvailableToSpend } from '../services/availableToSpendService';
-import { hasPremiumAccess } from '../utils/premiumAccess';
+import { hasPremiumAccess, canAddAccount, canUsePlaid } from '../services/subscriptionService';
 import type { Budget, RecurringTransaction as RecurringTransactionType, Goal as GoalType, UserProfile } from '../types';
 
 type Account = {
@@ -91,6 +93,8 @@ const DashboardContent = () => {
   const [firstAccountInfo, setFirstAccountInfo] = useState<{ id: string; name: string } | null>(null);
   const [isInDemoMode, setIsInDemoMode] = useState(false); // true if user only has demo accounts
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showPremiumUpgrade, setShowPremiumUpgrade] = useState(false);
+  const [premiumFeature, setPremiumFeature] = useState<string>('');
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransactionType[]>([]);
@@ -431,8 +435,48 @@ const DashboardContent = () => {
     onReset: handlePlaidReset,
   });
 
-  const handleAddAccountWithPlaid = () => {
-    console.log('🟢 DashboardConcept4: Starting Plaid flow');
+  const handleAddManualAccount = async () => {
+    console.log('🟢 DashboardConcept4: Checking account limit');
+
+    if (!user) {
+      Alert.alert('Error', 'User not authenticated');
+      return;
+    }
+
+    // Check if user can add another account
+    const canAdd = await canAddAccount(user.uid, accounts.length);
+    if (!canAdd) {
+      console.log('❌ User has reached free tier account limit (1 account)');
+      setPremiumFeature('Multiple Accounts');
+      setShowPremiumUpgrade(true);
+      setFabExpanded(false);
+      return;
+    }
+
+    console.log('✅ User can add account, showing manage account modal');
+    setFabExpanded(false);
+    setShowManageAccount(true);
+  };
+
+  const handleAddAccountWithPlaid = async () => {
+    console.log('🟢 DashboardConcept4: Checking premium access for Plaid');
+
+    if (!user) {
+      Alert.alert('Error', 'User not authenticated');
+      return;
+    }
+
+    // Check if user can use Plaid (premium only)
+    const canPlaid = await canUsePlaid(user.uid);
+    if (!canPlaid) {
+      console.log('❌ User does not have premium access for Plaid');
+      setPremiumFeature('Plaid Bank Linking');
+      setShowPremiumUpgrade(true);
+      setFabExpanded(false);
+      return;
+    }
+
+    console.log('✅ User has premium access, starting Plaid flow');
     setFabExpanded(false);
     setTriggerPlaid(true);
   };
@@ -936,7 +980,7 @@ const DashboardContent = () => {
             </Text>
             <TouchableOpacity
               style={styles.emptyButton}
-              onPress={() => setShowManageAccount(true)}
+              onPress={handleAddManualAccount}
             >
               <Icon name="plus-circle" size={20} color={brandColors.white} />
               <Text style={styles.emptyButtonText}>Add Manual Account</Text>
@@ -1111,6 +1155,13 @@ const DashboardContent = () => {
             >
               <Icon name="close-circle" size={20} color={brandColors.white} />
             </TouchableOpacity>
+          </View>
+        )}
+
+        {/* FINANCIAL HEALTH SCORE */}
+        {user && !user.isAnonymous && (
+          <View style={styles.section}>
+            <HealthScoreCard userId={user.uid} />
           </View>
         )}
 
@@ -1565,6 +1616,13 @@ const DashboardContent = () => {
         visible={showWelcome}
         onStartTour={handleStartTour}
         onSkip={handleSkipWelcome}
+      />
+
+      {/* Premium Upgrade Modal */}
+      <PremiumUpgradeModal
+        visible={showPremiumUpgrade}
+        onClose={() => setShowPremiumUpgrade(false)}
+        feature={premiumFeature}
       />
     </View>
   );
