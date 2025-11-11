@@ -4,27 +4,135 @@ const { getNextOccurrence, startOfDay, toDateInputString, parseDateString } = re
 const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
 const { encrypt, decrypt } = require('./encryption');
 const { CloudTasksClient } = require('@google-cloud/tasks');
+const { getPlaidClientId, getPlaidSecret } = require('./secretManager');
 
 admin.initializeApp();
 const db = admin.firestore();
 
-// Initialize Plaid client
-const plaidConfig = new Configuration({
-  basePath: PlaidEnvironments[functions.config().plaid?.env || 'sandbox'],
-  baseOptions: {
-    headers: {
-      'PLAID-CLIENT-ID': functions.config().plaid?.client_id,
-      'PLAID-SECRET': functions.config().plaid?.secret,
-    },
-  },
-});
-const plaidClient = new PlaidApi(plaidConfig);
+// Plaid client will be initialized lazily when needed
+let plaidClient = null;
+let plaidClientPromise = null;
+
+/**
+ * Get or initialize Plaid client with credentials from Secret Manager
+ * @returns {Promise<PlaidApi>}
+ */
+async function getPlaidClient() {
+  // If client already initialized, return it
+  if (plaidClient) {
+    return plaidClient;
+  }
+
+  // If initialization is in progress, wait for it
+  if (plaidClientPromise) {
+    return plaidClientPromise;
+  }
+
+  // Start initialization
+  plaidClientPromise = (async () => {
+    try {
+      // Try Secret Manager first
+      const clientId = await getPlaidClientId();
+      const secret = await getPlaidSecret();
+
+      const plaidConfig = new Configuration({
+        basePath: PlaidEnvironments[functions.config().plaid?.env || 'production'],
+        baseOptions: {
+          headers: {
+            'PLAID-CLIENT-ID': clientId,
+            'PLAID-SECRET': secret,
+          },
+        },
+      });
+
+      plaidClient = new PlaidApi(plaidConfig);
+      functions.logger.info('✅ Plaid client initialized with Secret Manager credentials');
+      return plaidClient;
+    } catch (error) {
+      functions.logger.warn('Could not initialize Plaid with Secret Manager, trying fallback:', error.message);
+
+      // Fallback to Firebase config
+      const plaidConfig = new Configuration({
+        basePath: PlaidEnvironments[functions.config().plaid?.env || 'production'],
+        baseOptions: {
+          headers: {
+            'PLAID-CLIENT-ID': functions.config().plaid?.client_id,
+            'PLAID-SECRET': functions.config().plaid?.secret,
+          },
+        },
+      });
+
+      plaidClient = new PlaidApi(plaidConfig);
+      functions.logger.warn('⚠️  Plaid client initialized with Firebase config (fallback)');
+      return plaidClient;
+    }
+  })();
+
+  return plaidClientPromise;
+}
 
 // Initialize Cloud Tasks client
 const tasksClient = new CloudTasksClient();
 const project = process.env.GCLOUD_PROJECT || 'finch-app-v2';
 const location = 'us-central1';
 const queue = 'plaid-sync-queue';
+
+// ============================================================================
+// INPUT VALIDATION HELPERS
+// ============================================================================
+
+/**
+ * Validate and sanitize user input to prevent injection attacks
+ */
+function validateAndSanitize(input, type = 'string', maxLength = 1000) {
+  if (input === null || input === undefined) {
+    return null;
+  }
+
+  switch (type) {
+    case 'string':
+      // Convert to string and limit length
+      const str = String(input).slice(0, maxLength);
+      // Remove potentially dangerous characters for logging
+      return str.replace(/[<>]/g, '');
+
+    case 'number':
+      const num = Number(input);
+      return isNaN(num) ? 0 : num;
+
+    case 'boolean':
+      return Boolean(input);
+
+    case 'userId':
+      // Firestore user IDs are alphanumeric with length constraints
+      const userId = String(input);
+      if (!/^[a-zA-Z0-9_-]{1,128}$/.test(userId)) {
+        throw new Error('Invalid userId format');
+      }
+      return userId;
+
+    case 'amount':
+      // Financial amounts should be reasonable
+      const amount = Number(input);
+      if (isNaN(amount) || amount < -1000000 || amount > 1000000) {
+        throw new Error('Invalid amount');
+      }
+      return amount;
+
+    default:
+      return input;
+  }
+}
+
+/**
+ * Validate required fields are present
+ */
+function validateRequiredFields(data, fields) {
+  const missing = fields.filter(field => !data[field]);
+  if (missing.length > 0) {
+    throw new Error(`Missing required fields: ${missing.join(', ')}`);
+  }
+}
 
 // ============================================================================
 // NOTIFICATION HELPER FUNCTIONS
@@ -381,6 +489,7 @@ exports.createLinkToken = functions.https.onCall(async (data, context) => {
   const accountId = data?.accountId; // Optional: only needed for update mode
 
   try {
+    const plaidClient = await getPlaidClient();
     const request = {
       user: {
         client_user_id: userId,
@@ -424,6 +533,7 @@ exports.exchangePublicToken = functions.https.onCall(async (data, context) => {
   }
 
   try {
+    const plaidClient = await getPlaidClient();
     // Exchange public token for access token
     const exchangeResponse = await plaidClient.itemPublicTokenExchange({
       public_token: publicToken,
@@ -507,6 +617,7 @@ exports.linkAccountToPlaid = functions.https.onCall(async (data, context) => {
   }
 
   try {
+    const plaidClient = await getPlaidClient();
     // Get Plaid item
     const plaidItemDoc = await db.collection(`users/${userId}/plaidItems`).doc(itemId).get();
     if (!plaidItemDoc.exists) {
@@ -599,6 +710,7 @@ exports.syncTransactions = functions.https.onCall(async (data, context) => {
   }
 
   try {
+    const plaidClient = await getPlaidClient();
     // Get Plaid item
     const plaidItemDoc = await db.collection(`users/${userId}/plaidItems`).doc(itemId).get();
     if (!plaidItemDoc.exists) {
@@ -834,6 +946,7 @@ exports.identifyRecurringTransactions = functions.https.onCall(async (data, cont
   }
 
   try {
+    const plaidClient = await getPlaidClient();
     // Get Plaid item
     const plaidItemDoc = await db.collection(`users/${userId}/plaidItems`).doc(itemId).get();
     if (!plaidItemDoc.exists) {
@@ -1059,6 +1172,7 @@ exports.fetchPlaidRecurringTransactions = functions.https.onCall(async (data, co
   }
 
   try {
+    const plaidClient = await getPlaidClient();
     // Get Plaid item
     const plaidItemDoc = await db.collection(`users/${userId}/plaidItems`).doc(itemId).get();
     if (!plaidItemDoc.exists) {
@@ -1664,9 +1778,82 @@ async function sendBatchedMorningNotification(userId, notifications) {
 }
 
 /**
+ * Verify Plaid webhook signature using JWT
+ */
+async function verifyPlaidWebhook(req) {
+  const verificationHeader = req.headers['plaid-verification'];
+
+  if (!verificationHeader) {
+    functions.logger.error('Plaid webhook: Missing Plaid-Verification header');
+    return false;
+  }
+
+  try {
+    const plaidClient = await getPlaidClient();
+    const jwt = require('jsonwebtoken');
+
+    // Get the webhook verification key ID from the JWT header (without verification)
+    const decodedHeader = jwt.decode(verificationHeader, { complete: true });
+
+    if (!decodedHeader || !decodedHeader.header.kid) {
+      functions.logger.error('Plaid webhook: Invalid JWT or missing key ID');
+      return false;
+    }
+
+    const keyId = decodedHeader.header.kid;
+    functions.logger.info('Plaid webhook: Fetching verification key', { keyId });
+
+    // Fetch the current public key from Plaid
+    const keyResponse = await plaidClient.webhookVerificationKeyGet({ key_id: keyId });
+
+    if (!keyResponse || !keyResponse.data || !keyResponse.data.key) {
+      functions.logger.error('Plaid webhook: Failed to fetch verification key');
+      return false;
+    }
+
+    const publicKey = keyResponse.data.key.key;
+    functions.logger.info('Plaid webhook: Verifying JWT signature');
+
+    // Verify the JWT signature using Plaid's public key
+    const verified = jwt.verify(verificationHeader, publicKey, {
+      algorithms: ['ES256'], // Plaid uses ES256 (ECDSA with SHA-256)
+    });
+
+    functions.logger.info('Plaid webhook signature verified successfully', {
+      keyId,
+      webhookType: verified.request_body_sha256 ? 'valid' : 'missing_body_hash',
+    });
+
+    // Optionally: Verify the request body hash matches (extra security)
+    if (verified.request_body_sha256) {
+      const crypto = require('crypto');
+      const bodyString = JSON.stringify(req.body);
+      const bodyHash = crypto.createHash('sha256').update(bodyString).digest('hex');
+
+      if (bodyHash !== verified.request_body_sha256) {
+        functions.logger.error('Plaid webhook: Body hash mismatch');
+        return false;
+      }
+    }
+
+    return true;
+  } catch (error) {
+    functions.logger.error('Plaid webhook verification error:', error);
+    return false;
+  }
+}
+
+/**
  * Webhook endpoint for Plaid real-time notifications
  */
 exports.plaidWebhook = functions.https.onRequest(async (req, res) => {
+  // SECURITY: Verify webhook signature
+  const isValid = await verifyPlaidWebhook(req);
+  if (!isValid) {
+    functions.logger.error('Plaid webhook: Signature verification failed');
+    return res.status(401).send('Unauthorized - Invalid signature');
+  }
+
   const { webhook_type, webhook_code, item_id } = req.body;
 
   functions.logger.info(`Plaid webhook received: ${webhook_type} - ${webhook_code}`, { item_id });
@@ -1748,6 +1935,26 @@ exports.plaidWebhook = functions.https.onRequest(async (req, res) => {
  */
 exports.processSyncTask = functions.https.onRequest(async (req, res) => {
   try {
+    // SECURITY: Verify Firebase Authentication
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      functions.logger.error('Unauthorized request - No authentication token provided');
+      res.status(401).json({ error: 'Unauthorized - Authentication required' });
+      return;
+    }
+
+    const idToken = authHeader.split('Bearer ')[1];
+    let authenticatedUserId;
+
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      authenticatedUserId = decodedToken.uid;
+    } catch (error) {
+      functions.logger.error('Invalid authentication token:', error);
+      res.status(401).json({ error: 'Unauthorized - Invalid token' });
+      return;
+    }
+
     const { userId, itemId, accountId } = req.body;
 
     if (!userId || !itemId || !accountId) {
@@ -1756,8 +1963,16 @@ exports.processSyncTask = functions.https.onRequest(async (req, res) => {
       return;
     }
 
+    // SECURITY: Verify the authenticated user matches the requested userId
+    if (authenticatedUserId !== userId) {
+      functions.logger.error(`Forbidden - User ${authenticatedUserId} attempted to access data for user ${userId}`);
+      res.status(403).json({ error: 'Forbidden - Access denied' });
+      return;
+    }
+
     functions.logger.info(`Processing sync task for user ${userId}, account ${accountId}`);
 
+    const plaidClient = await getPlaidClient();
     // Get Plaid item
     const plaidItemDoc = await db.collection(`users/${userId}/plaidItems`).doc(itemId).get();
     if (!plaidItemDoc.exists) {
@@ -2368,3 +2583,27 @@ exports.calculateDailyHealthScores = functions.pubsub
 // Import and export the 9 AM daily notification function
 const { sendScheduledNotifications } = require('./notifications');
 exports.sendScheduledNotifications = sendScheduledNotifications;
+
+// ============================================================================
+// REVENUECAT WEBHOOK
+// ============================================================================
+
+// Import and export the RevenueCat webhook handler
+const { revenuecatWebhook } = require('./revenuecatWebhook');
+exports.revenuecatWebhook = revenuecatWebhook;
+
+// ============================================================================
+// SUBSCRIPTION RENEWAL REMINDERS
+// ============================================================================
+
+// Import and export the renewal reminder function
+const { checkRenewalReminders } = require('./renewalReminders');
+exports.checkRenewalReminders = checkRenewalReminders;
+
+// ============================================================================
+// REVENUECAT MANAGEMENT URL
+// ============================================================================
+
+// Import and export the management URL function
+const { getManagementUrl } = require('./getManagementUrl');
+exports.getManagementUrl = getManagementUrl;
